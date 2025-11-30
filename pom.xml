@@ -9,9 +9,9 @@
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <modules>
+        <module>connect4-protocol</module>
         <module>connect4-server</module>
         <module>connect4-client</module>
-        <module>connect4-protocol</module>
     </modules>
 
     <properties>

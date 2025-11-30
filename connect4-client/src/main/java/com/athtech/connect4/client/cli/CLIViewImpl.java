@@ -1,5 +1,22 @@
 package com.athtech.connect4.client.cli;
 
-public class CLIViewImpl {
-    //Impl: prints board, messages, prompts
+import com.athtech.connect4.protocol.messaging.GameStatePacket;
+import com.athtech.connect4.protocol.messaging.ErrorPacket;
+
+public class CLIViewImpl implements CLIView {
+
+    @Override
+    public void displayBoard(GameStatePacket state) {
+        System.out.println("Board: " + state);
+    }
+
+    @Override
+    public void displayMessage(String message) {
+        System.out.println(message);
+    }
+
+    @Override
+    public void displayError(ErrorPacket error) {
+        System.err.println("ERROR: " + error);
+    }
 }
