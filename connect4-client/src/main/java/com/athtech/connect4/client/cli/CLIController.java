@@ -16,7 +16,7 @@ public class CLIController {
         // Register listener here
         clientNetwork.setListener(packet -> {
             // This is called from the network thread whenever a packet arrives
-            view.displayMessage(packet.getData());
+            view.displayMessage(packet.data());
         });
     }
 
