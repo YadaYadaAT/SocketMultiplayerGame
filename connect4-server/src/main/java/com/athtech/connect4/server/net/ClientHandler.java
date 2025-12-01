@@ -1,5 +1,9 @@
 package com.athtech.connect4.server.net;
 
+import com.athtech.connect4.protocol.messaging.NetPacket;
+import com.athtech.connect4.server.persistence.PersistenceManager;
+import com.athtech.connect4.server.persistence.Player;
+
 import java.io.*;
 import java.net.*;
 import java.util.UUID;
@@ -7,14 +11,15 @@ import java.util.UUID;
 public class ClientHandler implements Runnable {
     private final Socket socket;
     private final ServerNetworkAdapter server;
-
+    private final PersistenceManager persistenceManager;
     private BufferedReader reader;
     private PrintWriter writer;
     private final String clientId = UUID.randomUUID().toString(); // temporary ID
 
-    public ClientHandler(Socket socket, ServerNetworkAdapter server) {
+    public ClientHandler(Socket socket, ServerNetworkAdapter server, PersistenceManager pm) {
         this.socket = socket;
         this.server = server;
+        this.persistenceManager = pm;
     }
 
     @Override
@@ -25,7 +30,6 @@ public class ClientHandler implements Runnable {
 
             server.registerClient(clientId, this);
             sendPacket("WELCOME " + clientId); // send welcome to client
-
             String line;
             // Reads a line of text from the client's socket input stream.
             // Internally:
@@ -34,11 +38,12 @@ public class ClientHandler implements Runnable {
             //   BufferedReader buffers characters and detects line breaks for readLine().
             // This call blocks until a full line is available or the stream is closed.
             while ((line = reader.readLine()) != null) {
-                // Instead of printing, send back to client
-                String response = "ECHO from server: " + line;
-                sendPacket(response);
-
-                //handle game messages here later
+                NetPacket packet = parse(line); // maybe JSON decode or split fields
+                switch(packet.type()) {
+                    case SIGNUP_REQUEST -> handleSignUp(packet);
+                    case LOGIN_REQUEST -> handleLogin(packet);
+                    // other game messages later
+                }
             }
 
         } catch (IOException e) {
@@ -56,4 +61,20 @@ public class ClientHandler implements Runnable {
             writer.flush();
         }
     }
+
+    private void handleSignUp(NetPacket packet) {
+        // extract username/password from packet.data()
+        boolean success = persistenceManager.registerPlayer(username, password);
+        sendPacket(new NetPacket(SIGNUP_RESPONSE, "", success ? "OK" : "FAIL"));
+    }
+
+    private void handleLogin(NetPacket packet) {
+        Optional<Player> player = persistenceManager.authenticate(username, password);
+        sendPacket(new NetPacket(LOGIN_RESPONSE, "", player.isPresent() ? "OK" : "FAIL"));
+        if(player.isPresent()) {
+            // store Player object for this session
+        }
+    }
+
+
 }
