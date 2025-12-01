@@ -32,7 +32,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>com.athtech.connect4.client.Connect4GameClient</mainClass>
+                    <mainClass>com.athtech.connect4.client.Connect4CliGameClient</mainClass>
                 </configuration>
             </plugin>
         </plugins>

@@ -14,13 +14,12 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     private PacketListener listener;
 
     public ClientNetworkAdapterImpl(String host, int port) {
-        connect(host, port);
-    }
-
-    private void connect(String host, int port) {
         try {
             socket = new Socket(host, port);
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+            // Wrap the socket's output stream in a PrintWriter for convenient text output.
+            // Using println() automatically adds a line break and can auto-flush to ensure the server receives the message immediately.
             writer = new PrintWriter(socket.getOutputStream(), true);
             new Thread(this::listenLoop).start();
         } catch (IOException e) {
@@ -32,18 +31,8 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         String line;
         try {
             while ((line = reader.readLine()) != null) {
-                final String packetLine = line;
                 if (listener != null) {
-                    listener.onPacketReceived(new NetPacket() {
-                        @Override
-                        public PacketType getType() { return PacketType.ERROR; }
-
-                        @Override
-                        public String getSender() { return "dummy-sender"; }
-
-                        @Override
-                        public String getData() { return packetLine; }
-                    });
+                    listener.onPacketReceived(new NetPacket(PacketType.GAME_STATE, "dummy-sender", line));
                 }
             }
         } catch (IOException e) {

@@ -1,10 +1,19 @@
 package com.athtech.connect4.client.cli;
 
-import com.athtech.connect4.protocol.messaging.ErrorPacket;
 import com.athtech.connect4.protocol.messaging.GameStatePacket;
+import com.athtech.connect4.protocol.messaging.ErrorPacket;
 
-public interface CLIView {
-    void displayBoard(GameStatePacket state);
-    void displayMessage(String message);
-    void displayError(ErrorPacket error);
+public class CLIView {
+
+    public void displayBoard(GameStatePacket state) {
+        System.out.println("Board: " + state);
+    }
+
+    public void displayMessage(String message) {
+        System.out.println(message);
+    }
+
+    public void displayError(ErrorPacket error) {
+        System.err.println("ERROR: " + error);
+    }
 }

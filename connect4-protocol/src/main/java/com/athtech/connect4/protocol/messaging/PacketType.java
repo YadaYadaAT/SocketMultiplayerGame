@@ -1,5 +1,5 @@
 package com.athtech.connect4.protocol.messaging;
 
 public enum PacketType {
-    ERROR
+    ERROR,GAME_STATE,MOVE_RESULT,CHAT
 }
