@@ -19,9 +19,11 @@ public class Player {
     public String getUsername() { return username; }
     public String getPassword() { return password; }
     public int getWins() { return wins; }
+    public void setWins(int wins) {this.wins = wins; }
     public int getLosses() { return losses; }
     public int getDraws() { return draws; }
     public int getGamesPlayed() { return gamesPlayed; }
+    public void setGamesPlayed(int gamesPlayed) {this.gamesPlayed = gamesPlayed;}
     public void setPassword(String password) { this.password = password; }
     public void incrementWins() { wins++; gamesPlayed++; }
     public void incrementLosses() { losses++; gamesPlayed++; }
