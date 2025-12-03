@@ -4,7 +4,7 @@ import com.athtech.connect4.protocol.messaging.NetPacket;
 
 public interface ClientNetworkAdapter {
     void disconnect();
-    void sendPacket(Object packet);
+    void sendPacket(NetPacket packet);
     void setListener(PacketListener listener);
 
     interface PacketListener {
