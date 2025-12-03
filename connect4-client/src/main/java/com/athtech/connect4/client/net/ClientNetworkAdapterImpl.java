@@ -1,7 +1,6 @@
 package com.athtech.connect4.client.net;
 
 import com.athtech.connect4.protocol.messaging.NetPacket;
-import com.athtech.connect4.protocol.messaging.PacketType;
 
 import java.io.*;
 import java.net.Socket;
@@ -9,17 +8,19 @@ import java.net.Socket;
 public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     private Socket socket;
-    private BufferedReader reader;
-    private PrintWriter writer;
+    private ObjectInputStream in;
+    private ObjectOutputStream out;
     private PacketListener listener;
 
     public ClientNetworkAdapterImpl(String host, int port) {
         try {
             socket = new Socket(host, port);
-            reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            writer = new PrintWriter(socket.getOutputStream(), true);
-
+            //OUTPUT first then INPUT to avoid stream deadlocks
+            out = new ObjectOutputStream(socket.getOutputStream());
+            out.flush();
+            in = new ObjectInputStream(socket.getInputStream());
             new Thread(this::listenLoop).start();
+
         } catch (IOException e) {
             System.err.println("Connection failed: " + e.getMessage());
         }
@@ -27,15 +28,14 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     private void listenLoop() {
         try {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (listener != null) {
-                    // TODO: replace placeholder parsing with proper payload decoding
-                    listener.onPacketReceived(new NetPacket(PacketType.GAME_STATE,null, line));
+            while (true) {
+                Object obj = in.readObject();
+                if (obj instanceof NetPacket packet && listener != null) {
+                    listener.onPacketReceived(packet);
                 }
             }
-        } catch (IOException e) {
-            System.err.println("Error in listenLoop: " + e.getMessage());
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Connection closed: " + e.getMessage());
         }
     }
 
@@ -48,7 +48,12 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     @Override
     public void sendPacket(NetPacket packet) {
-        writer.println(packet.toString());
+        try {
+            out.writeObject(packet);
+            out.flush();
+        } catch (IOException e) {
+            System.err.println("Send failed: " + e.getMessage());
+        }
     }
 
     @Override

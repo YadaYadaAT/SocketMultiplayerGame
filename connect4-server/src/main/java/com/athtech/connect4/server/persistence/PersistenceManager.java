@@ -5,7 +5,7 @@ import java.util.Optional;
 
 public interface PersistenceManager {
     boolean registerPlayer(String username, String password);
-    Optional<Player> authenticate(String username, String password);
+    boolean authenticate(String username, String password);
     Optional<Player> getPlayerById(String id);
     Optional<Player> getPlayerByUsername(String username);
     void updatePlayerStats(Player player); // save wins/losses/draws/gamesPlayed

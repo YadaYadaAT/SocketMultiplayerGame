@@ -1,6 +1,9 @@
 package com.athtech.connect4.protocol.messaging;
 
 public enum PacketType {
+    //
+    INFO,//so far the only one without payload record class ; simple strings will do as payload
+
     // Authentication
     LOGIN_REQUEST,
     LOGIN_RESPONSE,

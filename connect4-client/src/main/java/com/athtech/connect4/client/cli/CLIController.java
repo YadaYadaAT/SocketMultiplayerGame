@@ -225,6 +225,7 @@ public class CLIController {
             case REMATCH_RESPONSE -> onRematchResponse(packet);
             case REMATCH_REQUEST -> onRematchRequest(packet);
             case ERROR_MESSAGE -> onError(packet);
+            case INFO -> onInfoNotification(packet);
             default -> view.show("Unhandled packet: " + packet.type());
         }
     }
@@ -321,6 +322,11 @@ public class CLIController {
         // if error is fatal (e.g., disconnected) notify locks
         notifyAllLock(loginLock);
         notifyAllLock(gameLock);
+    }
+
+    private void onInfoNotification(NetPacket packet){
+        view.show(" ");
+        view.show("INFO: " + packet.payload());
     }
 
     /* ======================================================

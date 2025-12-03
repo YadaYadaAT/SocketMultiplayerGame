@@ -41,12 +41,12 @@ public class PersistenceManagerImpl implements PersistenceManager {
     }
 
     @Override
-    public Optional<Player> authenticate(String username, String password) {
+    public boolean authenticate(String username, String password) {
         // TODO: Check username and password hash
         // - Fetch player row by username
         // - Use checkPassword(...) method below to compare input password to stored hash
         // - Return Player object if match, else Optional.empty()
-        return Optional.empty();
+        return true;
     }
 
     @Override

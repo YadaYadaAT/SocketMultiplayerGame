@@ -1,80 +1,101 @@
 package com.athtech.connect4.server.net;
 
 import com.athtech.connect4.protocol.messaging.NetPacket;
+import com.athtech.connect4.protocol.messaging.PacketType;
+import com.athtech.connect4.protocol.payload.*;
 import com.athtech.connect4.server.persistence.PersistenceManager;
-import com.athtech.connect4.server.persistence.Player;
+import com.athtech.connect4.server.persistence.PersistenceManagerImpl;
 
 import java.io.*;
-import java.net.*;
+import java.net.Socket;
+import java.util.Optional;
 import java.util.UUID;
 
 public class ClientHandler implements Runnable {
+
     private final Socket socket;
     private final ServerNetworkAdapter server;
-    private final PersistenceManager persistenceManager;
-    private BufferedReader reader;
-    private PrintWriter writer;
-    private final String clientId = UUID.randomUUID().toString(); // temporary ID
 
-    public ClientHandler(Socket socket, ServerNetworkAdapter server, PersistenceManager pm) {
+    private ObjectInputStream in;
+    private ObjectOutputStream out;
+
+    private final String clientId = UUID.randomUUID().toString();
+
+
+    // For real use you will inject a PersistenceManager
+    private static final PersistenceManager persistence = new PersistenceManagerImpl();
+
+    public ClientHandler(Socket socket, ServerNetworkAdapter server) {
         this.socket = socket;
         this.server = server;
-        this.persistenceManager = pm;
     }
 
     @Override
     public void run() {
         try {
-            reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            writer = new PrintWriter(socket.getOutputStream(), true);
+            // Order: output first, flush, then input
+            out = new ObjectOutputStream(socket.getOutputStream());
+            out.flush();
+            in = new ObjectInputStream(socket.getInputStream());
 
             server.registerClient(clientId, this);
-            sendPacket("WELCOME " + clientId); // send welcome to client
-            String line;
-            // Reads a line of text from the client's socket input stream.
-            // Internally:
-            //   socket.getInputStream() provides raw bytes from the network,
-            //   InputStreamReader converts bytes to characters,
-            //   BufferedReader buffers characters and detects line breaks for readLine().
-            // This call blocks until a full line is available or the stream is closed.
-            while ((line = reader.readLine()) != null) {
-                NetPacket packet = parse(line); // maybe JSON decode or split fields
-                switch(packet.type()) {
-                    case SIGNUP_REQUEST -> handleSignUp(packet);
-                    case LOGIN_REQUEST -> handleLogin(packet);
-                    // other game messages later
-                }
+            System.out.println("Handler started for client: " + clientId);
+
+            sendPacket(new NetPacket(PacketType.INFO, "server", "Connected to the server..."));
+
+            // Listen loop
+            while (true) {
+                Object obj = in.readObject();
+                if (!(obj instanceof NetPacket packet)) continue;
+
+                handlePacket(packet);
             }
 
-        } catch (IOException e) {
-            // Could also notify client or log more gracefully
-            System.err.println("Connection error for client " + clientId + ": " + e.getMessage());
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Client disconnected: " + clientId + " -> " + e.getMessage());
         } finally {
             server.unregisterClient(clientId);
             try { socket.close(); } catch (IOException ignored) {}
         }
     }
 
-    public void sendPacket(Object packet) {
-        if (writer != null) {
-            writer.println(packet.toString());
-            writer.flush();
+    private void handlePacket(NetPacket packet) {
+        switch (packet.type()) {
+            case LOGIN_REQUEST -> handleLogin(packet);
+            case SIGNUP_REQUEST -> handleSignup(packet);
+            // TODO: invite, game move, rematch, etc.
+            default -> sendPacket(new NetPacket(
+                    PacketType.ERROR_MESSAGE,
+                    "server",
+                    new ErrorMessage("Unknown packet type: " + packet.type())
+            ));
         }
-    }
-
-    private void handleSignUp(NetPacket packet) {
-        // extract username/password from packet.data()
-        boolean success = persistenceManager.registerPlayer(username, password);
-        sendPacket(new NetPacket(SIGNUP_RESPONSE, "", success ? "OK" : "FAIL"));
     }
 
     private void handleLogin(NetPacket packet) {
-        Optional<Player> player = persistenceManager.authenticate(username, password);
-        sendPacket(new NetPacket(LOGIN_RESPONSE, "", player.isPresent() ? "OK" : "FAIL"));
-        if(player.isPresent()) {
-            // store Player object for this session
-        }
+        LoginRequest req = (LoginRequest) packet.payload();
+
+        boolean ok = persistence.authenticate(req.username(), req.password());
+        LoginResponse resp = new LoginResponse(ok, ok ? "Welcome " + req.username() : "Invalid credentials");
+
+        sendPacket(new NetPacket(PacketType.LOGIN_RESPONSE, "server", resp));
     }
 
+    private void handleSignup(NetPacket packet) {
+        SignupRequest req = (SignupRequest) packet.payload();
 
+        boolean ok = persistence.registerPlayer(req.username(), req.password());
+        SignupResponse resp = new SignupResponse(ok, ok ? "Signup OK" : "Username taken");
+
+        sendPacket(new NetPacket(PacketType.SIGNUP_RESPONSE, "server", resp));
+    }
+
+    public void sendPacket(NetPacket packet) {
+        try {
+            out.writeObject(packet);
+            out.flush();
+        } catch (IOException e) {
+            System.err.println("Send failed to client " + clientId + ": " + e.getMessage());
+        }
+    }
 }
