@@ -19,6 +19,10 @@ public enum PacketType {
     GAME_STATE,
     GAME_END,
 
+    //Rematch
+    REMATCH_REQUEST,
+    REMATCH_RESPONSE,
+
     // Misc / Errors
     ERROR_MESSAGE,
     LOBBY_PLAYERS
