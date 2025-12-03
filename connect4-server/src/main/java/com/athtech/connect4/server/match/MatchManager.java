@@ -1,5 +1,11 @@
 package com.athtech.connect4.server.match;
 
-public class MatchManager {
-    //Impl: pairs players, manages turns
+import java.util.List;
+import java.util.Optional;
+
+public interface MatchManager {
+    ActiveMatch createMatch(String player1, String player2);
+    Optional<ActiveMatch> getMatch(String matchId);
+    List<ActiveMatch> getActiveMatches();
+    void endMatch(String matchId);
 }

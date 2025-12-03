@@ -8,7 +8,6 @@ import com.athtech.connect4.server.persistence.PersistenceManagerImpl;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.Optional;
 import java.util.UUID;
 
 public class ClientHandler implements Runnable {
@@ -21,8 +20,9 @@ public class ClientHandler implements Runnable {
 
     private final String clientId = UUID.randomUUID().toString();
 
+    // null means not logged in
+    private String username = null;
 
-    // For real use you will inject a PersistenceManager
     private static final PersistenceManager persistence = new PersistenceManagerImpl();
 
     public ClientHandler(Socket socket, ServerNetworkAdapter server) {
@@ -33,7 +33,6 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
-            // Order: output first, flush, then input
             out = new ObjectOutputStream(socket.getOutputStream());
             out.flush();
             in = new ObjectInputStream(socket.getInputStream());
@@ -41,9 +40,8 @@ public class ClientHandler implements Runnable {
             server.registerClient(clientId, this);
             System.out.println("Handler started for client: " + clientId);
 
-            sendPacket(new NetPacket(PacketType.INFO, "server", "Connected to the server..."));
+            sendPacket(new NetPacket(PacketType.INFO, "server", "Connected to server..."));
 
-            // Listen loop
             while (true) {
                 Object obj = in.readObject();
                 if (!(obj instanceof NetPacket packet)) continue;
@@ -52,8 +50,11 @@ public class ClientHandler implements Runnable {
             }
 
         } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Client disconnected: " + clientId + " -> " + e.getMessage());
+            System.err.println("Client disconnected: " + clientId);
         } finally {
+            if (username != null) {
+                server.setUserLoggedOut(username);
+            }
             server.unregisterClient(clientId);
             try { socket.close(); } catch (IOException ignored) {}
         }
@@ -63,12 +64,11 @@ public class ClientHandler implements Runnable {
         switch (packet.type()) {
             case LOGIN_REQUEST -> handleLogin(packet);
             case SIGNUP_REQUEST -> handleSignup(packet);
-            // TODO: invite, game move, rematch, etc.
-            default -> sendPacket(new NetPacket(
-                    PacketType.ERROR_MESSAGE,
-                    "server",
-                    new ErrorMessage("Unknown packet type: " + packet.type())
-            ));
+
+            default -> sendPacket(
+                    new NetPacket(PacketType.ERROR_MESSAGE, "server",
+                            new ErrorMessage("Unknown packet type: " + packet.type()))
+            );
         }
     }
 
@@ -76,9 +76,14 @@ public class ClientHandler implements Runnable {
         LoginRequest req = (LoginRequest) packet.payload();
 
         boolean ok = persistence.authenticate(req.username(), req.password());
-        LoginResponse resp = new LoginResponse(ok, ok ? "Welcome " + req.username() : "Invalid credentials");
 
+        LoginResponse resp = new LoginResponse(ok, ok ? "Welcome " + req.username() : "Invalid credentials");
         sendPacket(new NetPacket(PacketType.LOGIN_RESPONSE, "server", resp));
+
+        if (ok) {
+            username = req.username();
+            server.setUserLoggedIn(username, clientId);
+        }
     }
 
     private void handleSignup(NetPacket packet) {
@@ -97,5 +102,9 @@ public class ClientHandler implements Runnable {
         } catch (IOException e) {
             System.err.println("Send failed to client " + clientId + ": " + e.getMessage());
         }
+    }
+
+    public String getUsername() {
+        return username;
     }
 }
