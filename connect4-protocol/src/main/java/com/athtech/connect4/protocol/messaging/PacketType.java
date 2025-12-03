@@ -17,6 +17,7 @@ public enum PacketType {
     // Game actions
     MOVE_REQUEST,
     GAME_STATE,
+    GAME_END,
 
     // Misc / Errors
     ERROR_MESSAGE,
