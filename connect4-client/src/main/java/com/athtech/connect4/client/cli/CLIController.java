@@ -4,6 +4,11 @@ import com.athtech.connect4.client.net.ClientNetworkAdapter;
 import com.athtech.connect4.protocol.messaging.*;
 import com.athtech.connect4.protocol.payload.*;
 
+import java.lang.reflect.Array;
+import java.util.ArrayList;
+import java.util.Arrays;
+
+
 public class CLIController {
 
     private final CLIView view;
@@ -245,8 +250,14 @@ public class CLIController {
     }
 
     private void onLobbyPlayers(NetPacket packet) {
-        LobbyPlayers lobby = (LobbyPlayers) packet.payload();
-        view.show("Lobby: " + String.join(", ", lobby.players()));
+        Object obj = packet.payload();
+        if (!(obj instanceof String[] stringArray)){
+            view.show("Lobby status response is unreadable");
+            return ;
+        }
+        var lobP =(String[]) packet.payload();
+        var lobbyPlayers = new LobbyPlayers(Arrays.asList(lobP));
+        view.show("Lobby: " + String.join(", ",  lobbyPlayers.players() ));
     }
 
     private void onInviteNotification(NetPacket packet) {
@@ -346,7 +357,6 @@ public class CLIController {
     private boolean waitFor(Object lock, long timeoutMillis) {
         long deadline = System.currentTimeMillis() + timeoutMillis;
         synchronized (lock) {
-            while (true) {
                 long remaining = deadline - System.currentTimeMillis();
                 if (remaining <= 0) return false;
                 try {
@@ -357,14 +367,7 @@ public class CLIController {
                 }
                 // awakened — caller code will check the relevant condition (e.g., loggedIn/inGame)
                 return true;
-            }
         }
-    }
-
-    /** Convenience: short waitFor with default timeout (used by login/game where needed). */
-    private boolean waitFor(Object lock) {
-        // default: 8 seconds for login, 60s for game in their callers
-        return waitFor(lock, 8000);
     }
 
     /** Notify all waiting threads on lock. */

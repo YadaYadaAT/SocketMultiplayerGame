@@ -28,6 +28,5 @@ public enum PacketType {
 
     // Misc / Errors
     ERROR_MESSAGE,
-    LOBBY_PLAYERS,
-    LOBBY_UPDATE //TODO: we need to decide if we are going to use LobbyUpdate or Lobby players or neither...
+    LOBBY_PLAYERS
 }

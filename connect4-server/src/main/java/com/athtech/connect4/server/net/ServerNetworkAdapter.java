@@ -71,7 +71,7 @@ public class ServerNetworkAdapter {
 
     public void broadcastLoggedInUsers() {
         String[] array = getLoggedInUsernames().toArray(new String[0]);
-        NetPacket packet = new NetPacket(PacketType.LOBBY_UPDATE, "server", array);
+        NetPacket packet = new NetPacket(PacketType.LOBBY_PLAYERS, "server", array);
         broadcast(packet);
     }
 
