@@ -1,5 +1,7 @@
 package com.athtech.connect4.client.cli;
 
+import com.athtech.connect4.protocol.payload.BoardState;
+
 /** All display logic lives here. Keep it simple so view can be swapped later. */
 public class CLIView {
 
@@ -30,6 +32,7 @@ public class CLIView {
         System.out.println("1. Invite Player");
         System.out.println("2. Check Last Invite");
         System.out.println("3. Refresh Lobby Players");
+        System.out.println("4. View My Stats");
         System.out.println("0. Logout");
         System.out.print("Enter choice: ");
     }
@@ -57,4 +60,25 @@ public class CLIView {
     public void showRematchPrompt() {
         System.out.print("Request rematch? (y/n): ");
     }
+
+    public void showBoard(BoardState board) {
+        System.out.println();
+        System.out.println("   0   1   2   3   4   5   6");
+        System.out.println(" +---+---+---+---+---+---+---+");
+
+        char[][] cells = board.cells();
+
+        for (int r = 0; r < cells.length; r++) {
+            System.out.print(r + "|");
+            for (int c = 0; c < cells[r].length; c++) {
+                char cell = cells[r][c];
+                System.out.print(" " + (cell == '\0' || cell == ' ' ? '.' : cell) + " |");
+            }
+            System.out.println();
+            System.out.println(" +---+---+---+---+---+---+---+");
+        }
+    }
+
+
+
 }

@@ -8,4 +8,5 @@ public interface MatchManager {
     Optional<ActiveMatch> getMatch(String matchId);
     List<ActiveMatch> getActiveMatches();
     void endMatch(String matchId);
+    Optional<ActiveMatch> getMatchByPlayer(String username);
 }

@@ -4,29 +4,37 @@ import com.athtech.connect4.client.net.ClientNetworkAdapter;
 import com.athtech.connect4.protocol.messaging.*;
 import com.athtech.connect4.protocol.payload.*;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
-
+import java.util.List;
 
 public class CLIController {
-
     private final CLIView view;
-    private final CLIInputHandler input;
     private final ClientNetworkAdapter clientNetwork;
+    private final CLIInputHandler input;
 
+    // Session state
+    private volatile boolean loggedIn = false;
+    private volatile boolean sessionClosing = false;
+    private volatile boolean inGame = false;
+    private volatile InviteNotificationResponse lastInvite = null;
     private String username;
-    private boolean loggedIn = false;
-    private boolean inGame = false;
-    private NetPacket lastInvite = null;
+    private String relogCode;
 
-    // Locks used for synchronous waits (login, game updates)
+    private volatile String pendingRematchRequester = null;
+    private volatile String pendingRematchOpponent = null;
+
+    private volatile List<String> lobbyPlayers = new ArrayList<>();
+    private volatile PlayerStatsResponse myStats;
+
+    // Locks
     private final Object loginLock = new Object();
+    private final Object logoutLock = new Object();
     private final Object gameLock = new Object();
     private final Object inviteLock = new Object();
 
-    // Controls outer loop exit
-    private boolean appShouldExit = false;
+    private volatile ClientState state = ClientState.LOBBY;
+    private boolean shouldAppExit = false;
 
     public CLIController(CLIView view, ClientNetworkAdapter clientNetwork, CLIInputHandler input) {
         this.view = view;
@@ -35,279 +43,271 @@ public class CLIController {
         clientNetwork.setListener(this::handleServerPacket);
     }
 
-    /* ======================================================
-       ENTRY POINT (keeps ability to logout -> login again)
-       ====================================================== */
     public void run() {
-        boolean running = true;
-
-        while (running && !appShouldExit) {
+        while (!shouldAppExit) {
             resetSessionState();
-
-            // Login/signup/exit screen
-            loginMenuLoop();
-
-            if (appShouldExit) break;
-            if (!loggedIn) {
-                // user aborted or login never succeeded; restart outer loop
-                continue;
-            }
-
-            // Main lobby/game loop; returns whether we should continue running
-            running = mainLoop();
+            authenticationMenu();
+            if (loggedIn) mainLoop();
         }
-
-        view.show("Client stopped.");
+        view.show("Hope you enjoyed our app. o/");
     }
 
     private void resetSessionState() {
         loggedIn = false;
+        sessionClosing = false;
         inGame = false;
         lastInvite = null;
+        username = null;
+        relogCode = null;
+        pendingRematchRequester = null;
+        pendingRematchOpponent = null;
+        lobbyPlayers.clear();
+        myStats = null;
     }
 
-    /* ======================================================
-       LOGIN / SIGNUP UI (non-blocking; uses waitFor with timeout)
-       ====================================================== */
-    private void loginMenuLoop() {
-        while (!loggedIn && !appShouldExit) {
-            view.showLoginScreen();
-            String pick = input.readChoice();
-            switch (pick) {
-                case "1" -> attemptLoginFlow();
-                case "2" -> attemptSignupFlow();
-                case "0" -> {
-                    appShouldExit = true;
-                    return;
-                }
-                default -> view.show("Invalid choice.");
+    private void authenticationMenu() {
+        view.showLoginScreen();
+        switch (input.readChoice()) {
+            case "1" -> attemptLoginFlow();
+            case "2" -> attemptSignupFlow();
+            case "0" -> {
+                shouldAppExit = true;
+                try { clientNetwork.disconnect(); } catch (Exception ignored) {}
             }
+            default -> view.show("Invalid choice.");
         }
     }
 
     private void attemptLoginFlow() {
         view.prompt("Username: ");
         username = input.readLine();
-        if (username.equalsIgnoreCase("exit")) { appShouldExit = true; return; }
-
+        if ("exit".equalsIgnoreCase(username)) { shouldAppExit = true; return; }
         view.prompt("Password: ");
         String password = input.readLine();
 
-        LoginRequest req = new LoginRequest(username, password);
-        clientNetwork.sendPacket(new NetPacket(PacketType.LOGIN_REQUEST, username, req));
-
-        // wait up to 8 seconds for server response; if not received, inform user and allow retry
-        boolean notified = waitFor(loginLock, 8000);
-        if (!notified) {
-            view.show("Login attempt timed out (no server response). Try again or check connection.");
-        }
+        clientNetwork.sendPacket(new NetPacket(PacketType.LOGIN_REQUEST, username, new LoginRequest(username, password)));
+        waitFor(loginLock, 8000);
     }
 
     private void attemptSignupFlow() {
         view.showSignupPrompt();
         view.prompt("Choose username: ");
         String desired = input.readLine();
-
         view.prompt("Choose password: ");
         String pwd = input.readLine();
 
-        SignupRequest req = new SignupRequest(desired, pwd);
-        clientNetwork.sendPacket(new NetPacket(PacketType.SIGNUP_REQUEST, desired, req));
-
-        // wait briefly for signup response (server may auto-login or instruct)
-        boolean notified = waitFor(loginLock, 8000);
-        if (!notified) {
-            view.show("Signup timed out. Try again later.");
-        }
-        // if signup succeeded, server may set loggedIn=true via LOGIN_RESPONSE or SIGNUP_RESPONSE.
+        clientNetwork.sendPacket(new NetPacket(PacketType.SIGNUP_REQUEST, desired, new SignupRequest(desired, pwd)));
+        waitFor(loginLock, 8000);
     }
 
-    /* ======================================================
-       MAIN LOOP (LOBBY + GAME), returns whether to keep app running
-       ====================================================== */
-    private boolean mainLoop() {
+    private void mainLoop() {
         while (loggedIn) {
-            if (!inGame) {
-                view.showLobbyMenu();
-                String choice = input.readChoice();
-                handleLobbyChoice(choice);
-            } else {
-                runGameLoop();
-            }
+            if (sessionClosing) { waitFor(logoutLock, 1000); continue; }
+
+            // Rematch offer received
+            if (!inGame && pendingRematchRequester != null) handleIncomingRematchRequest();
+
+            // Rematch opportunity
+            if (!inGame && pendingRematchOpponent != null) handleRematchPrompt();
+
+            // Lobby interaction
+            if (!inGame && pendingRematchRequester == null && pendingRematchOpponent == null) handleLobby();
+
+            // Game loop
+            if (inGame) runGameLoop();
         }
-        // When loggedIn becomes false, return true to allow re-login.
-        return true;
     }
 
-    private void handleLobbyChoice(String choice) {
+    private void handleIncomingRematchRequest() {
+        view.show("Rematch offer from: " + pendingRematchRequester);
+        view.prompt("Accept rematch? (y/n): ");
+        boolean accept = input.readLine().trim().equalsIgnoreCase("y");
+        clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_DECISION_REQUEST, username,
+                new RematchDecisionRequest(pendingRematchRequester, accept)));
+        pendingRematchRequester = null;
+    }
+
+    private void handleRematchPrompt() {
+        view.showRematchPrompt();
+        boolean wantRematch = input.readLine().trim().equalsIgnoreCase("y");
+        if (wantRematch) {
+            clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username,
+                    new RematchRequest(pendingRematchOpponent)));
+            view.show("Rematch request sent.");
+        }
+        pendingRematchOpponent = null;
+    }
+
+    private void handleLobby() {
+        view.showLobbyMenu();
+        String choice = input.readChoice();
         switch (choice) {
-            case "1" -> sendInvite();
-            case "2" -> handleIncomingInviteDecision();
-            case "3" -> requestLobbyPlayers(); // refresh list
-            case "0" -> logout();
+            case "1" -> sendInviteRequest();
+            case "2" -> handleReceivedInviteRequest();
+            case "3" -> requestLobbyPlayers();
+            case "4" -> requestPlayerStats();
+            case "0" -> requestLogout();
             default -> view.show("Invalid option.");
         }
     }
 
-    /* ======================================================
-       LOBBY / INVITES
-       ====================================================== */
-    private void sendInvite() {
-        view.showInvitePrompt();
-        String target = input.readLine();
-        if (target.isBlank()) { view.show("No target entered."); return; }
+    private void sendInviteRequest() {
+        if (inGame) return;
+        List<String> snapshot = requestLobbyPlayers();
+        if (snapshot.isEmpty()) return;
 
-        InviteRequest req = new InviteRequest(target);
-        clientNetwork.sendPacket(new NetPacket(PacketType.INVITE_REQUEST, username, req));
+        view.prompt("Choose a player to invite (number): ");
+        int choice = input.readInt();
+        if (choice < 1 || choice > snapshot.size()) { view.show("Invalid choice."); return; }
+
+        clientNetwork.sendPacket(new NetPacket(PacketType.INVITE_REQUEST, username,
+                new InviteRequest(snapshot.get(choice - 1))));
     }
 
-    private void handleIncomingInviteDecision() {
+    private void handleReceivedInviteRequest() {
         synchronized (inviteLock) {
-            if (lastInvite == null) {
-                view.show("No pending invites.");
-                return;
-            }
-            InviteNotification notif = (InviteNotification) lastInvite.payload();
-            view.show("Invite from: " + notif.fromUsername());
-            view.showAcceptPrompt();
-            boolean accept = input.readLine().equalsIgnoreCase("y");
+            if (inGame || lastInvite == null) return;
 
-            InviteDecisionRequest req = new InviteDecisionRequest(notif.fromUsername(), accept);
-            clientNetwork.sendPacket(new NetPacket(PacketType.INVITE_DECISION_REQUEST, username, req));
+            view.show("Invite from: " + lastInvite.fromUsername());
+            view.showAcceptPrompt();
+            boolean accept = input.readLine().trim().equalsIgnoreCase("y");
+
+            clientNetwork.sendPacket(new NetPacket(PacketType.INVITE_DECISION_REQUEST, username,
+                    new InviteDecisionRequest(lastInvite.fromUsername(), accept)));
             lastInvite = null;
         }
     }
 
-    private void requestLobbyPlayers() {
-        clientNetwork.sendPacket(new NetPacket(PacketType.LOBBY_PLAYERS, username, new LobbyPlayersRequest()));
+    private List<String> requestLobbyPlayers() {
+        if (inGame) return List.of();
+        if (lobbyPlayers.isEmpty()) { view.show("No players available."); return List.of(); }
+        for (int i = 0; i < lobbyPlayers.size(); i++) view.show((i + 1) + ") " + lobbyPlayers.get(i));
+        return new ArrayList<>(lobbyPlayers);
     }
 
-    /* ======================================================
-       GAME LOOP (turn-based)
-       - Uses timeout to avoid deadlocks. If timeout occurs, user is informed and returned to menu.
-       ====================================================== */
+    private void requestPlayerStats() {
+        if (inGame || myStats == null) return;
+        view.show("Stats → Played: " + myStats.gamesPlayed() +
+                ", Wins: " + myStats.wins() +
+                ", Losses: " + myStats.losses() +
+                ", Draws: " + myStats.draws());
+    }
+
+    private void requestLogout() {
+        if (inGame || sessionClosing) { view.show("Logout already in progress..."); return; }
+
+        sessionClosing = true;
+        clientNetwork.sendPacket(new NetPacket(PacketType.LOGOUT_REQUEST, username, new LogoutRequest()));
+        waitFor(logoutLock, 4000);
+
+        resetSessionState();
+        try { clientNetwork.disconnect(); } catch (Exception ignored) {}
+    }
+
     private void runGameLoop() {
         view.showGameStart();
+        while (inGame && loggedIn && !sessionClosing) {
+            int row = readGameInt("Row: ");
+            if (!inGame) break;
+            int col = readGameInt("Column: ");
+            if (!inGame) break;
 
-        while (inGame) {
-            view.showGamePromptRow();
-            int row = input.readInt();
-
-            view.showGamePromptCol();
-            int col = input.readInt();
-
-            Move move = new Move(row, col);
-            clientNetwork.sendPacket(new NetPacket(PacketType.MOVE_REQUEST, username, move));
-
-            // Wait up to 60 seconds for the next GameState (or other event). If timeout, inform user and continue.
+            clientNetwork.sendPacket(new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col)));
             boolean notified = waitFor(gameLock, 60_000);
-            if (!notified) {
-                view.show("No update from server after your move (timeout). You can continue; server may be slow or disconnected.");
-                // re-check inGame flag — server might have ended the game in the meantime
-                if (!inGame) break;
-            }
+            if (!notified) reconnectAndFetchState();
         }
     }
 
-    /* ======================================================
-       REMATCH flow (triggered when game ends)
-       - When server sends GAME_END, controller will prompt for rematch (below in onGameEnd).
-       ====================================================== */
+    private int readGameInt(String prompt) {
+        while (true) {
+            view.prompt(prompt);
+            try { return Integer.parseInt(input.readLine().trim()); }
+            catch (NumberFormatException e) { view.show("Invalid number. Try again."); }
+        }
+    }
 
-    /* ======================================================
-       NETWORK / PACKET HANDLING
-       ====================================================== */
     private void handleServerPacket(NetPacket packet) {
+        if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE) return;
+
         switch (packet.type()) {
+            case INFO_RESPONSE -> onInfoResponse(packet);
             case LOGIN_RESPONSE -> onLoginResponse(packet);
             case SIGNUP_RESPONSE -> onSignupResponse(packet);
-            case LOBBY_PLAYERS -> onLobbyPlayers(packet);
-            case INVITE_NOTIFICATION -> onInviteNotification(packet);
+            case LOGOUT_RESPONSE -> onLogoutResponse(packet);
+            case LOBBY_PLAYERS_RESPONSE -> onLobbyPlayersResponse(packet);
+            case PLAYER_STATS_RESPONSE -> onPlayerStatsResponse(packet);
             case INVITE_RESPONSE -> onInviteResponse(packet);
+            case INVITE_NOTIFICATION_RESPONSE -> onInviteNotificationResponse(packet);
             case INVITE_DECISION_RESPONSE -> onInviteDecisionResponse(packet);
-            case GAME_STATE -> onGameState(packet);
-            case GAME_END -> onGameEnd(packet);
+            case GAME_STATE_RESPONSE -> onGameStateResponse(packet);
+            case GAME_END_RESPONSE -> onGameEndResponse(packet);
+            case MOVE_REJECTED_RESPONSE -> onMoveRejectedResponse(packet);
             case REMATCH_RESPONSE -> onRematchResponse(packet);
-            case REMATCH_REQUEST -> onRematchRequest(packet);
-            case ERROR_MESSAGE -> onError(packet);
-            case INFO -> onInfoNotification(packet);
+            case REMATCH_NOTIFICATION_RESPONSE -> onRematchNotificationResponse(packet);
+            case RECONNECT_RESPONSE -> onReconnectResponse(packet);
+            case ERROR_MESSAGE_RESPONSE -> onErrorMessageResponse(packet);
             default -> view.show("Unhandled packet: " + packet.type());
         }
+    }
+
+    // --------- Server response handlers ---------
+    private void onInfoResponse(NetPacket packet) {
+        Object payload = packet.payload();
+        view.show("INFO: " + (payload != null ? payload.toString() : "No details"));
     }
 
     private void onLoginResponse(NetPacket packet) {
         LoginResponse resp = (LoginResponse) packet.payload();
         loggedIn = resp.success();
         view.show(resp.message());
+        if (loggedIn) { relogCode = resp.relogCode(); myStats = resp.stats(); }
         notifyAllLock(loginLock);
     }
 
     private void onSignupResponse(NetPacket packet) {
         SignupResponse resp = (SignupResponse) packet.payload();
         view.show(resp.message());
-        // Server may auto-login on signup; if so it should send LOGIN_RESPONSE next.
         notifyAllLock(loginLock);
     }
 
-    private void onLobbyPlayers(NetPacket packet) {
-        Object obj = packet.payload();
-        if (!(obj instanceof String[] stringArray)){
-            view.show("Lobby status response is unreadable");
-            return ;
-        }
-        var lobP =(String[]) packet.payload();
-        var lobbyPlayers = new LobbyPlayers(Arrays.asList(lobP));
-        view.show("Lobby: " + String.join(", ",  lobbyPlayers.players() ));
+    private void onLobbyPlayersResponse(NetPacket packet) {
+        var lobP = (String[]) packet.payload();
+        lobbyPlayers = Arrays.asList(lobP);
+        view.show("Lobby: " + String.join(", ", lobbyPlayers));
     }
 
-    private void onInviteNotification(NetPacket packet) {
-        synchronized (inviteLock) {
-            lastInvite = packet;
-        }
-        InviteNotification notif = (InviteNotification) packet.payload();
-        view.show("Invite from: " + notif.fromUsername());
+    private void onInviteNotificationResponse(NetPacket packet) {
+        lastInvite = (InviteNotificationResponse) packet.payload();
+        view.show("Invite from: " + lastInvite.fromUsername());
     }
 
     private void onInviteResponse(NetPacket packet) {
-        InviteResponse resp = (InviteResponse) packet.payload();
+        var resp = (InviteResponse) packet.payload();
         view.show(resp.delivered() ? "Invite delivered." : "Invite failed: " + resp.reason());
     }
 
     private void onInviteDecisionResponse(NetPacket packet) {
-        InviteDecisionResponse resp = (InviteDecisionResponse) packet.payload();
-        if (resp.accepted()) {
-            inGame = true;
-            view.show("Invitation accepted. Match starting...");
-            notifyAllLock(gameLock);
-        } else {
-            view.show("Invitation declined.");
-        }
+        var resp = (InviteDecisionResponse) packet.payload();
+        if (resp.accepted()) { view.show("Invitation accepted. Match starting..."); inGame = true; }
+        else view.show("Invitation declined.");
+        notifyAllLock(gameLock);
     }
 
-    private void onGameState(NetPacket packet) {
-        GameState gs = (GameState) packet.payload();
-        // TODO: render board -> for now print a short summary
-        view.show("Game updated. Turn: " + gs.currentPlayer() + (gs.gameOver() ? " (game over)" : ""));
+    private void onGameStateResponse(NetPacket packet) {
+        GameStateResponse gs = (GameStateResponse) packet.payload();
+        view.showBoard(gs.board());
+        view.show("Turn: " + gs.currentPlayer());
         inGame = !gs.gameOver();
         notifyAllLock(gameLock);
     }
 
-    private void onGameEnd(NetPacket packet) {
-        GameEnd end = (GameEnd) packet.payload();
-        // show final message
-        view.show("Game ended: " + end.reason());
-
-        // ask for rematch
-        view.showRematchPrompt();
-        boolean wantRematch = input.readLine().equalsIgnoreCase("y");
-        if (wantRematch) {
-            // send rematch request to server (server decides how to route it)
-            RematchRequest req = new RematchRequest(/*opponentUsername=*/ end.opponent());
-            clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, req));
-            view.show("Rematch request sent.");
-        }
-
-        // ensure we exit game loop
+    private void onGameEndResponse(NetPacket packet) {
+        GameEndResponse end = (GameEndResponse) packet.payload();
+        if (end.finalBoard() != null) view.showBoard(end.finalBoard());
+        String message = "Draw".equals(end.reason()) ? "Game ended in a draw against " + end.opponent()
+                : (username.equals(end.winner()) ? "You won against " + end.opponent() : "You lost against " + end.opponent());
+        view.show(message);
+        pendingRematchOpponent = end.opponent();
         inGame = false;
         notifyAllLock(gameLock);
     }
@@ -317,63 +317,81 @@ public class CLIController {
         view.show("Rematch response: " + (resp.accepted() ? "accepted" : "declined") + ". " + resp.message());
     }
 
-    private void onRematchRequest(NetPacket packet) {
-        // Server forwarded a rematch offer from opponent
-        RematchRequest offer = (RematchRequest) packet.payload();
+    private void onRematchNotificationResponse(NetPacket packet) {
+        var offer = (RematchNotificationResponse) packet.payload();
         view.show("Rematch offer from: " + offer.requester());
-        view.prompt("Accept rematch? (y/n): ");
-        boolean accept = input.readLine().equalsIgnoreCase("y");
-        RematchResponse resp = new RematchResponse(accept, accept ? "OK" : "No thanks");
-        clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_RESPONSE, username, resp));
+        pendingRematchRequester = offer.requester();
     }
 
-    private void onError(NetPacket packet) {
-        ErrorMessage err = (ErrorMessage) packet.payload();
+    private void onMoveRejectedResponse(NetPacket packet) {
+        MoveRejectedResponse rej = (MoveRejectedResponse) packet.payload();
+        view.show("Move rejected: " + rej.reason());
+        notifyAllLock(gameLock);
+    }
+
+    private void onPlayerStatsResponse(NetPacket packet) { myStats = (PlayerStatsResponse) packet.payload(); }
+
+    private void onLogoutResponse(NetPacket packet) {
+        LogoutResponse resp = (LogoutResponse) packet.payload();
+        view.show(resp.message());
+        sessionClosing = false;
+        resetSessionState();
+        notifyAllLock(logoutLock);
+        notifyAllLock(gameLock);
+        notifyAllLock(loginLock);
+        try { clientNetwork.disconnect(); } catch (Exception ignored) {}
+    }
+
+    private void onErrorMessageResponse(NetPacket packet) {
+        ErrorMessageResponse err = (ErrorMessageResponse) packet.payload();
         view.show("ERROR: " + err.message());
-        // if error is fatal (e.g., disconnected) notify locks
         notifyAllLock(loginLock);
         notifyAllLock(gameLock);
     }
 
-    private void onInfoNotification(NetPacket packet){
-        view.show(" ");
-        view.show("INFO: " + packet.payload());
+    private void onReconnectResponse(NetPacket packet) {
+        ReconnectResponse resp = (ReconnectResponse) packet.payload();
+        if (!resp.success()) { view.show(resp.message()); resetSessionState(); notifyAllLock(loginLock); return; }
+
+        view.show(resp.message());
+        loggedIn = true;
+        sessionClosing = false;
+        relogCode = resp.relogCode();
+        myStats = resp.myStats();
+        lobbyPlayers = resp.lobbyPlayers() != null ? Arrays.asList(resp.lobbyPlayers()) : new ArrayList<>();
+        if (resp.currentGameState() != null) {
+            inGame = !resp.currentGameState().gameOver();
+            view.show("Game restored. Turn: " + resp.currentGameState().currentPlayer());
+        }
+        InviteNotificationResponse[] invites = resp.pendingInvites();
+        lastInvite = (invites != null && invites.length > 0) ? invites[invites.length - 1] : null;
+        notifyAllLock(loginLock);
+        notifyAllLock(gameLock);
     }
 
-    /* ======================================================
-       HELPERS: logout, waitFor with timeout, notifyAll
-       ====================================================== */
+    private void reconnectAndFetchState() {
+        if (username == null || relogCode == null) { view.show("Cannot reconnect automatically."); resetSessionState(); return; }
 
-    private void logout() {
-        loggedIn = false;
-        try {
-            clientNetwork.disconnect();
-        } catch (Exception ignored) {}
+        view.show("Attempting to reconnect using relog code...");
+        boolean success = clientNetwork.attemptReconnectWithRelogCode(username, relogCode);
+        if (!success) { view.show("Reconnection failed."); resetSessionState(); return; }
+
+        sessionClosing = false;
+        view.show("Reconnected successfully.");
+        notifyAllLock(gameLock);
+        notifyAllLock(loginLock);
     }
 
-    /**
-     * Wait for lock to be notified (or timeout). Returns true if notified, false if timed out.
-     */
+    // --------- Utilities ---------
     private boolean waitFor(Object lock, long timeoutMillis) {
-        long deadline = System.currentTimeMillis() + timeoutMillis;
         synchronized (lock) {
-                long remaining = deadline - System.currentTimeMillis();
-                if (remaining <= 0) return false;
-                try {
-                    lock.wait(remaining);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return false;
-                }
-                // awakened — caller code will check the relevant condition (e.g., loggedIn/inGame)
-                return true;
+            try { lock.wait(timeoutMillis > 0 ? timeoutMillis : 0); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
+            return true;
         }
     }
 
-    /** Notify all waiting threads on lock. */
     private void notifyAllLock(Object lock) {
-        synchronized (lock) {
-            lock.notifyAll();
-        }
+        synchronized (lock) { lock.notifyAll(); }
     }
 }

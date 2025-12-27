@@ -1,12 +1,12 @@
 package com.athtech.connect4.server.persistence;
 
+import com.athtech.connect4.protocol.payload.PlayerStatsResponse;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.*;
+import java.util.*;
 import java.util.Base64;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
 public class PersistenceManagerImpl implements PersistenceManager {
 
@@ -14,85 +14,187 @@ public class PersistenceManagerImpl implements PersistenceManager {
 
     public PersistenceManagerImpl() {
         try {
-            // Connect to embedded H2 database stored at ./data/connect4
-            // AUTO_SERVER=TRUE allows multiple connections (useful for testing)
+            Class.forName("org.h2.Driver");
             connection = DriverManager.getConnection("jdbc:h2:./data/connect4;AUTO_SERVER=TRUE", "sa", "");
-            initDatabase(); // Create tables if not exist
-        } catch (SQLException e) {
+            initDatabase();
+        } catch (SQLException | ClassNotFoundException e) {
             throw new RuntimeException("Failed to connect to database", e);
         }
     }
 
     private void initDatabase() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
-            // TODO: Create "players" table with all necessary fields
-            // id (PK), username (unique), password_hash, wins, losses, draws, games_played
-            // stmt.execute("CREATE TABLE IF NOT EXISTS players (...)");
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS players (
+                    id VARCHAR(36) PRIMARY KEY,
+                    username VARCHAR(50) UNIQUE NOT NULL,
+                    password_hash VARCHAR(256) NOT NULL,
+                    wins INT DEFAULT 0,
+                    losses INT DEFAULT 0,
+                    draws INT DEFAULT 0,
+                    games_played INT DEFAULT 0,
+                    relog_code VARCHAR(36)
+                )
+            """);
         }
     }
 
     @Override
     public boolean registerPlayer(String username, String password) {
-        // TODO: Insert new player into database
-        // - Generate a UUID for the player ID
-        // - Use the method hashPassword(...) below to hash the password before storing
-        // - Return true if success, false if username exists
-        return false;
+        String sql = "INSERT INTO players (id, username, password_hash) VALUES (?, ?, ?)";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, UUID.randomUUID().toString());
+            ps.setString(2, username);
+            ps.setString(3, hashPassword(password));
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            // likely duplicate username
+            return false;
+        }
     }
 
     @Override
     public boolean authenticate(String username, String password) {
-        // TODO: Check username and password hash
-        // - Fetch player row by username
-        // - Use checkPassword(...) method below to compare input password to stored hash
-        // - Return Player object if match, else Optional.empty()
-        return true;
+        String sql = "SELECT password_hash FROM players WHERE username = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, username);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                String storedHash = rs.getString("password_hash");
+                return checkPassword(password, storedHash);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     @Override
     public Optional<Player> getPlayerById(String id) {
-        // TODO: Fetch player by their UUID
-        // - Return Optional<Player>
+        String sql = "SELECT * FROM players WHERE id = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, id);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return Optional.of(extractPlayer(rs));
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return Optional.empty();
     }
 
     @Override
     public Optional<Player> getPlayerByUsername(String username) {
-        // TODO: Fetch player by username
-        // - Return Optional<Player>
+        String sql = "SELECT * FROM players WHERE username = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, username);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return Optional.of(extractPlayer(rs));
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return Optional.empty();
     }
 
     @Override
     public void updatePlayerStats(Player player) {
-        // TODO: Update stats (wins, losses, draws, gamesPlayed) in database
-        // - Use player's ID to update the row
-        // - Ensure atomic update to prevent race conditions
+        String sql = "UPDATE players SET wins=?, losses=?, draws=?, games_played=? WHERE id=?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, player.getWins());
+            ps.setInt(2, player.getLosses());
+            ps.setInt(3, player.getDraws());
+            ps.setInt(4, player.getGamesPlayed());
+            ps.setString(5, player.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
     public void updatePassword(Player player) {
-        // TODO: Update the password in the database
-        // - Use hashPassword(...) method below to hash the new password before storing
-        // - Use player's ID to identify row
+        String sql = "UPDATE players SET password_hash=? WHERE id=?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, hashPassword(player.getPassword()));
+            ps.setString(2, player.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
     public List<Player> getAllPlayers() {
-        // TODO: Fetch all players for lobby display
-        // - Return as List<Player>
-        return List.of();
+        List<Player> players = new ArrayList<>();
+        String sql = "SELECT * FROM players";
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery(sql);
+            while (rs.next()) players.add(extractPlayer(rs));
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return players;
     }
 
-    // Optional additional methods:
+    @Override
+    public PlayerStatsResponse getPlayerStats(String username) {
+        String sql = "SELECT wins, losses, draws, games_played FROM players WHERE username=?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, username);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                return new PlayerStatsResponse(
+                        rs.getInt("games_played"),
+                        rs.getInt("wins"),
+                        rs.getInt("losses"),
+                        rs.getInt("draws")
+                );
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return new PlayerStatsResponse(0,0,0,0);
+    }
 
+    @Override
     public boolean deletePlayer(String id) {
-        // TODO: Remove player from database
-        // - Ensure no ongoing session is holding this player
-        return false;
+        String sql = "DELETE FROM players WHERE id=?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    @Override
+    public void setRelogCode(Player player, String relogCode) {
+        String sql = "UPDATE players SET relog_code=? WHERE id=?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, relogCode);
+            ps.setString(2, player.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
 
+    @Override
+    public Optional<String> getRelogCode(String username) {
+        String sql = "SELECT relog_code FROM players WHERE username=?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, username);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                return Optional.ofNullable(rs.getString("relog_code"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return Optional.empty();
+    }
 
     // -------------------------
     // HASHING METHODS
@@ -101,15 +203,25 @@ public class PersistenceManagerImpl implements PersistenceManager {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest(plainPassword.getBytes());
-            return Base64.getEncoder().encodeToString(hashBytes); // store Base64 string
+            return Base64.getEncoder().encodeToString(hashBytes);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 algorithm not available", e);
         }
     }
 
     private boolean checkPassword(String plainPassword, String storedHash) {
-        String hashed = hashPassword(plainPassword); // hash input password
-        return hashed.equals(storedHash);           // compare to stored hash
+        return hashPassword(plainPassword).equals(storedHash);
     }
 
+    private Player extractPlayer(ResultSet rs) throws SQLException {
+        return new Player(
+                rs.getString("id"),
+                rs.getString("username"),
+                rs.getString("password_hash"),
+                rs.getInt("wins"),
+                rs.getInt("losses"),
+                rs.getInt("draws"),
+                rs.getInt("games_played")
+        );
+    }
 }
