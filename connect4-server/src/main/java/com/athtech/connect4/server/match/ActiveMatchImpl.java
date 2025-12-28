@@ -91,31 +91,44 @@ public class ActiveMatchImpl implements ActiveMatch {
     }
 
     @Override
-    public synchronized void cancelRematch(String player) {
-        if (rematchLocked) return;
+    public synchronized void cancelRematch() {
         rematchLocked = true;
         rematchRequestedByP1 = false;
         rematchRequestedByP2 = false;
+        rematchStartTime = 0;
     }
 
     @Override
     public synchronized boolean canStartRematch() {
         if (rematchLocked) return false;
+
+        if (isRematchTimedOut()) {
+            cancelRematch();
+            return false;
+        }
+
         if (rematchRequestedByP1 && rematchRequestedByP2) {
             rematchLocked = true;
             return true;
         }
-        if (rematchStartTime > 0 && System.currentTimeMillis() - rematchStartTime > REMATCH_TIMEOUT_MS) {
-            // Timeout reached, cancel rematch
-            rematchLocked = true;
-            rematchRequestedByP1 = false;
-            rematchRequestedByP2 = false;
-            return false;
-        }
+
         return false;
     }
 
+    @Override
+    public synchronized void resetRematchState() {
+        rematchRequestedByP1 = false;
+        rematchRequestedByP2 = false;
+        rematchLocked = false;
+        rematchStartTime = 0;
+    }
 
 
+    @Override
+    public synchronized boolean isRematchTimedOut() {
+        return rematchStartTime > 0 &&
+                !rematchLocked &&
+                System.currentTimeMillis() - rematchStartTime > REMATCH_TIMEOUT_MS;
+    }
 
 }

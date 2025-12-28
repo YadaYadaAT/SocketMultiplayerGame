@@ -15,6 +15,8 @@ public interface ActiveMatch {
     boolean makeMove(String player, MoveRequest moveRequest); // returns true if move accepted
     boolean isFinished();
     void requestRematch(String player);
-    void cancelRematch(String player);
+    void cancelRematch();
     boolean canStartRematch();
+    boolean isRematchTimedOut();
+    void resetRematchState();
 }

@@ -39,16 +39,4 @@ public class MatchManagerImpl implements MatchManager {
                 .findFirst();
     }
 
-    // ----- Rematch helpers delegated to ActiveMatch -----
-    public void requestRematch(String username) {
-        getMatchByPlayer(username).ifPresent(match -> match.requestRematch(username));
-    }
-
-    public void cancelRematch(String username) {
-        getMatchByPlayer(username).ifPresent(match -> match.cancelRematch(username));
-    }
-
-    public boolean canStartRematch(String username) {
-        return getMatchByPlayer(username).map(ActiveMatch::canStartRematch).orElse(false);
-    }
 }

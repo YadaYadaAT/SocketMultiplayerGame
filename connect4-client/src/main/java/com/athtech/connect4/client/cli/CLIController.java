@@ -132,7 +132,7 @@ public class CLIController {
         boolean wantRematch = input.readLine().trim().equalsIgnoreCase("y");
         if (wantRematch) {
             clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username,
-                    new RematchRequest(pendingRematchOpponent)));
+                    new RematchRequest()));
             view.show("Rematch request sent.");
         }
         pendingRematchOpponent = null;

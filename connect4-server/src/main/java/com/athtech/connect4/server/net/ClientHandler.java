@@ -191,8 +191,7 @@ public class ClientHandler implements Runnable {
     // REMATCH
     // -----------------------------
     private void handleRematchRequest(NetPacket packet) {
-        RematchRequest req = (RematchRequest) packet.payload();
-        server.sendRematchRequest(username, req.opponentUsername());
+        server.sendRematchRequest(username);
     }
 
     private void handleRematchDecision(NetPacket packet) {

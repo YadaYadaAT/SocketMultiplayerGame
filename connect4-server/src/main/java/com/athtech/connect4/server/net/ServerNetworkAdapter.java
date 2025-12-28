@@ -158,51 +158,59 @@ public class ServerNetworkAdapter {
     // -------------------
     // Rematch handling
     // -------------------
-    public void sendRematchRequest(String fromUsername, String targetUsername) {
-        matchManager.getMatchByPlayer(fromUsername).ifPresent(match -> {
-            // Update rematch state for the requester
-            match.requestRematch(fromUsername);
+    public void sendRematchRequest(String username) {
+        matchManager.getMatchByPlayer(username).ifPresent(match -> {
 
-            // Notify the opponent
-            if (loggedInUsers.containsKey(targetUsername)) {
-                sendToClient(targetUsername, new NetPacket(
-                        PacketType.REMATCH_NOTIFICATION_RESPONSE,
-                        "server",
-                        new RematchNotificationResponse(fromUsername)
-                ));
+            // handle timeout first
+            if (match.isRematchTimedOut()) {
+                match.cancelRematch();
+
+                sendToClient(match.getPlayer1(),
+                        new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                new RematchResponse(false, "Rematch timed out")));
+                sendToClient(match.getPlayer2(),
+                        new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                new RematchResponse(false, "Rematch timed out")));
+                return;
             }
 
-            // Check if both players requested rematch
-            if (match.canStartRematch()) {
-                sendToClient(fromUsername, new NetPacket(
-                        PacketType.REMATCH_RESPONSE,
-                        "server",
-                        new RematchResponse(true, "Rematch starting...")
-                ));
-                sendToClient(targetUsername, new NetPacket(
-                        PacketType.REMATCH_RESPONSE,
-                        "server",
-                        new RematchResponse(true, "Rematch starting...")
-                ));
+            match.requestRematch(username);
 
-                // Start a new match
+            String other = match.getPlayer1().equals(username)
+                    ? match.getPlayer2()
+                    : match.getPlayer1();
+
+            sendToClient(other, new NetPacket(
+                    PacketType.REMATCH_NOTIFICATION_RESPONSE,
+                    "server",
+                    new RematchNotificationResponse(username)
+            ));
+
+            if (match.canStartRematch()) {
+                match.resetRematchState();
+                endMatch(match.getMatchId());
                 createMatch(match.getPlayer1(), match.getPlayer2());
             }
         });
     }
 
+
     public void processRematchDecision(String username, boolean accepted) {
         matchManager.getMatchByPlayer(username).ifPresent(match -> {
+
+            // NO = immediate cancel
             if (!accepted) {
-                match.cancelRematch(username);
-                sendToClient(match.getPlayer1(), new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(false, "Rematch declined")));
-                sendToClient(match.getPlayer2(), new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(false, "Rematch declined")));
-            } else {
-                match.requestRematch(username);
-                if (match.canStartRematch()) createMatch(match.getPlayer1(), match.getPlayer2());
+                match.cancelRematch();
+
+                sendToClient(match.getPlayer1(),
+                        new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                new RematchResponse(false, "Rematch declined")));
+                sendToClient(match.getPlayer2(),
+                        new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                new RematchResponse(false, "Rematch declined")));
             }
+
+            // YES is handled ONLY via sendRematchRequest
         });
     }
 
