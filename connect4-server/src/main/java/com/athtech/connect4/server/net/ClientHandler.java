@@ -12,18 +12,17 @@ import java.util.UUID;
 
 public class ClientHandler implements Runnable {
 
-    private final Socket socket;
+    private final Socket clientSocket;
     private final ServerNetworkAdapter server;
     private final PersistenceManager persistence;
-
     private ObjectInputStream in;
     private ObjectOutputStream out;
-    private String relogCode = null;
     private final String clientId = UUID.randomUUID().toString();
-    private String username = null; // null means not logged in
 
-    public ClientHandler(Socket socket, ServerNetworkAdapter server, PersistenceManager persistence) {
-        this.socket = socket;
+    private String username = null; // (username = null) => not logged in
+
+    public ClientHandler(Socket clientSocket, ServerNetworkAdapter server, PersistenceManager persistence) {
+        this.clientSocket = clientSocket;
         this.server = server;
         this.persistence = persistence;
     }
@@ -31,19 +30,14 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
-            out = new ObjectOutputStream(socket.getOutputStream());
-            out.flush();
-            in = new ObjectInputStream(socket.getInputStream());
-
-            server.registerClient(clientId, this);
+            initObjectStreamsUsingClientSocket();
+            server.registerClientConnection(clientId, this);
             System.out.println("Handler started for client: " + clientId);
-
             sendPacket(new NetPacket(PacketType.INFO_RESPONSE, "server", "Connected to server..."));
 
             while (true) {
-                Object obj = in.readObject();
+                Object obj = in.readObject();//ignores any non Netpacket object
                 if (!(obj instanceof NetPacket packet)) continue;
-
                 handlePacket(packet);
             }
 
@@ -51,8 +45,8 @@ public class ClientHandler implements Runnable {
             System.err.println("Client disconnected: " + clientId);
         } finally {
             if (username != null) server.setUserLoggedOut(username);
-            server.unregisterClient(clientId);
-            try { socket.close(); } catch (IOException ignored) {}
+            server.unregisterClientConnection(clientId);
+            try { clientSocket.close(); } catch (IOException ignored) {}
         }
     }
 
@@ -60,8 +54,8 @@ public class ClientHandler implements Runnable {
         switch (packet.type()) {
             case LOGIN_REQUEST -> handleLogin(packet);
             case SIGNUP_REQUEST -> handleSignup(packet);
-            case RECONNECT_REQUEST -> handleReconnect(packet);
             case LOGOUT_REQUEST -> handleLogout(packet);
+            case RECONNECT_REQUEST -> handleReconnect(packet);
             case INVITE_REQUEST -> handleInviteRequest(packet);
             case INVITE_DECISION_REQUEST -> handleInviteDecision(packet);
             case REMATCH_REQUEST -> handleRematchRequest(packet);
@@ -76,10 +70,8 @@ public class ClientHandler implements Runnable {
     // LOGIN / SIGNUP / LOGOUT
     // -----------------------------
     private void handleLogin(NetPacket packet) {
-        LoginRequest req = (LoginRequest) packet.payload();
-
+        var req = (LoginRequest) packet.payload();
         boolean ok = persistence.authenticate(req.username(), req.password());
-
         if (!ok) {
             sendPacket(new NetPacket(
                     PacketType.LOGIN_RESPONSE,
@@ -88,14 +80,12 @@ public class ClientHandler implements Runnable {
             ));
             return;
         }
-
         // success
         username = req.username();
-        relogCode = UUID.randomUUID().toString();
+        var relogCode = UUID.randomUUID().toString();
 
         // persist relogCode in DB
         persistence.getPlayerByUsername(username).ifPresent(player -> {
-            player.setRelogCode(relogCode);
             persistence.setRelogCode(player, relogCode);
         });
 
@@ -116,13 +106,13 @@ public class ClientHandler implements Runnable {
         ));
     }
 
-
     private void handleSignup(NetPacket packet) {
-        SignupRequest req = (SignupRequest) packet.payload();
-        boolean ok = persistence.registerPlayer(req.username(), req.password());
+        var req = (SignupRequest) packet.payload();
+        boolean didDbAcceptSignUp = persistence.registerPlayer(req.username(), req.password());
 
         sendPacket(new NetPacket(PacketType.SIGNUP_RESPONSE, "server",
-                new SignupResponse(ok, ok ? "Signup OK" : "Username already exists")));
+                new SignupResponse(didDbAcceptSignUp, didDbAcceptSignUp ? "Sign up complete, " +
+                        ", login and start gaming!" : "Username already exists")));
     }
 
     private void handleLogout(NetPacket packet) {
@@ -131,15 +121,12 @@ public class ClientHandler implements Runnable {
             sendPacket(new NetPacket(PacketType.LOGOUT_RESPONSE, "server",
                     new LogoutResponse(true, "Logged out successfully.")));
             username = null;
-            try { socket.close(); } catch (IOException ignored) {}
+            try { clientSocket.close(); } catch (IOException ignored) {}
         }
     }
 
-    // -----------------------------
-    // RECONNECT
-    // -----------------------------
     private void handleReconnect(NetPacket packet) {
-        ReconnectRequest req = (ReconnectRequest) packet.payload();
+        var req = (ReconnectRequest) packet.payload();
 
         // fetch relogCode from DB
         Optional<String> storedRelog = persistence.getRelogCode(req.username());
@@ -153,30 +140,24 @@ public class ClientHandler implements Runnable {
         }
 
         username = req.username();
-        relogCode = UUID.randomUUID().toString();
+        var relogCode = UUID.randomUUID().toString();
 
         // persist new relogCode in DB
         persistence.getPlayerByUsername(username).ifPresent(player -> {
-            player.setRelogCode(relogCode);
             persistence.setRelogCode(player, relogCode);
         });
 
         server.setUserLoggedIn(username, clientId);
-
         String[] lobbyPlayers = server.getLoggedInUsernames().toArray(new String[0]);
         PlayerStatsResponse stats = persistence.getPlayerStats(username);
-        InviteNotificationResponse[] pendingInvites = {}; // Optional
+        InviteNotificationResponse[] pendingGamingInvites = {}; // Optional
         GameStateResponse currentGameState = server.getActiveMatchForPlayer(username);
 
         sendPacket(new NetPacket(PacketType.RECONNECT_RESPONSE, "server",
                 new ReconnectResponse(true, "Reconnected successfully.",
-                        lobbyPlayers, stats, pendingInvites, currentGameState, relogCode)));
+                        lobbyPlayers, stats, pendingGamingInvites, currentGameState, relogCode)));
     }
 
-
-    // -----------------------------
-    // INVITES
-    // -----------------------------
     private void handleInviteRequest(NetPacket packet) {
         InviteRequest req = (InviteRequest) packet.payload();
         server.sendInvite(username, req.targetUsername());
@@ -184,12 +165,9 @@ public class ClientHandler implements Runnable {
 
     private void handleInviteDecision(NetPacket packet) {
         InviteDecisionRequest req = (InviteDecisionRequest) packet.payload();
-        server.processInviteDecision(username, req.accepted());
+        server.processInviteDecision(username, req.inviterUsername(), req.accepted());
     }
 
-    // -----------------------------
-    // REMATCH
-    // -----------------------------
     private void handleRematchRequest(NetPacket packet) {
         server.sendRematchRequest(username);
     }
@@ -199,18 +177,12 @@ public class ClientHandler implements Runnable {
         server.processRematchDecision(username, req.accepted());
     }
 
-    // -----------------------------
-    // GAME MOVES
-    // -----------------------------
     private void handleMove(NetPacket packet) {
         System.out.println("Move Request reached the server");
         MoveRequest move = (MoveRequest) packet.payload();
         server.processMove(username, move);
     }
 
-    // -----------------------------
-    // SEND / GET
-    // -----------------------------
     public void sendPacket(NetPacket packet) {
         try {
             out.writeObject(packet);
@@ -220,7 +192,14 @@ public class ClientHandler implements Runnable {
         }
     }
 
+
     public String getUsername() { return username; }
     public String getClientId() { return clientId; }
     public void setUsername(String username) { this.username = username; }
+
+    private void initObjectStreamsUsingClientSocket() throws IOException {
+        out = new ObjectOutputStream(clientSocket.getOutputStream());
+        out.flush();
+        in = new ObjectInputStream(clientSocket.getInputStream());
+    }
 }

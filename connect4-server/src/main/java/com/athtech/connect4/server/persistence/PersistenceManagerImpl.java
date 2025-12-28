@@ -14,7 +14,7 @@ public class PersistenceManagerImpl implements PersistenceManager {
 
     public PersistenceManagerImpl() {
         try {
-            Class.forName("org.h2.Driver");
+            Class.forName("org.h2.Driver");//In production user and password would have been set through env variables
             connection = DriverManager.getConnection("jdbc:h2:./data/connect4;AUTO_SERVER=TRUE", "sa", "");
             initDatabase();
         } catch (SQLException | ClassNotFoundException e) {

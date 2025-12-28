@@ -14,63 +14,90 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ServerNetworkAdapter {
 
     private ServerSocket srvSocket;
 
-    // connected clients: <clientId, handler>
-    private final Map<String, ClientHandler> clients = new ConcurrentHashMap<>();
-    // logged-in users: <username, clientId>
-    private final Map<String, String> loggedInUsers = new ConcurrentHashMap<>();
+    // connected clients: <clientId, ClientHandler>
+    private final Map<String, ClientHandler> connectedClients = new ConcurrentHashMap<>();
+    // logged-in clients: <username, clientId>
+    private final Map<String, String> loggedInClients = new ConcurrentHashMap<>();
+    // match manager
     private final MatchManager matchManager = new MatchManagerImpl();
+    // pending invites <targetUsername, list of fromUsername>
+    private final Map<String, CopyOnWriteArrayList<String>> pendingGamingInvites = new ConcurrentHashMap<>();
+    // database - h2 being used currently, persist files at data folder
     private final PersistenceManager persistence;
-    private final Map<String, String> pendingInvites = new ConcurrentHashMap<>();
 
     public ServerNetworkAdapter(PersistenceManager persistence) {
         this.persistence = persistence;
     }
 
+    //SERVER BOOT
     public void startServer(int port) {
         try {
             srvSocket = new ServerSocket(port);
-            System.out.println("[SERVER] Listening on port " + port);
+            System.out.println("Server started and listens on port " + port);
             new Thread(this::acceptLoop).start();
         } catch (IOException e) {
-            throw new RuntimeException("[SERVER] Could not start server: " + e.getMessage());
+            throw new RuntimeException("Server could not start: " + e.getMessage());
         }
     }
 
+    //CREATE CLIENT CONNECTION
     private void acceptLoop() {
         while (true) {
-            try {
-                Socket clientSocket = srvSocket.accept();
-                ClientHandler handler = new ClientHandler(clientSocket, this, persistence);
-                new Thread(handler).start();
+            try {//the accept thread occupation time is so small that doesn't create conjestion issues
+                Socket clientSocket = srvSocket.accept();//acquire socket from server to be passed at clientHandler
+                var handler = new ClientHandler(clientSocket, this, persistence);
+                new Thread(handler).start();// start of new thread for the connection of the client.
             } catch (IOException e) {
-                System.err.println("[SERVER] Accept failed: " + e.getMessage());
+                System.err.println("Client connection to the server failed: " + e.getMessage());
             }
         }
     }
 
-    // -------------------
-    // Client registration
-    // -------------------
-    public void registerClient(String clientId, ClientHandler handler) { clients.put(clientId, handler); }
-    public void unregisterClient(String clientId) { clients.remove(clientId); }
-    public void setUserLoggedIn(String username, String clientId) { loggedInUsers.put(username, clientId); broadcastLoggedInUsers(); }
-    public void setUserLoggedOut(String username) { loggedInUsers.remove(username); broadcastLoggedInUsers(); }
-    public List<String> getLoggedInUsernames() { return new ArrayList<>(loggedInUsers.keySet()); }
-    public void broadcastLoggedInUsers() {
-        String[] array = getLoggedInUsernames().toArray(new String[0]);
-        broadcast(new NetPacket(PacketType.LOBBY_PLAYERS_RESPONSE, "server", array));
+
+    //METHODS USED BY ClientHandler TO MANAGE CLIENTS REQUEST
+    public void registerClientConnection(String clientId, ClientHandler handler) {
+        connectedClients.put(clientId, handler);
     }
 
-    public void broadcast(NetPacket packet) { clients.values().forEach(h -> h.sendPacket(packet)); }
+    public void unregisterClientConnection(String clientId) {
+        connectedClients.remove(clientId);
+    }
+
+    public void setUserLoggedIn(String username, String clientId) {
+        loggedInClients.put(username, clientId);
+        broadcastLoggedInUsersOnlyToLoggedInUsers();
+    }
+
+    public void setUserLoggedOut(String username) {
+        loggedInClients.remove(username);
+        broadcastLoggedInUsersOnlyToLoggedInUsers();
+    }
+
+    public List<String> getLoggedInUsernames() {
+        return new ArrayList<>(loggedInClients.keySet());
+    }
+
+    public void broadcastLoggedInUsersOnlyToLoggedInUsers() {
+        String[] array = getLoggedInUsernames().toArray(new String[0]);
+        connectedClients.values().stream()
+                .filter(cHandler -> cHandler.getUsername() != null)
+                .forEach(h -> h.sendPacket(new NetPacket(PacketType.LOBBY_PLAYERS_RESPONSE, "server", array)));
+    }
+
+    public void broadcast(NetPacket packet) {
+        connectedClients.values().forEach(h -> h.sendPacket(packet));
+    }
+
     public void sendToClient(String username, NetPacket packet) {
-        String clientId = loggedInUsers.get(username);
+        String clientId = loggedInClients.get(username);
         if (clientId != null) {
-            ClientHandler handler = clients.get(clientId);
+            ClientHandler handler = connectedClients.get(clientId);
             if (handler != null) handler.sendPacket(packet);
         }
     }
@@ -80,7 +107,7 @@ public class ServerNetworkAdapter {
     // -------------------
     public ActiveMatch createMatch(String player1, String player2) {
         ActiveMatch match = matchManager.createMatch(player1, player2);
-        broadcastMatchUpdate(match);
+        broadcastMatchCreate(match);
         return match;
     }
 
@@ -88,43 +115,28 @@ public class ServerNetworkAdapter {
         matchManager.getMatch(matchId).ifPresent(match -> {
             updateStats(match);
             broadcastMatchUpdate(match);
-            sendGameEnd(match);
+            broadcastMatchEnd(match);
             matchManager.endMatch(matchId);
         });
     }
 
-    private void updateStats(ActiveMatch match) {
-        if (!match.isFinished()) return;
-        String winner = match.getWinner(), loser = match.getLoser();
-        if (winner != null) persistence.getPlayerByUsername(winner).ifPresent(p -> { p.incrementWins(); persistence.updatePlayerStats(p); });
-        if (loser != null) persistence.getPlayerByUsername(loser).ifPresent(p -> { p.incrementLosses(); persistence.updatePlayerStats(p); });
-        if (match.isDraw()) {
-            persistence.getPlayerByUsername(match.getPlayer1()).ifPresent(p -> { p.incrementDraws(); persistence.updatePlayerStats(p); });
-            persistence.getPlayerByUsername(match.getPlayer2()).ifPresent(p -> { p.incrementDraws(); persistence.updatePlayerStats(p); });
-        }
+
+    public List<ActiveMatch> getActiveMatches() {
+        return matchManager.getActiveMatches();
     }
 
-    private void sendGameEnd(ActiveMatch match) {
-        GameEndResponse resp1 = new GameEndResponse(match.getCurrentState().board(),
-                match.isDraw() ? null : match.getWinner(),
-                match.isDraw() ? null : match.getLoser(),
-                match.isDraw() ? "Draw" : "Win/Loss",
-                match.getPlayer2());
-        GameEndResponse resp2 = new GameEndResponse(match.getCurrentState().board(),
-                match.isDraw() ? null : match.getWinner(),
-                match.isDraw() ? null : match.getLoser(),
-                match.isDraw() ? "Draw" : "Win/Loss",
-                match.getPlayer1());
-        sendToClient(match.getPlayer1(), new NetPacket(PacketType.GAME_END_RESPONSE, "server", resp1));
-        sendToClient(match.getPlayer2(), new NetPacket(PacketType.GAME_END_RESPONSE, "server", resp2));
+    public void broadcastMatchCreate(ActiveMatch match){
+        NetPacket packet = new NetPacket(PacketType.GAME_START_RESPONSE, "server", match.getCurrentState());
+        sendToClient(match.getPlayer1(), packet);
+        sendToClient(match.getPlayer2(), packet);
     }
 
-    public List<ActiveMatch> getActiveMatches() { return matchManager.getActiveMatches(); }
     public void broadcastMatchUpdate(ActiveMatch match) {
         NetPacket packet = new NetPacket(PacketType.GAME_STATE_RESPONSE, "server", match.getCurrentState());
         sendToClient(match.getPlayer1(), packet);
         sendToClient(match.getPlayer2(), packet);
     }
+
     public GameStateResponse getActiveMatchForPlayer(String username) {
         return matchManager.getMatchByPlayer(username).map(ActiveMatch::getCurrentState).orElse(null);
     }
@@ -133,26 +145,46 @@ public class ServerNetworkAdapter {
     // Invite handling
     // -------------------
     public void sendInvite(String fromUsername, String targetUsername) {
-        if (!loggedInUsers.containsKey(targetUsername)) {
+        if (!loggedInClients.containsKey(targetUsername)) {
             sendToClient(fromUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
                     new InviteResponse(false, "Player not online")));
             return;
         }
-        pendingInvites.put(targetUsername, fromUsername);
+
+        // get or create list of pending invites for target
+        pendingGamingInvites.computeIfAbsent(targetUsername, k -> new CopyOnWriteArrayList<>())
+                .add(fromUsername);
+
         sendToClient(targetUsername, new NetPacket(PacketType.INVITE_NOTIFICATION_RESPONSE, "server",
-                new InviteNotificationResponse(fromUsername)));
+                new InviteNotificationResponse(fromUsername)));//send invitation to target of invite
         sendToClient(fromUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
-                new InviteResponse(true, null)));
+                new InviteResponse(true, null)));// send confirmation to inviter
     }
 
-    public void processInviteDecision(String targetUsername, boolean accepted) {
-        String inviter = pendingInvites.get(targetUsername);
-        if (inviter == null) return;
-        InviteDecisionResponse resp = new InviteDecisionResponse(inviter, targetUsername, accepted);
-        sendToClient(inviter, new NetPacket(PacketType.INVITE_DECISION_RESPONSE, "server", resp));
+    public void processInviteDecision(String targetUsername, String inviterUsername, boolean accepted) {
+        CopyOnWriteArrayList<String> invites = pendingGamingInvites.get(targetUsername);
+        if (invites == null || !invites.contains(inviterUsername)) return;
+
+        // remove the specific invite from the list
+        invites.remove(inviterUsername);
+
+        var resp = new InviteDecisionResponse(inviterUsername, targetUsername, accepted);
+        sendToClient(inviterUsername, new NetPacket(PacketType.INVITE_DECISION_RESPONSE, "server", resp));
         sendToClient(targetUsername, new NetPacket(PacketType.INVITE_DECISION_RESPONSE, "server", resp));
-        pendingInvites.remove(targetUsername);
-        if (accepted) createMatch(inviter, targetUsername);
+
+        // remove the entry if no more invites left
+        if (invites.isEmpty()) pendingGamingInvites.remove(targetUsername);
+
+        if (accepted) createMatch(inviterUsername, targetUsername);
+    }
+
+    public InviteNotificationResponse[] getInvitationsFor(String targetUsername) {
+        CopyOnWriteArrayList<String> invites = pendingGamingInvites.get(targetUsername);
+        if (invites == null || invites.isEmpty()) return new InviteNotificationResponse[0];
+
+        return invites.stream()
+                .map(InviteNotificationResponse::new)
+                .toArray(InviteNotificationResponse[]::new);
     }
 
     // -------------------
@@ -214,9 +246,7 @@ public class ServerNetworkAdapter {
         });
     }
 
-    // -------------------
     // Game moves
-    // -------------------
     public void processMove(String username, MoveRequest move) {
         matchManager.getMatchByPlayer(username).ifPresentOrElse(match -> {
             boolean ok = match.makeMove(username, move);
@@ -230,15 +260,41 @@ public class ServerNetworkAdapter {
                 new MoveRejectedResponse("No active match found. Are you in a game?"))));
     }
 
-    // -------------------
     // Reconnect
-    // -------------------
     public boolean attemptReconnect(String username, String relogCode, ClientHandler handler) {
         Optional<Player> playerOpt = persistence.getPlayerByUsername(username);
-        if (playerOpt.isEmpty() || !relogCode.equals(playerOpt.get().getRelogCode()) || loggedInUsers.containsKey(username))
+        if (playerOpt.isEmpty() || !relogCode.equals(playerOpt.get().getRelogCode()) || loggedInClients.containsKey(username))
             return false;
         setUserLoggedIn(username, handler.getClientId());
         handler.setUsername(username);
         return true;
     }
+
+
+    private void broadcastMatchEnd(ActiveMatch match) {
+        GameEndResponse resp1 = new GameEndResponse(match.getCurrentState().board(),
+                match.isDraw() ? null : match.getWinner(),
+                match.isDraw() ? null : match.getLoser(),
+                match.isDraw() ? "Draw" : "Win/Loss",
+                match.getPlayer2());
+        GameEndResponse resp2 = new GameEndResponse(match.getCurrentState().board(),
+                match.isDraw() ? null : match.getWinner(),
+                match.isDraw() ? null : match.getLoser(),
+                match.isDraw() ? "Draw" : "Win/Loss",
+                match.getPlayer1());
+        sendToClient(match.getPlayer1(), new NetPacket(PacketType.GAME_END_RESPONSE, "server", resp1));
+        sendToClient(match.getPlayer2(), new NetPacket(PacketType.GAME_END_RESPONSE, "server", resp2));
+    }
+
+    private void updateStats(ActiveMatch match) {
+        if (!match.isFinished()) return;
+        String winner = match.getWinner(), loser = match.getLoser();
+        if (winner != null) persistence.getPlayerByUsername(winner).ifPresent(p -> { p.incrementWins(); persistence.updatePlayerStats(p); });
+        if (loser != null) persistence.getPlayerByUsername(loser).ifPresent(p -> { p.incrementLosses(); persistence.updatePlayerStats(p); });
+        if (match.isDraw()) {
+            persistence.getPlayerByUsername(match.getPlayer1()).ifPresent(p -> { p.incrementDraws(); persistence.updatePlayerStats(p); });
+            persistence.getPlayerByUsername(match.getPlayer2()).ifPresent(p -> { p.incrementDraws(); persistence.updatePlayerStats(p); });
+        }
+    }
+
 }
