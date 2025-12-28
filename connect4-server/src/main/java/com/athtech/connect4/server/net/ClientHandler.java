@@ -44,9 +44,11 @@ public class ClientHandler implements Runnable {
         } catch (IOException | ClassNotFoundException e) {
             System.err.println("Client disconnected: " + clientId);
         } finally {
-            if (username != null) server.setUserLoggedOut(username);
+            String tempUserMessage = username;
+            if (username != null) server.getLobbyController().userLoggedOut(username);
             server.unregisterClientConnection(clientId);
-            try { clientSocket.close(); } catch (IOException ignored) {}
+            try { clientSocket.close();
+                System.out.println(tempUserMessage + " has been disconnected"); } catch (IOException ignored) {}
         }
     }
 
@@ -66,9 +68,6 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    // -----------------------------
-    // LOGIN / SIGNUP / LOGOUT
-    // -----------------------------
     private void handleLogin(NetPacket packet) {
         var req = (LoginRequest) packet.payload();
         boolean ok = persistence.authenticate(req.username(), req.password());
@@ -80,29 +79,22 @@ public class ClientHandler implements Runnable {
             ));
             return;
         }
-        // success
+
         username = req.username();
         var relogCode = UUID.randomUUID().toString();
 
-        // persist relogCode in DB
         persistence.getPlayerByUsername(username).ifPresent(player -> {
             persistence.setRelogCode(player, relogCode);
         });
 
-        server.setUserLoggedIn(username, clientId);
+        server.getLobbyController().userLoggedIn(username, clientId);
 
-        // fetch stats from DB
         PlayerStatsResponse stats = persistence.getPlayerStats(username);
 
         sendPacket(new NetPacket(
                 PacketType.LOGIN_RESPONSE,
                 "server",
-                new LoginResponse(
-                        true,
-                        "Welcome " + username,
-                        relogCode,
-                        stats
-                )
+                new LoginResponse(true, "Welcome " + username, relogCode, stats)
         ));
     }
 
@@ -117,7 +109,7 @@ public class ClientHandler implements Runnable {
 
     private void handleLogout(NetPacket packet) {
         if (username != null) {
-            server.setUserLoggedOut(username);
+            server.getLobbyController().userLoggedOut(username);
             sendPacket(new NetPacket(PacketType.LOGOUT_RESPONSE, "server",
                     new LogoutResponse(true, "Logged out successfully.")));
             username = null;
@@ -127,8 +119,6 @@ public class ClientHandler implements Runnable {
 
     private void handleReconnect(NetPacket packet) {
         var req = (ReconnectRequest) packet.payload();
-
-        // fetch relogCode from DB
         Optional<String> storedRelog = persistence.getRelogCode(req.username());
 
         boolean valid = storedRelog.isPresent() && storedRelog.get().equals(req.relogCode());
@@ -141,16 +131,15 @@ public class ClientHandler implements Runnable {
 
         username = req.username();
         var relogCode = UUID.randomUUID().toString();
-
-        // persist new relogCode in DB
         persistence.getPlayerByUsername(username).ifPresent(player -> {
             persistence.setRelogCode(player, relogCode);
         });
 
-        server.setUserLoggedIn(username, clientId);
-        String[] lobbyPlayers = server.getLoggedInUsernames().toArray(new String[0]);
+        server.getLobbyController().userLoggedIn(username, clientId);
+
+        String[] lobbyPlayers = server.getLobbyController().getLoggedInUsernames().toArray(new String[0]);
         PlayerStatsResponse stats = persistence.getPlayerStats(username);
-        InviteNotificationResponse[] pendingGamingInvites = {}; // Optional
+        InviteNotificationResponse[] pendingGamingInvites = {}; // can be fetched from InviteController if needed
         GameStateResponse currentGameState = server.getActiveMatchForPlayer(username);
 
         sendPacket(new NetPacket(PacketType.RECONNECT_RESPONSE, "server",

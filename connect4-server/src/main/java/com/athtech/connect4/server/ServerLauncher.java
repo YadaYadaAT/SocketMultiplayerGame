@@ -1,5 +1,6 @@
-package com.athtech.connect4.server.net;
+package com.athtech.connect4.server;
 
+import com.athtech.connect4.server.net.ServerNetworkAdapter;
 import com.athtech.connect4.server.persistence.PersistenceManagerImpl;
 
 public class ServerLauncher {

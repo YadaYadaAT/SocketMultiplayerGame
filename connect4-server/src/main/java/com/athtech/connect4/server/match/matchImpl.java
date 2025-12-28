@@ -7,7 +7,7 @@ import com.athtech.connect4.server.game.Game;
 
 import java.util.UUID;
 
-public class ActiveMatchImpl implements ActiveMatch {
+public class matchImpl implements match {
 
     private final String matchId;
     private final String player1;
@@ -21,7 +21,7 @@ public class ActiveMatchImpl implements ActiveMatch {
     private long rematchStartTime = 0; // timestamp when first rematch request comes in
     private static final long REMATCH_TIMEOUT_MS = 30_000; // 30 sec
 
-    public ActiveMatchImpl(String p1, String p2) {
+    public matchImpl(String p1, String p2) {
         this.matchId = UUID.randomUUID().toString();
         this.player1 = p1;
         this.player2 = p2;

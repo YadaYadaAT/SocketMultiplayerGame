@@ -8,33 +8,33 @@ import java.util.stream.Collectors;
 
 public class MatchManagerImpl implements MatchManager {
 
-    private final ConcurrentMap<String, ActiveMatch> activeMatches = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, match> matches = new ConcurrentHashMap<>();
 
     @Override
-    public ActiveMatch createMatch(String player1, String player2) {
-        ActiveMatch match = new ActiveMatchImpl(player1, player2);
-        activeMatches.put(match.getMatchId(), match);
+    public match createMatch(String player1, String player2) {
+        match match = new matchImpl(player1, player2);
+        matches.put(match.getMatchId(), match);
         return match;
     }
 
     @Override
-    public Optional<ActiveMatch> getMatch(String matchId) {
-        return Optional.ofNullable(activeMatches.get(matchId));
-    }
-
-    @Override
-    public List<ActiveMatch> getActiveMatches() {
-        return activeMatches.values().stream().collect(Collectors.toList());
-    }
-
-    @Override
     public void endMatch(String matchId) {
-        activeMatches.remove(matchId);
+        matches.remove(matchId);
     }
 
     @Override
-    public Optional<ActiveMatch> getMatchByPlayer(String username) {
-        return activeMatches.values().stream()
+    public Optional<match> getMatch(String matchId) {
+        return Optional.ofNullable(matches.get(matchId));
+    }
+
+    @Override
+    public List<match> getMatches() {
+        return matches.values().stream().collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<match> getMatchByPlayer(String username) {
+        return matches.values().stream()
                 .filter(m -> m.getPlayer1().equals(username) || m.getPlayer2().equals(username))
                 .findFirst();
     }

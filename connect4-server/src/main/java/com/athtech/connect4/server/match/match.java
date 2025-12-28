@@ -3,7 +3,7 @@ package com.athtech.connect4.server.match;
 import com.athtech.connect4.protocol.payload.GameStateResponse;
 import com.athtech.connect4.protocol.payload.MoveRequest;
 
-public interface ActiveMatch {
+public interface match {
     String getMatchId();
     String getPlayer1();
     String getPlayer2();

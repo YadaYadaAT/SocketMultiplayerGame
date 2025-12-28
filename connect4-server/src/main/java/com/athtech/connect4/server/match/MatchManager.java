@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MatchManager {
-    ActiveMatch createMatch(String player1, String player2);
-    Optional<ActiveMatch> getMatch(String matchId);
-    List<ActiveMatch> getActiveMatches();
+    match createMatch(String player1, String player2);
+    Optional<match> getMatch(String matchId);
+    List<match> getMatches();
     void endMatch(String matchId);
-    Optional<ActiveMatch> getMatchByPlayer(String username);
+    Optional<match> getMatchByPlayer(String username);
 }

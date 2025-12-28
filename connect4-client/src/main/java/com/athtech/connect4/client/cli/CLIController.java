@@ -239,6 +239,7 @@ public class CLIController {
             case INVITE_RESPONSE -> onInviteResponse(packet);
             case INVITE_NOTIFICATION_RESPONSE -> onInviteNotificationResponse(packet);
             case INVITE_DECISION_RESPONSE -> onInviteDecisionResponse(packet);
+            case GAME_START_RESPONSE -> onGameStartResponse(packet);
             case GAME_STATE_RESPONSE -> onGameStateResponse(packet);
             case GAME_END_RESPONSE -> onGameEndResponse(packet);
             case MOVE_REJECTED_RESPONSE -> onMoveRejectedResponse(packet);
@@ -290,6 +291,15 @@ public class CLIController {
         var resp = (InviteDecisionResponse) packet.payload();
         if (resp.accepted()) { view.show("Invitation accepted. Match starting..."); inGame = true; }
         else view.show("Invitation declined.");
+        notifyAllLock(gameLock);
+    }
+
+
+    private void onGameStartResponse(NetPacket packet) {
+        GameStateResponse gs = (GameStateResponse) packet.payload();
+        view.showBoard(gs.board());
+        view.show("Turn: " + gs.currentPlayer());
+        inGame = !gs.gameOver();
         notifyAllLock(gameLock);
     }
 
