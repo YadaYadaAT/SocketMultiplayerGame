@@ -166,7 +166,18 @@ public class CLIController {
 
     private void handleReceivedInviteRequest() {
         synchronized (inviteLock) {
-            if (inGame || lastInvite == null) return;
+            if (inGame) {
+                System.out.println("in game");
+                return;
+            }
+            if (lastInvite == null){
+                System.out.println("you have no invites");
+                return;
+            }
+//            if (inGame || lastInvite == null){
+//                System.out.println("");
+//                return;
+//            }
 
             view.show("Invite from: " + lastInvite.fromUsername());
             view.showAcceptPrompt();
@@ -273,7 +284,7 @@ public class CLIController {
 
     private void onLobbyPlayersResponse(NetPacket packet) {
         var lobP = (String[]) packet.payload();
-        lobbyPlayers = Arrays.asList(lobP);
+        lobbyPlayers = new ArrayList<>(Arrays.asList(lobP));
         view.show("Lobby: " + String.join(", ", lobbyPlayers));
     }
 

@@ -33,7 +33,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         try {
             while (true) {
                 Object obj = in.readObject();//FIN send from server if shutdown throws IO exception
-                if (obj instanceof NetPacket packet && listener != null) {
+                if (obj instanceof NetPacket packet && listener != null && packet.type()!=null) {
                     listener.onPacketReceived(packet);
                 }
             }

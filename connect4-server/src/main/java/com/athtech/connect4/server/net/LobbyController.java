@@ -1,8 +1,7 @@
-package com.athtech.connect4.server.net.lobby;
+package com.athtech.connect4.server.net;
 
 import com.athtech.connect4.protocol.messaging.NetPacket;
 import com.athtech.connect4.protocol.messaging.PacketType;
-import com.athtech.connect4.server.net.ClientHandler;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -11,12 +10,14 @@ import java.util.function.Consumer;
 public class LobbyController {
 
     // logged-in users: <username, clientId>
-    private final Map<String, String> loggedInClients = new ConcurrentHashMap<>();
+    private final Map<String, String> loggedInClients ;
 
     private final Collection<ClientHandler> connectedClients;
     private final Consumer<NetPacket> broadcastToLoggedIn;
 
-    public LobbyController(Collection<ClientHandler> connectedClients, Consumer<NetPacket> broadcastToLoggedIn) {
+    public LobbyController(Map<String, String> loggedInClients, Collection<ClientHandler> connectedClients,
+                           Consumer<NetPacket> broadcastToLoggedIn) {
+        this.loggedInClients = loggedInClients;
         this.connectedClients = connectedClients;
         this.broadcastToLoggedIn = broadcastToLoggedIn;
     }
