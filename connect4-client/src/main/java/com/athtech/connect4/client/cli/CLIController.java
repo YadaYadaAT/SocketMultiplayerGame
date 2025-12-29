@@ -4,9 +4,7 @@ import com.athtech.connect4.client.net.ClientNetworkAdapter;
 import com.athtech.connect4.protocol.messaging.*;
 import com.athtech.connect4.protocol.payload.*;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class CLIController {
     private final CLIView view;
@@ -32,13 +30,23 @@ public class CLIController {
     private final Object logoutLock = new Object();
     private final Object gameLock = new Object();
     private final Object inviteLock = new Object();
+    private final Object reconnectLock = new Object();
+
+    private volatile boolean reconnectInProgress = false;
+    private final int MAX_RECONNECT_ATTEMPTS = 3;
+    private final long RECONNECT_INTERVAL_MS = 12_000;
+
     private boolean shouldAppExit = false;
+
+    // --- Testing hook ---
+    private volatile boolean simulateServerDown = false;
 
     public CLIController(CLIView view, ClientNetworkAdapter clientNetwork, CLIInputHandler input) {
         this.view = view;
         this.clientNetwork = clientNetwork;
         this.input = input;
         clientNetwork.setListener(this::handleServerPacket);
+        clientNetwork.setConnectionLostListener(this::handleConnectionLost);
     }
 
     public void run() {
@@ -102,16 +110,9 @@ public class CLIController {
         while (loggedIn) {
             if (sessionClosing) { waitFor(logoutLock, 1000); continue; }
 
-            // Rematch offer received
             if (!inGame && pendingRematchRequester != null) handleIncomingRematchRequest();
-
-            // Rematch opportunity
             if (!inGame && pendingRematchOpponent != null) handleRematchPrompt();
-
-            // Lobby interaction
             if (!inGame && pendingRematchRequester == null && pendingRematchOpponent == null) handleLobby();
-
-            // Game loop
             if (inGame) runGameLoop();
         }
     }
@@ -129,8 +130,7 @@ public class CLIController {
         view.showRematchPrompt();
         boolean wantRematch = input.readLine().trim().equalsIgnoreCase("y");
         if (wantRematch) {
-            clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username,
-                    new RematchRequest()));
+            clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest()));
             view.show("Rematch request sent.");
         }
         pendingRematchOpponent = null;
@@ -164,27 +164,49 @@ public class CLIController {
 
     private void handleReceivedInviteRequest() {
         synchronized (inviteLock) {
-            if (inGame) {
-                System.out.println("in game");
-                return;
-            }
-            if (lastInvite == null){
-                System.out.println("you have no invites");
-                return;
-            }
-//            if (inGame || lastInvite == null){
-//                System.out.println("");
-//                return;
-//            }
-
+            if (inGame || lastInvite == null) return;
             view.show("Invite from: " + lastInvite.fromUsername());
             view.showAcceptPrompt();
             boolean accept = input.readLine().trim().equalsIgnoreCase("y");
-
             clientNetwork.sendPacket(new NetPacket(PacketType.INVITE_DECISION_REQUEST, username,
                     new InviteDecisionRequest(lastInvite.fromUsername(), accept)));
             lastInvite = null;
         }
+    }
+
+    /** --- Unified reconnect method --- */
+    public void handleConnectionLost() {
+        synchronized (reconnectLock) {
+            if (reconnectInProgress || username == null || relogCode == null) return;
+            reconnectInProgress = true;
+        }
+
+        new Thread(() -> {
+            int attempts = 0;
+            boolean success = false;
+
+            while (attempts < MAX_RECONNECT_ATTEMPTS && !success) {
+                attempts++;
+                view.show("Attempting reconnect (" + attempts + "/" + MAX_RECONNECT_ATTEMPTS + ")...");
+                clientNetwork.sendPacket(new NetPacket(PacketType.RECONNECT_REQUEST, username, new ReconnectRequest(username, relogCode)));
+
+                boolean notified = waitFor(reconnectLock, 8000);
+                synchronized (reconnectLock) { success = !reconnectInProgress; }
+
+                if (!success) {
+                    try { Thread.sleep(RECONNECT_INTERVAL_MS); } catch (InterruptedException ignored) {}
+                }
+            }
+
+            synchronized (reconnectLock) { reconnectInProgress = false; }
+
+            if (!success) {
+                view.show("Reconnect failed. Session lost.");
+                loggedIn = false;
+                inGame = false;
+                notifyAllLock(gameLock);
+            }
+        }, "ReconnectThread").start();
     }
 
     private List<String> requestLobbyPlayers() {
@@ -223,7 +245,10 @@ public class CLIController {
 
             clientNetwork.sendPacket(new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col)));
             boolean notified = waitFor(gameLock, 60_000);
-            if (!notified) reconnectAndFetchState();
+            if (!notified || simulateServerDown) {
+                view.show("No response from server. Attempting resync...");
+                handleConnectionLost();
+            }
         }
     }
 
@@ -239,7 +264,6 @@ public class CLIController {
         if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE) return;
 
         switch (packet.type()) {
-            case INFO_RESPONSE -> onInfoResponse(packet);
             case LOGIN_RESPONSE -> onLoginResponse(packet);
             case SIGNUP_RESPONSE -> onSignupResponse(packet);
             case LOGOUT_RESPONSE -> onLogoutResponse(packet);
@@ -261,11 +285,6 @@ public class CLIController {
     }
 
     // --------- Server response handlers ---------
-    private void onInfoResponse(NetPacket packet) {
-        Object payload = packet.payload();
-        view.show("INFO: " + (payload != null ? payload.toString() : "No details"));
-    }
-
     private void onLoginResponse(NetPacket packet) {
         LoginResponse resp = (LoginResponse) packet.payload();
         loggedIn = resp.success();
@@ -302,7 +321,6 @@ public class CLIController {
         else view.show("Invitation declined.");
         notifyAllLock(gameLock);
     }
-
 
     private void onGameStartResponse(NetPacket packet) {
         GameStateResponse gs = (GameStateResponse) packet.payload();
@@ -370,7 +388,14 @@ public class CLIController {
 
     private void onReconnectResponse(NetPacket packet) {
         ReconnectResponse resp = (ReconnectResponse) packet.payload();
-        if (!resp.success()) { view.show(resp.message()); resetSessionState(); notifyAllLock(loginLock); return; }
+        synchronized (reconnectLock) { reconnectInProgress = false; }
+
+        if (!resp.success()) {
+            view.show(resp.message());
+            resetSessionState();
+            notifyAllLock(loginLock);
+            return;
+        }
 
         view.show(resp.message());
         loggedIn = true;
@@ -384,19 +409,6 @@ public class CLIController {
         }
         InviteNotificationResponse[] invites = resp.pendingInvites();
         lastInvite = (invites != null && invites.length > 0) ? invites[invites.length - 1] : null;
-        notifyAllLock(loginLock);
-        notifyAllLock(gameLock);
-    }
-
-    private void reconnectAndFetchState() {
-        if (username == null || relogCode == null) { view.show("Cannot reconnect automatically."); resetSessionState(); return; }
-
-        view.show("Attempting to reconnect using relog code...");
-        boolean success = clientNetwork.attemptReconnectWithRelogCode(username, relogCode);
-        if (!success) { view.show("Reconnection failed."); resetSessionState(); return; }
-
-        sessionClosing = false;
-        view.show("Reconnected successfully.");
         notifyAllLock(gameLock);
         notifyAllLock(loginLock);
     }

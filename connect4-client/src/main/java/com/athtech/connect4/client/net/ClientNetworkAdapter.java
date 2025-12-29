@@ -6,6 +6,7 @@ public interface ClientNetworkAdapter {
     void disconnect();
     void sendPacket(NetPacket packet);
     void setListener(PacketListener listener);
+    void setConnectionLostListener(Runnable callback);
     boolean attemptReconnectWithRelogCode(String username, String relogCode);
 
     interface PacketListener {
