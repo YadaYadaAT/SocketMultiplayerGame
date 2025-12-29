@@ -26,7 +26,7 @@ public class MatchController {
 
     public MatchController(ServerNetworkAdapter server, LobbyController lobbyController, PersistenceManager persistence) {
         this.lobbyController = lobbyController;
-        this.matchManager = new MatchManagerImpl(lobbyController);
+        this.matchManager = new MatchManagerImpl();
         this.sendToClient = server::sendToClient;
         this.persistence = persistence;
     }
@@ -60,12 +60,9 @@ public class MatchController {
                 new MoveRejectedResponse("No active match found. Are you in a game?", null))));
     }
 
-    // -----------------------
-    // End match
-    // -----------------------
     public void endMatch(Match match) {
         if (!match.markEnded()) return;
-
+        match.markEnded();
         boolean draw = match.isDraw();
         String winner = draw ? null : match.getWinner();
 
@@ -74,7 +71,7 @@ public class MatchController {
         sendUpdatedStats(match.getPlayer2());
 
         broadcastMatchEnd(match);
-        matchManager.endMatch(match.getMatchId());
+
     }
 
     // -----------------------
@@ -130,39 +127,104 @@ public class MatchController {
         return invites.stream().map(InviteNotificationResponse::new).toArray(InviteNotificationResponse[]::new);
     }
 
-    // -----------------------
-    // Rematch
-    // -----------------------
-    public void sendRematchRequest(String username) {
-        matchManager.getMatchByPlayer(username).ifPresent(match -> {
-            String other = match.getPlayer1().equals(username) ? match.getPlayer2() : match.getPlayer1();
+    public void sendRematchRequest(String username, boolean consent) {
+        matchManager.getEndedMatchByPlayer(username).ifPresent(match -> {
 
-            if (!lobbyController.isUserLoggedIn(username) || !lobbyController.isUserLoggedIn(other)) {
-                sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(false, "Other player offline")));
+            // FAST FAIL: rematch already impossible
+            RematchDecision outcome = match.getRematchOutcome();
+            if (outcome == RematchDecision.DECLINED ||
+                    outcome == RematchDecision.UNAVAILABLE) {
+
+                // Inform user immediately
+                sendToClient.accept(username, new NetPacket(
+                        PacketType.REMATCH_RESPONSE,
+                        "server",
+                        new RematchResponse(false, "Rematch no longer available")
+                ));
+
+                // Explicit session end
+                sendToClient.accept(username, new NetPacket(
+                        PacketType.MATCH_SESSION_ENDED_RESPONSE,
+                        "server",
+                        new MatchSessionEndedResponse()
+                ));
+
                 return;
             }
 
-            try {
-                Match newMatch = matchManager.createMatch(username, other);
-                broadcastMatchCreate(newMatch);
-            } catch (IllegalStateException e) {
-                sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(false, "Cannot create rematch, one of the players is busy")));
+            // User decision
+            if (!consent) {
+                match.declineRematch(username);
+
+                sendToClient.accept(username, new NetPacket(
+                        PacketType.REMATCH_RESPONSE,
+                        "server",
+                        new RematchResponse(false, "You declined rematch")
+                ));
+
+                // Decline = immediate detachment
+                sendToClient.accept(username, new NetPacket(
+                        PacketType.MATCH_SESSION_ENDED_RESPONSE,
+                        "server",
+                        new MatchSessionEndedResponse()
+                ));
+            } else {
+                try {
+                    match.requestRematch(username);
+
+                    sendToClient.accept(username, new NetPacket(
+                            PacketType.REMATCH_RESPONSE,
+                            "server",
+                            new RematchResponse(true, "Rematch request recorded")
+                    ));
+                } catch (IllegalStateException e) {
+                    // Other player already declined / left
+                    sendToClient.accept(username, new NetPacket(
+                            PacketType.REMATCH_RESPONSE,
+                            "server",
+                            new RematchResponse(false, "Rematch no longer available")
+                    ));
+
+                    sendToClient.accept(username, new NetPacket(
+                            PacketType.MATCH_SESSION_ENDED_RESPONSE,
+                            "server",
+                            new MatchSessionEndedResponse()
+                    ));
+
+                    return;
+                }
+            }
+
+            // Garbage collect empty match
+            if (match.getActivePlayers().isEmpty()) {
+                matchManager.endMatch(match.getMatchId());
+                return;
+            }
+
+            // Both accepted → create rematch
+            if (match.isRematchReady()) {
+                match.markEnded();
+                match.resetRematchRequests();
+
+                try {
+                    String p1 = match.getPlayer1();
+                    String p2 = match.getPlayer2();
+                    Match newMatch = matchManager.createMatch(p1, p2);
+                    broadcastMatchCreate(newMatch);
+                } catch (IllegalStateException e) {
+                    match.getActivePlayers().forEach(player ->
+                            sendToClient.accept(player, new NetPacket(
+                                    PacketType.REMATCH_RESPONSE,
+                                    "server",
+                                    new RematchResponse(false, "Cannot create rematch")
+                            ))
+                    );
+                }
             }
         });
     }
 
-    public void processRematchDecision(String username, boolean accepted) {
-        matchManager.getMatchByPlayer(username).ifPresent(match -> {
-            if (!accepted) {
-                sendToClient.accept(match.getPlayer1(), new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(false, "Rematch declined")));
-                sendToClient.accept(match.getPlayer2(), new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(false, "Rematch declined")));
-            }
-        });
-    }
+
 
     // -----------------------
     // Cleanup

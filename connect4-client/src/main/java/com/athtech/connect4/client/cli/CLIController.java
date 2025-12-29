@@ -179,12 +179,15 @@ public class CLIController {
         view.showRematchPrompt();
         boolean wantRematch = input.readLine().trim().equalsIgnoreCase("y");
         if (wantRematch) {
-            clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest()));
+            clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest(true)));
             view.show("Rematch request sent.");
+        }else{
+            clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest(false)));
         }
         rematchPhase = false;
         pendingRematchOpponent = null;
     }
+
 
 
 

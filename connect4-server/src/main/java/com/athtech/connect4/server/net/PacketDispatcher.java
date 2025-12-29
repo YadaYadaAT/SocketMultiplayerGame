@@ -31,8 +31,7 @@ public class PacketDispatcher {
             case RECONNECT_REQUEST -> handleReconnect(client, packet);
             case INVITE_REQUEST -> handleInviteRequest(client, packet);
             case INVITE_DECISION_REQUEST -> handleInviteDecision(client, packet);
-            case REMATCH_REQUEST -> handleRematchRequest(client);
-            case REMATCH_DECISION_REQUEST -> handleRematchDecision(client, packet);
+            case REMATCH_REQUEST -> handleRematchRequest(client, packet);
             case MOVE_REQUEST -> handleMove(client, packet);
             default -> client.sendPacket(new NetPacket(PacketType.ERROR_MESSAGE_RESPONSE, "server",
                     new ErrorMessageResponse("Unknown packet type: " + packet.type())));
@@ -112,13 +111,9 @@ public class PacketDispatcher {
         matchController.processInviteDecision(client.getUsername(), req.inviterUsername(), req.accepted());
     }
 
-    private void handleRematchRequest(ClientHandler client) {
-        matchController.sendRematchRequest(client.getUsername());
-    }
-
-    private void handleRematchDecision(ClientHandler client, NetPacket packet) {
-        RematchDecisionRequest req = (RematchDecisionRequest) packet.payload();
-        matchController.processRematchDecision(client.getUsername(), req.accepted());
+    private void handleRematchRequest(ClientHandler client,NetPacket packet ) {
+        RematchRequest rem = (RematchRequest) packet.payload();
+        matchController.sendRematchRequest(client.getUsername() , rem.decision());
     }
 
     private void handleMove(ClientHandler client, NetPacket packet) {

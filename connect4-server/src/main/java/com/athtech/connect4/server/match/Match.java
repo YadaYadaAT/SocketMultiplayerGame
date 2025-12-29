@@ -3,7 +3,16 @@ package com.athtech.connect4.server.match;
 import com.athtech.connect4.protocol.payload.GameStateResponse;
 import com.athtech.connect4.protocol.payload.MoveRequest;
 
+import java.util.Set;
+
 public interface Match {
+    void requestRematch(String player);
+    boolean isRematchReady();
+    void resetRematchRequests();
+    void declineRematch(String player);
+    Set<String> getActivePlayers();
+    RematchDecision getRematchOutcome();
+    void markUnavailable(String player);
     String getMatchId();
     String getPlayer1();
     String getPlayer2();
@@ -17,4 +26,5 @@ public interface Match {
     boolean markEnded();
     void touch();
     boolean isInactive(long timeoutMs);
+    boolean isEnded();
 }

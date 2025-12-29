@@ -1,6 +1,6 @@
 package com.athtech.connect4.server.match;
 
-import com.athtech.connect4.server.net.LobbyController;
+import com.athtech.connect4.protocol.payload.GameStateResponse;
 
 import java.util.List;
 import java.util.Optional;
@@ -10,12 +10,26 @@ import java.util.stream.Collectors;
 
 public class MatchManagerImpl implements MatchManager {
 
-    private final LobbyController lobbyController;
     private final ConcurrentMap<String, Match> matches = new ConcurrentHashMap<>();
     private static final long INACTIVITY_TIMEOUT_MS = 120_000; // 2 minutes
+    private static final long CLEANUP_INTERVAL_MS = 30_000; // 30 seconds
 
-    public MatchManagerImpl(LobbyController lobbyController) {
-        this.lobbyController = lobbyController;
+    public MatchManagerImpl() {
+
+        // Automatic cleanup thread
+        Thread cleanupThread = new Thread(() -> {
+            while (true) {
+                try {
+                    cleanupInactiveMatches();
+                    Thread.sleep(CLEANUP_INTERVAL_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        });
+        cleanupThread.setDaemon(true); // won’t block JVM shutdown
+        cleanupThread.start();
     }
 
     @Override
@@ -26,6 +40,24 @@ public class MatchManagerImpl implements MatchManager {
         Match match = new MatchImpl(player1, player2);
         matches.put(match.getMatchId(), match);
         return match;
+    }
+
+    @Override
+    public Optional<Match> getEndedMatchByPlayer(String username) {
+        return matches.values().stream()
+                .filter(Match::isEnded)
+                .filter(m -> m.getPlayer1().equals(username) || m.getPlayer2().equals(username))
+                .findFirst();
+    }
+
+    @Override
+    public Optional<GameStateResponse> getCurrentStateForPlayer(String username) {
+        return getMatchByPlayer(username).map(Match::getCurrentState);
+    }
+
+    @Override
+    public Optional<String> getMatchIdByPlayer(String username) {
+        return getMatchByPlayer(username).map(Match::getMatchId);
     }
 
     @Override
@@ -50,15 +82,24 @@ public class MatchManagerImpl implements MatchManager {
                 .findFirst();
     }
 
-    /** Cleanup inactive or disconnected matches */
-    public void cleanupInactiveMatches() {
+
+    public synchronized void cleanupInactiveMatches() {
         matches.values().forEach(match -> {
-            boolean p1Online = lobbyController.isUserLoggedIn(match.getPlayer1());
-            boolean p2Online = lobbyController.isUserLoggedIn(match.getPlayer2());
-            if (!p1Online && !p2Online) {
-                matches.remove(match.getMatchId());
-            } else if (match instanceof MatchImpl && ((MatchImpl) match).isInactive(INACTIVITY_TIMEOUT_MS)) {
-                matches.remove(match.getMatchId());
+            if (match instanceof MatchImpl impl) {
+                boolean removed = false;
+
+                // Remove empty matches
+                if (impl.getActivePlayers().isEmpty()) {
+                    matches.remove(match.getMatchId());
+                    System.out.println("[Cleanup] Removed empty match " + match.getMatchId());
+                    removed = true;
+                }
+
+                // Remove matches inactive too long
+                if (!removed && impl.isInactive(INACTIVITY_TIMEOUT_MS)) {
+                    matches.remove(match.getMatchId());
+                    System.out.println("[Cleanup] Removed inactive match " + match.getMatchId());
+                }
             }
         });
     }

@@ -9,6 +9,14 @@ public class Game {
     private final String player2;
     private String winner; // new field to track winner
 
+    public String getPlayer1() {
+        return player1;
+    }
+
+    public String getPlayer2() {
+        return player2;
+    }
+
     public Game(String p1, String p2) {
         this.board = new char[6][7]; // standard Connect4
         this.currentPlayer = p1;
@@ -17,7 +25,6 @@ public class Game {
         this.player2 = p2;
         this.winner = null;
 
-        // initialize board with empty cells
         for (int i = 0; i < 6; i++)
             for (int j = 0; j < 7; j++)
                 board[i][j] = ' ';
@@ -95,4 +102,6 @@ public class Game {
         }
         return count;
     }
+
+
 }
