@@ -100,7 +100,7 @@ public class CLIView {
 
     public void showGameStart() {
         synchronized (consoleLock) {
-            System.out.println("\n--- GAME STARTED ---");
+            System.out.println("\n (Game mode enabled)");
         }
     }
 

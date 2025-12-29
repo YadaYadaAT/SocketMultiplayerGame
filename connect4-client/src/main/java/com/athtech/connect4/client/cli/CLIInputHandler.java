@@ -1,14 +1,21 @@
 package com.athtech.connect4.client.cli;
 
 import java.util.Scanner;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Single responsibility: read user input. Keeps Scanner local so
  * other classes don't mix I/O concerns.
  */
 public class CLIInputHandler {
-
+    private final BooleanSupplier isInGame;
     private final Scanner scanner = new Scanner(System.in);
+
+    public CLIInputHandler(BooleanSupplier isInGame) {
+        this.isInGame = isInGame;
+    }
+
 
     /** Read a full line (blocks). Trims result. */
     public String readLine() {
@@ -34,6 +41,7 @@ public class CLIInputHandler {
     public int[] readMove() {
         while (true) {
             String line = scanner.nextLine().trim();
+            if (!isInGame.getAsBoolean() || line.isEmpty()) return null;
             String[] parts = line.split(",");
             if (parts.length != 2) {
                 System.out.print("Invalid format. Enter as row,column: ");

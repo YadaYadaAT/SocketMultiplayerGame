@@ -44,10 +44,10 @@ public class CLIController {
     // --- Testing hook ---
     private volatile boolean simulateServerDown = false;
 
-    public CLIController(CLIView view, ClientNetworkAdapter clientNetwork, CLIInputHandler input) {
+    public CLIController(CLIView view, ClientNetworkAdapter clientNetwork ) {
         this.view = view;
         this.clientNetwork = clientNetwork;
-        this.input = input;
+        input = new CLIInputHandler(this::getIsInGame);
         clientNetwork.setListener(this::handleServerPacket);
         clientNetwork.setConnectionLostListener(this::handleConnectionLost);
     }
@@ -127,7 +127,14 @@ public class CLIController {
         view.showGameStart();
 
         while (inGame && loggedIn && !sessionClosing) {
+
             int[] move = input.readMove();
+
+            // GAME ENDED WHILE WAITING FOR INPUT
+            if (!inGame || move == null) {
+                break;
+            }
+
             int row = move[0];
             int col = move[1];
 
@@ -142,6 +149,8 @@ public class CLIController {
             }
         }
     }
+
+
 
     private void handleLobby() {
         if (inGame || rematchPhase) {
@@ -352,12 +361,22 @@ public class CLIController {
         view.showGameStarted("Ignore Lobby Menu! Game started!");
 
         GameStateResponse gs = (GameStateResponse) packet.payload();
+        view.showBoard(gs.board());
+
         if (gs.currentPlayer().equals(username)) {
-            view.showBoard(gs.board());
-            view.showYourTurn("Press enter once to enter into game the mode! It's also your turn so you may enter your move (row,column): ");
+            view.showYourTurn(
+                    "At the start of the game players need to press "
+                            + "\u001B[38;5;208m`enter`\u001B[0m"
+                            + " once to enter into the game mode!"
+                            + "\nIt's also your turn so afterwards enter your move:\n row,column:"
+            );
         } else {
-            view.showBoard(gs.board());
-            view.showWaitTurn("Press enter once to enter into the gaming mode and then wait since its your Opponent's turn. Please wait for your turn");
+            view.showWaitTurn(
+                    "Press "
+                            + "\u001B[38;5;208m`enter`\u001B[0m"
+                            + " once to enter into the gaming mode"
+                            + "\nAnd then wait since it's your opponent's turn."
+            );
         }
 
         inGame = !gs.gameOver();
@@ -366,18 +385,21 @@ public class CLIController {
 
     private void onGameStateResponse(NetPacket packet) {
         GameStateResponse gs = (GameStateResponse) packet.payload();
+        view.showBoard(gs.board());
 
         if (gs.currentPlayer().equals(username)) {
-            view.showBoard(gs.board());
-            if (!gameStartingPromptConsumsed){
-                view.showYourTurn("Press enter once to enter into game the mode! It's also your turn so you may enter your move (row,column): ");
-            }else{
-                view.showYourTurn("It's your turn! Enter your move (row,column): ");
+            if (!gameStartingPromptConsumsed) {
+                view.showYourTurn(
+                        "It's your turn but you haven't yet pressed "
+                                + "\u001B[38;5;208m`enter`\u001B[0m"
+                                + " to enter into game mode!"
+                                + "\nOnce you activate it you may proceed with your move afterwards:\n row,column :"
+                );
+            } else {
+                view.showYourTurn("It's your turn! Enter your move: row,column");
             }
-
-        } else {//it is needless to check for prompt here since if its not his turn means he has already entered the game mode
-            view.showBoard(gs.board());
-            view.showWaitTurn("Opponent's turn. Please wait for your turn");
+        } else {
+            view.showWaitTurn("Opponent's turn. Please wait for your turn.");
         }
 
         inGame = !gs.gameOver();
@@ -386,19 +408,30 @@ public class CLIController {
 
     private void onGameEndResponse(NetPacket packet) {
         GameEndResponse end = (GameEndResponse) packet.payload();
-        if (end.finalBoard() != null) view.showBoard(end.finalBoard());
-
+        inGame = false;
+        if (end.finalBoard() != null) {
+            view.showBoard(end.finalBoard());
+        }
+        boolean iWon = username.equals(end.winner());
+        boolean draw = "Draw".equals(end.reason());
         String message = "Draw".equals(end.reason())
                 ? "Game ended in a draw against " + end.opponent()
-                : (username.equals(end.winner()) ? "You won against " + end.opponent() : "You lost against " + end.opponent());
+                : (username.equals(end.winner())
+                ? "You won against " + end.opponent()
+                : "You lost against " + end.opponent());
 
         view.showCallback(message);
 
-        inGame = false;
+
+        notifyAllLock(gameLock);
+
+        if (!iWon && !draw) {
+            view.showCallback("Press ENTER to continue...");
+        }
+
         rematchPhase = true;
         pendingRematchOpponent = end.opponent();
 
-        notifyAllLock(gameLock);
         notifyAllLock(rematchLock);
     }
 
@@ -493,4 +526,9 @@ public class CLIController {
     private void notifyAllLock(Object lock) {
         synchronized (lock) { lock.notifyAll(); }
     }
+
+    public boolean getIsInGame() {
+        return inGame;
+    }
+
 }
