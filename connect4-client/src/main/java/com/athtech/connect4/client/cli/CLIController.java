@@ -32,8 +32,6 @@ public class CLIController {
     private final Object logoutLock = new Object();
     private final Object gameLock = new Object();
     private final Object inviteLock = new Object();
-
-    private volatile ClientState state = ClientState.LOBBY;
     private boolean shouldAppExit = false;
 
     public CLIController(CLIView view, ClientNetworkAdapter clientNetwork, CLIInputHandler input) {

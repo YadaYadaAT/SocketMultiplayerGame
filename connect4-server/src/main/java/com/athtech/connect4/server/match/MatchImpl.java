@@ -7,12 +7,13 @@ import com.athtech.connect4.server.game.Game;
 
 import java.util.UUID;
 
-public class matchImpl implements match {
+public class MatchImpl implements Match {
 
     private final String matchId;
     private final String player1;
     private final String player2;
     private final Game game;
+    private boolean ended = false;
 
     // Rematch state
     private boolean rematchRequestedByP1 = false;
@@ -21,7 +22,7 @@ public class matchImpl implements match {
     private long rematchStartTime = 0; // timestamp when first rematch request comes in
     private static final long REMATCH_TIMEOUT_MS = 30_000; // 30 sec
 
-    public matchImpl(String p1, String p2) {
+    public MatchImpl(String p1, String p2) {
         this.matchId = UUID.randomUUID().toString();
         this.player1 = p1;
         this.player2 = p2;
@@ -129,6 +130,13 @@ public class matchImpl implements match {
         return rematchStartTime > 0 &&
                 !rematchLocked &&
                 System.currentTimeMillis() - rematchStartTime > REMATCH_TIMEOUT_MS;
+    }
+
+    @Override
+    public synchronized boolean markEnded() {
+        if (ended) return false;
+        ended = true;
+        return true;
     }
 
 }

@@ -25,9 +25,9 @@ public class ServerNetworkAdapter {
         this.lobbyController = new LobbyController(
                 loggedInClients,
                 connectedClients.values(),
-                packet -> broadcast(packet)
+                this::broadcastToLobby
         );
-        this.matchController = new MatchController(this, lobbyController);
+        this.matchController = new MatchController(this, lobbyController, persistenceManager);
 
     }
 
@@ -74,6 +74,11 @@ public class ServerNetworkAdapter {
             ClientHandler handler = connectedClients.get(clientId);
             if (handler != null) handler.sendPacket(packet);
         }
+    }
+
+    public void broadcastToLobby(NetPacket packet) {
+        connectedClients.values().stream().filter(c -> c.getUsername()!=null)
+                .forEach(h -> h.sendPacket(packet));
     }
 
     public void broadcast(NetPacket packet) {

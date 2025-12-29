@@ -3,7 +3,7 @@ package com.athtech.connect4.server.match;
 import com.athtech.connect4.protocol.payload.GameStateResponse;
 import com.athtech.connect4.protocol.payload.MoveRequest;
 
-public interface match {
+public interface Match {
     String getMatchId();
     String getPlayer1();
     String getPlayer2();
@@ -19,4 +19,5 @@ public interface match {
     boolean canStartRematch();
     boolean isRematchTimedOut();
     void resetRematchState();
+    boolean markEnded();
 }

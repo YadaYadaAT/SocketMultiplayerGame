@@ -8,11 +8,11 @@ import java.util.stream.Collectors;
 
 public class MatchManagerImpl implements MatchManager {
 
-    private final ConcurrentMap<String, match> matches = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Match> matches = new ConcurrentHashMap<>();
 
     @Override
-    public match createMatch(String player1, String player2) {
-        match match = new matchImpl(player1, player2);
+    public Match createMatch(String player1, String player2) {
+        Match match = new MatchImpl(player1, player2);
         matches.put(match.getMatchId(), match);
         return match;
     }
@@ -23,17 +23,17 @@ public class MatchManagerImpl implements MatchManager {
     }
 
     @Override
-    public Optional<match> getMatch(String matchId) {
+    public Optional<Match> getMatch(String matchId) {
         return Optional.ofNullable(matches.get(matchId));
     }
 
     @Override
-    public List<match> getMatches() {
+    public List<Match> getMatches() {
         return matches.values().stream().collect(Collectors.toList());
     }
 
     @Override
-    public Optional<match> getMatchByPlayer(String username) {
+    public Optional<Match> getMatchByPlayer(String username) {
         return matches.values().stream()
                 .filter(m -> m.getPlayer1().equals(username) || m.getPlayer2().equals(username))
                 .findFirst();

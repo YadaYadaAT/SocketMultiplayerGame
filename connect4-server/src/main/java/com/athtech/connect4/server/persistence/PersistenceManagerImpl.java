@@ -196,6 +196,51 @@ public class PersistenceManagerImpl implements PersistenceManager {
         return Optional.empty();
     }
 
+
+    @Override
+    public synchronized void recordMatchResult(String player1, String player2, boolean draw, String winner) {
+        try {
+            connection.setAutoCommit(false);
+
+            if (draw) {
+                // both players: draws +1, games_played +1
+                try (PreparedStatement ps = connection.prepareStatement(
+                        "UPDATE players SET draws = draws + 1, games_played = games_played + 1 WHERE username = ?"
+                )) {
+                    ps.setString(1, player1);
+                    ps.executeUpdate();
+                    ps.setString(1, player2);
+                    ps.executeUpdate();
+                }
+            } else {
+                String loser = winner.equals(player1) ? player2 : player1;
+
+                // winner: wins +1, games_played +1
+                try (PreparedStatement ps = connection.prepareStatement(
+                        "UPDATE players SET wins = wins + 1, games_played = games_played + 1 WHERE username = ?"
+                )) {
+                    ps.setString(1, winner);
+                    ps.executeUpdate();
+                }
+
+                // loser: losses +1, games_played +1
+                try (PreparedStatement ps = connection.prepareStatement(
+                        "UPDATE players SET losses = losses + 1, games_played = games_played + 1 WHERE username = ?"
+                )) {
+                    ps.setString(1, loser);
+                    ps.executeUpdate();
+                }
+            }
+
+            connection.commit();
+        } catch (SQLException e) {
+            try { connection.rollback(); } catch (SQLException ignored) {}
+            throw new RuntimeException("Failed to record match result", e);
+        } finally {
+            try { connection.setAutoCommit(true); } catch (SQLException ignored) {}
+        }
+    }
+
     // -------------------------
     // HASHING METHODS
     // -------------------------
@@ -224,4 +269,8 @@ public class PersistenceManagerImpl implements PersistenceManager {
                 rs.getInt("games_played")
         );
     }
+
+
+
+
 }

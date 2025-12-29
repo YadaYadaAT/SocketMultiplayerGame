@@ -17,4 +17,5 @@ public interface PersistenceManager {
     boolean deletePlayer(String id);
     void setRelogCode(Player player, String relogCode);
     Optional<String> getRelogCode(String username);
+    void recordMatchResult(String player1, String player2, boolean draw, String winner);
 }

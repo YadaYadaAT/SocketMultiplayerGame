@@ -11,14 +11,11 @@ public class LobbyController {
 
     // logged-in users: <username, clientId>
     private final Map<String, String> loggedInClients ;
-
-    private final Collection<ClientHandler> connectedClients;
     private final Consumer<NetPacket> broadcastToLoggedIn;
 
     public LobbyController(Map<String, String> loggedInClients, Collection<ClientHandler> connectedClients,
                            Consumer<NetPacket> broadcastToLoggedIn) {
         this.loggedInClients = loggedInClients;
-        this.connectedClients = connectedClients;
         this.broadcastToLoggedIn = broadcastToLoggedIn;
     }
 
