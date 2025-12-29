@@ -86,7 +86,7 @@ public class MatchController {
         }
 
         if (!matchManager.getMatchByPlayer(targetUsername).isEmpty()) {
-            System.out.println("sendInvite: user not in match triggered");
+            System.out.println("sendInvite: user in match triggered");
             sendToClient.accept(fromUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
                     new InviteResponse(false, "Player not available")));
             return;

@@ -33,11 +33,11 @@ public class CLIController {
     private final Object reconnectLock = new Object();
     private final Object rematchLock = new Object();
     private volatile boolean rematchPhase = false; // true when waiting for rematch decision
-
-    private volatile boolean gameStarting = false;
     private volatile boolean reconnectInProgress = false;
     private final int MAX_RECONNECT_ATTEMPTS = 3;
     private final long RECONNECT_INTERVAL_MS = 12_000;
+
+    private volatile boolean gameStartingPromptConsumsed = false;
 
     private boolean shouldAppExit = false;
 
@@ -72,6 +72,7 @@ public class CLIController {
         pendingRematchOpponent = null;
         lobbyPlayers.clear();
         myStats = null;
+        gameStartingPromptConsumsed = false;
     }
 
     private void authenticationMenu() {
@@ -115,8 +116,51 @@ public class CLIController {
 
             if (!inGame && pendingRematchRequester != null) handleIncomingRematchRequest();
             if (!inGame && pendingRematchOpponent != null) handleRematchPrompt();
+            gameStartingPromptConsumsed = false;
             if (!inGame && pendingRematchRequester == null && pendingRematchOpponent == null) handleLobby();
+
             if (inGame) runGameLoop();
+        }
+    }
+
+    private void runGameLoop() {
+        view.showGameStart();
+
+        while (inGame && loggedIn && !sessionClosing) {
+            int[] move = input.readMove();
+            int row = move[0];
+            int col = move[1];
+
+            clientNetwork.sendPacket(
+                    new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col))
+            );
+
+            boolean notified = waitFor(gameLock, 60_000);
+            if (!notified || simulateServerDown) {
+                view.showCallback("No response from server. Attempting resync...");
+                handleConnectionLost();
+            }
+        }
+    }
+
+    private void handleLobby() {
+        if (inGame || rematchPhase) {
+            view.show("You are currently in a game or rematch phase. Lobby actions are disabled.");
+            return;
+        }
+        view.showLobbyMenu();
+        var choice = input.readChoice();
+        if (inGame || rematchPhase) {
+            gameStartingPromptConsumsed = true;
+            return; }
+
+        switch (choice) {
+            case "1" -> sendInviteRequest();
+            case "2" -> handleReceivedInviteRequest();
+            case "3" -> requestLobbyPlayers();
+            case "4" -> requestPlayerStats();
+            case "0" -> requestLogout();
+            default -> view.show("Invalid option.");
         }
     }
 
@@ -138,31 +182,11 @@ public class CLIController {
             clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest()));
             view.show("Rematch request sent.");
         }
-        rematchPhase = false; // unlock lobby after decision
+        rematchPhase = false;
         pendingRematchOpponent = null;
     }
 
-    private void handleLobby() {
-        if (inGame || rematchPhase) {// extra safety
-            view.show("You are currently in a game or rematch phase. Lobby actions are disabled.");
-            return;
-        }
-        view.showLobbyMenu();
-        var choice = input.readChoice();
-        if (gameStarting) {   // absorb leftover input if game is starting
-            gameStarting = false;
-            return;
-        }
 
-        switch (choice) {
-            case "1" -> sendInviteRequest();
-            case "2" -> handleReceivedInviteRequest();
-            case "3" -> requestLobbyPlayers();
-            case "4" -> requestPlayerStats();
-            case "0" -> requestLogout();
-            default -> view.show("Invalid option.");
-        }
-    }
 
     private void sendInviteRequest() {
         if (inGame) return;
@@ -189,7 +213,6 @@ public class CLIController {
         }
     }
 
-    /** --- Unified reconnect method --- */
     public void handleConnectionLost() {
         synchronized (reconnectLock) {
             if (reconnectInProgress || username == null || relogCode == null) return;
@@ -202,7 +225,7 @@ public class CLIController {
 
             while (attempts < MAX_RECONNECT_ATTEMPTS && !success) {
                 attempts++;
-                view.show("Attempting reconnect (" + attempts + "/" + MAX_RECONNECT_ATTEMPTS + ")...");
+                view.showCallback("Attempting reconnect (" + attempts + "/" + MAX_RECONNECT_ATTEMPTS + ")...");
                 clientNetwork.sendPacket(new NetPacket(PacketType.RECONNECT_REQUEST, username, new ReconnectRequest(username, relogCode)));
 
                 boolean notified = waitFor(reconnectLock, 8000);
@@ -216,7 +239,7 @@ public class CLIController {
             synchronized (reconnectLock) { reconnectInProgress = false; }
 
             if (!success) {
-                view.show("Reconnect failed. Session lost.");
+                view.showCallback("Reconnect failed. Session lost.");
                 loggedIn = false;
                 inGame = false;
                 notifyAllLock(gameLock);
@@ -226,21 +249,21 @@ public class CLIController {
 
     private List<String> requestLobbyPlayers() {
         if (inGame) return List.of();
-        if (lobbyPlayers.isEmpty()) { view.show("No players available."); return List.of(); }
-        for (int i = 0; i < lobbyPlayers.size(); i++) view.show((i + 1) + ") " + lobbyPlayers.get(i));
+        if (lobbyPlayers.isEmpty()) { view.showCallback("No players available."); return List.of(); }
+        for (int i = 0; i < lobbyPlayers.size(); i++) view.showCallback((i + 1) + ") " + lobbyPlayers.get(i));
         return new ArrayList<>(lobbyPlayers);
     }
 
     private void requestPlayerStats() {
         if (inGame || myStats == null) return;
-        view.show("Stats → Played: " + myStats.gamesPlayed() +
+        view.showCallback("Stats → Played: " + myStats.gamesPlayed() +
                 ", Wins: " + myStats.wins() +
                 ", Losses: " + myStats.losses() +
                 ", Draws: " + myStats.draws());
     }
 
     private void requestLogout() {
-        if (inGame || sessionClosing) { view.show("Logout already in progress..."); return; }
+        if (inGame || sessionClosing) { view.showCallback("Logout already in progress..."); return; }
 
         sessionClosing = true;
         clientNetwork.sendPacket(new NetPacket(PacketType.LOGOUT_REQUEST, username, new LogoutRequest()));
@@ -250,31 +273,13 @@ public class CLIController {
         try { clientNetwork.disconnect(); } catch (Exception ignored) {}
     }
 
-    private void runGameLoop() {
-        view.showGameStart();
 
-        while (inGame && loggedIn && !sessionClosing) {
-
-            int row = readGameInt("Row: ");
-            int col = readGameInt("Column: ");
-
-            clientNetwork.sendPacket(
-                    new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col))
-            );
-
-            boolean notified = waitFor(gameLock, 60_000);
-            if (!notified || simulateServerDown) {
-                view.show("No response from server. Attempting resync...");
-                handleConnectionLost();
-            }
-        }
-    }
 
     private int readGameInt(String prompt) {
         while (true) {
             view.prompt(prompt);
             try { return Integer.parseInt(input.readLine().trim()); }
-            catch (NumberFormatException e) { view.show("Invalid number. Try again."); }
+            catch (NumberFormatException e) { view.showCallback("Invalid number. Try again."); }
         }
     }
 
@@ -298,56 +303,62 @@ public class CLIController {
             case REMATCH_NOTIFICATION_RESPONSE -> onRematchNotificationResponse(packet);
             case RECONNECT_RESPONSE -> onReconnectResponse(packet);
             case ERROR_MESSAGE_RESPONSE -> onErrorMessageResponse(packet);
-            case INFO_RESPONSE ->  onInfoResponse(packet);
-            default -> view.show("Unhandled packet: " + packet.type());
+            case INFO_RESPONSE -> onInfoResponse(packet);
+            default -> view.showCallback("Unhandled packet: " + packet.type());
         }
     }
 
+    // --- on* callbacks now use showCallback / showCallbackHighlight ---
     private void onLoginResponse(NetPacket packet) {
         LoginResponse resp = (LoginResponse) packet.payload();
         loggedIn = resp.success();
-        view.show(resp.message());
+        view.showCallback(resp.message());
         if (loggedIn) { relogCode = resp.relogCode(); myStats = resp.stats(); }
         notifyAllLock(loginLock);
     }
 
     private void onSignupResponse(NetPacket packet) {
         SignupResponse resp = (SignupResponse) packet.payload();
-        view.show(resp.message());
+        view.showCallback(resp.message());
         notifyAllLock(loginLock);
     }
 
     private void onLobbyPlayersResponse(NetPacket packet) {
         var lobP = (String[]) packet.payload();
         lobbyPlayers = new ArrayList<>(Arrays.asList(lobP));
-        view.show("Lobby: " + String.join(", ", lobbyPlayers));
+        view.showCallback("Lobby: " + String.join(", ", lobbyPlayers));
     }
 
     private void onInviteNotificationResponse(NetPacket packet) {
         lastInvite = (InviteNotificationResponse) packet.payload();
-        view.show("Invite from: " + lastInvite.fromUsername());
+        view.showCallback("Invite from: " + lastInvite.fromUsername());
     }
 
     private void onInviteResponse(NetPacket packet) {
         var resp = (InviteResponse) packet.payload();
-        view.show(resp.delivered() ? "Invite delivered." : "Invite failed: " + resp.reason());
+        view.showCallback(resp.delivered() ? "Invite delivered." : "Invite failed: " + resp.reason());
     }
 
     private void onInviteDecisionResponse(NetPacket packet) {
         var resp = (InviteDecisionResponse) packet.payload();
         if (resp.accepted()) {
-            view.show("Invitation accepted. Match starting...");
+            view.showCallback("Invitation accepted. Match starting...");
             inGame = true;
-        } else view.show("Invitation declined.");
+        } else view.showCallback("Invitation declined.");
         notifyAllLock(gameLock);
     }
 
     private void onGameStartResponse(NetPacket packet) {
+        view.showGameStarted("Ignore Lobby Menu! Game started!");
+
         GameStateResponse gs = (GameStateResponse) packet.payload();
-        gameStarting = true;
-        view.show("Game starting. Press enter to continue...");
-        view.showBoard(gs.board());
-        view.show("Turn: " + gs.currentPlayer());
+        if (gs.currentPlayer().equals(username)) {
+            view.showBoard(gs.board());
+            view.showYourTurn("Press enter once to enter into game the mode! It's also your turn so you may enter your move (row,column): ");
+        } else {
+            view.showBoard(gs.board());
+            view.showWaitTurn("Press enter once to enter into the gaming mode and then wait since its your Opponent's turn. Please wait for your turn");
+        }
 
         inGame = !gs.gameOver();
         notifyAllLock(gameLock);
@@ -355,9 +366,22 @@ public class CLIController {
 
     private void onGameStateResponse(NetPacket packet) {
         GameStateResponse gs = (GameStateResponse) packet.payload();
-        view.showBoard(gs.board());
-        view.show("Turn: " + gs.currentPlayer());
+
+        if (gs.currentPlayer().equals(username)) {
+            view.showBoard(gs.board());
+            if (!gameStartingPromptConsumsed){
+                view.showYourTurn("Press enter once to enter into game the mode! It's also your turn so you may enter your move (row,column): ");
+            }else{
+                view.showYourTurn("It's your turn! Enter your move (row,column): ");
+            }
+
+        } else {//it is needless to check for prompt here since if its not his turn means he has already entered the game mode
+            view.showBoard(gs.board());
+            view.showWaitTurn("Opponent's turn. Please wait for your turn");
+        }
+
         inGame = !gs.gameOver();
+        notifyAllLock(gameLock);
     }
 
     private void onGameEndResponse(NetPacket packet) {
@@ -368,7 +392,7 @@ public class CLIController {
                 ? "Game ended in a draw against " + end.opponent()
                 : (username.equals(end.winner()) ? "You won against " + end.opponent() : "You lost against " + end.opponent());
 
-        view.show(message);
+        view.showCallback(message);
 
         inGame = false;
         rematchPhase = true;
@@ -380,34 +404,37 @@ public class CLIController {
 
     private void onRematchResponse(NetPacket packet) {
         RematchResponse resp = (RematchResponse) packet.payload();
-        view.show("Rematch response: " + (resp.accepted() ? "accepted" : "declined") + ". " + resp.message());
+        view.showCallback("Rematch response: " + (resp.accepted() ? "accepted" : "declined") + ". " + resp.message());
     }
 
     private void onRematchNotificationResponse(NetPacket packet) {
         var offer = (RematchNotificationResponse) packet.payload();
-        view.show("Rematch offer from: " + offer.requester());
+        view.showCallback("Rematch offer from: " + offer.requester());
         pendingRematchRequester = offer.requester();
     }
 
     private void onMoveRejectedResponse(NetPacket packet) {
         MoveRejectedResponse rej = (MoveRejectedResponse) packet.payload();
 
-        view.show("Move rejected: " + rej.reason());
+        view.showCallback("Move rejected: " + rej.reason());
 
-        // Hard state failure — game is gone
         if (rej.currentPlayer() == null) {
             inGame = false;
-            view.show("Game session lost. Returning to lobby...");
+            view.showCallback("Game session lost. Returning to lobby...");
             notifyAllLock(gameLock);
-            return;
+        }else{
+            notifyAllLock(gameLock);
         }
+
     }
 
-    private void onPlayerStatsResponse(NetPacket packet) { myStats = (PlayerStatsResponse) packet.payload(); }
+    private void onPlayerStatsResponse(NetPacket packet) {
+        myStats = (PlayerStatsResponse) packet.payload();
+    }
 
     private void onLogoutResponse(NetPacket packet) {
         LogoutResponse resp = (LogoutResponse) packet.payload();
-        view.show(resp.message());
+        view.showCallback(resp.message());
         sessionClosing = false;
         resetSessionState();
         notifyAllLock(logoutLock);
@@ -418,7 +445,7 @@ public class CLIController {
 
     private void onErrorMessageResponse(NetPacket packet) {
         ErrorMessageResponse err = (ErrorMessageResponse) packet.payload();
-        view.show("ERROR: " + err.message());
+        view.showCallbackHighlight("ERROR: " + err.message());
         notifyAllLock(loginLock);
         notifyAllLock(gameLock);
     }
@@ -428,13 +455,13 @@ public class CLIController {
         synchronized (reconnectLock) { reconnectInProgress = false; }
 
         if (!resp.success()) {
-            view.show(resp.message());
+            view.showCallback(resp.message());
             resetSessionState();
             notifyAllLock(loginLock);
             return;
         }
 
-        view.show(resp.message());
+        view.showCallback(resp.message());
         loggedIn = true;
         sessionClosing = false;
         relogCode = resp.relogCode();
@@ -442,7 +469,7 @@ public class CLIController {
         lobbyPlayers = resp.lobbyPlayers() != null ? Arrays.asList(resp.lobbyPlayers()) : new ArrayList<>();
         if (resp.currentGameState() != null) {
             inGame = !resp.currentGameState().gameOver();
-            view.show("Game restored. Turn: " + resp.currentGameState().currentPlayer());
+            view.showCallbackHighlight(resp.currentGameState().currentPlayer().equals(username) ? "It's your turn!" : "Opponent's turn.");
         }
         InviteNotificationResponse[] invites = resp.pendingInvites();
         lastInvite = (invites != null && invites.length > 0) ? invites[invites.length - 1] : null;
@@ -451,14 +478,10 @@ public class CLIController {
     }
 
     private void onInfoResponse(NetPacket packet){
-        if ( !(packet.payload() instanceof String)){
-            return;
-        }
-        var payload = (String) packet.payload();
-        view.show(payload);
+        if (!(packet.payload() instanceof String)) return;
+        view.showCallback((String) packet.payload());
     }
 
-    // --------- Utilities ---------
     private boolean waitFor(Object lock, long timeoutMillis) {
         synchronized (lock) {
             try { lock.wait(timeoutMillis > 0 ? timeoutMillis : 0); }

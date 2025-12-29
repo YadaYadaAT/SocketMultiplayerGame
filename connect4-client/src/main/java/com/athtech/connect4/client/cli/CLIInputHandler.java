@@ -28,6 +28,28 @@ public class CLIInputHandler {
     }
 
     /**
+     * Reads a move input in the form "row,column" and returns it as an int array [row, col].
+     * Keeps prompting until a valid input is entered.
+     */
+    public int[] readMove() {
+        while (true) {
+            String line = scanner.nextLine().trim();
+            String[] parts = line.split(",");
+            if (parts.length != 2) {
+                System.out.print("Invalid format. Enter as row,column: ");
+                continue;
+            }
+            try {
+                int row = Integer.parseInt(parts[0].trim());
+                int col = Integer.parseInt(parts[1].trim());
+                return new int[]{row, col};
+            } catch (NumberFormatException e) {
+                System.out.print("Invalid numbers. Enter as row,column: ");
+            }
+        }
+    }
+
+    /**
      * Read a menu choice (single token). Returns the trimmed token.
      * Keeps the caller in charge of validation.
      */
