@@ -116,6 +116,7 @@ public class CLIController {
 
             if (!inGame && pendingRematchRequester != null) handleIncomingRematchRequest();
             if (!inGame && pendingRematchOpponent != null) handleRematchPrompt();
+
             gameStartingPromptConsumsed = false;
             if (!inGame && pendingRematchRequester == null && pendingRematchOpponent == null) handleLobby();
 
@@ -125,23 +126,13 @@ public class CLIController {
 
     private void runGameLoop() {
         view.showGameStart();
-
         while (inGame && loggedIn && !sessionClosing) {
-
             int[] move = input.readMove();
-
-            // GAME ENDED WHILE WAITING FOR INPUT
-            if (!inGame || move == null) {
-                break;
-            }
-
+            // game end consume input of loser
+            if (!inGame || move == null) {break;}
             int row = move[0];
             int col = move[1];
-
-            clientNetwork.sendPacket(
-                    new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col))
-            );
-
+            clientNetwork.sendPacket(new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col)));
             boolean notified = waitFor(gameLock, 60_000);
             if (!notified || simulateServerDown) {
                 view.showCallback("No response from server. Attempting resync...");

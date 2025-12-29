@@ -14,10 +14,7 @@ public interface Match {
     boolean isDraw();
     boolean makeMove(String player, MoveRequest moveRequest); // returns true if move accepted
     boolean isFinished();
-    void requestRematch(String player);
-    void cancelRematch();
-    boolean canStartRematch();
-    boolean isRematchTimedOut();
-    void resetRematchState();
     boolean markEnded();
+    void touch();
+    boolean isInactive(long timeoutMs);
 }

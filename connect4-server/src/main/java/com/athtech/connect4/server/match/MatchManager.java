@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MatchManager {
-    Match createMatch(String player1, String player2);
+    Match createMatch(String player1, String player2) throws IllegalStateException;
     Optional<Match> getMatch(String matchId);
     List<Match> getMatches();
     void endMatch(String matchId);

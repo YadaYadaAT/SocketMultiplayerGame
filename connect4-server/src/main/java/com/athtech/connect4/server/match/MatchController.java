@@ -15,58 +15,61 @@ import java.util.function.BiConsumer;
 
 public class MatchController {
 
-    private final MatchManager matchManager;
+    private final MatchManagerImpl matchManager;
     private final BiConsumer<String, NetPacket> sendToClient;
     private final LobbyController lobbyController;
     private final PersistenceManager persistence;
+
     // pending invites <targetUsername, list of fromUsername>
     private final Map<String, CopyOnWriteArrayList<String>> pendingInvites = new ConcurrentHashMap<>();
-    private final Set<String> endedMatches = ConcurrentHashMap.newKeySet();//one shot game ends...
+    private final Set<String> endedMatches = ConcurrentHashMap.newKeySet();
 
-    public MatchController(ServerNetworkAdapter server , LobbyController lobbyController, PersistenceManager persistence) {
-        this.matchManager = new MatchManagerImpl();
-        this.sendToClient = server::sendToClient;
+    public MatchController(ServerNetworkAdapter server, LobbyController lobbyController, PersistenceManager persistence) {
         this.lobbyController = lobbyController;
+        this.matchManager = new MatchManagerImpl(lobbyController);
+        this.sendToClient = server::sendToClient;
         this.persistence = persistence;
     }
 
-
+    // -----------------------
+    // Match creation
+    // -----------------------
     public void createMatch(String player1, String player2) {
-        Match m = matchManager.createMatch(player1, player2);
-        broadcastMatchCreate(m);
+        try {
+            Match match = matchManager.createMatch(player1, player2);
+            broadcastMatchCreate(match);
+        } catch (IllegalStateException e) {
+            sendToClient.accept(player1, new NetPacket(PacketType.INVITE_RESPONSE, "server",
+                    new InviteResponse(false, "Cannot create match, one of the players is busy")));
+        }
     }
 
+    // -----------------------
+    // Moves
+    // -----------------------
     public void processMove(String username, MoveRequest move) {
         matchManager.getMatchByPlayer(username).ifPresentOrElse(match -> {
             boolean ok = match.makeMove(username, move);
             if (!ok) sendToClient.accept(username, new NetPacket(PacketType.MOVE_REJECTED_RESPONSE, "server",
-                    new MoveRejectedResponse("Invalid move or not your turn",match.getCurrentPlayer())));
+                    new MoveRejectedResponse("Invalid move or not your turn", match.getCurrentPlayer())));
             else {
-                if (!match.isFinished()){
-                    broadcastMatchUpdate(match);
-                }else{
-                    endMatch(match);
-                }
-
+                if (!match.isFinished()) broadcastMatchUpdate(match);
+                else endMatch(match);
             }
         }, () -> sendToClient.accept(username, new NetPacket(PacketType.MOVE_REJECTED_RESPONSE, "server",
-                new MoveRejectedResponse("No active match found. Are you in a game?",null))));
+                new MoveRejectedResponse("No active match found. Are you in a game?", null))));
     }
 
+    // -----------------------
+    // End match
+    // -----------------------
     public void endMatch(Match match) {
         if (!match.markEnded()) return;
 
         boolean draw = match.isDraw();
         String winner = draw ? null : match.getWinner();
 
-        persistence.recordMatchResult(
-                match.getPlayer1(),
-                match.getPlayer2(),
-                draw,
-                winner
-        );
-
-        // push updated stats to both players
+        persistence.recordMatchResult(match.getPlayer1(), match.getPlayer2(), draw, winner);
         sendUpdatedStats(match.getPlayer1());
         sendUpdatedStats(match.getPlayer2());
 
@@ -74,19 +77,17 @@ public class MatchController {
         matchManager.endMatch(match.getMatchId());
     }
 
-
-
+    // -----------------------
+    // Invites
+    // -----------------------
     public void sendInvite(String fromUsername, String targetUsername) {
-
-        if (!lobbyController.isUserLoggedIn(targetUsername)){
-
+        if (!lobbyController.isUserLoggedIn(targetUsername)) {
             sendToClient.accept(fromUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
                     new InviteResponse(false, "Player is not online")));
             return;
         }
 
-        if (!matchManager.getMatchByPlayer(targetUsername).isEmpty()) {
-            System.out.println("sendInvite: user in match triggered");
+        if (matchManager.getMatchByPlayer(targetUsername).isPresent()) {
             sendToClient.accept(fromUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
                     new InviteResponse(false, "Player not available")));
             return;
@@ -98,11 +99,9 @@ public class MatchController {
                 new InviteNotificationResponse(fromUsername)));
         sendToClient.accept(fromUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
                 new InviteResponse(true, null)));
-
     }
 
     public void processInviteDecision(String targetUsername, String inviterUsername, boolean accepted) {
-
         CopyOnWriteArrayList<String> invites = pendingInvites.get(targetUsername);
         if (invites == null || !invites.contains(inviterUsername)) return;
 
@@ -114,63 +113,67 @@ public class MatchController {
 
         if (invites.isEmpty()) pendingInvites.remove(targetUsername);
 
-        if (accepted) createMatch(inviterUsername, targetUsername);
+        if (accepted) {
+            try {
+                createMatch(inviterUsername, targetUsername);
+            } catch (IllegalStateException e) {
+                sendToClient.accept(inviterUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
+                        new InviteResponse(false, "Cannot create match, one of the players is busy")));
+            }
+        }
     }
 
     public InviteNotificationResponse[] getInvitationsFor(String targetUsername) {
         CopyOnWriteArrayList<String> invites = pendingInvites.get(targetUsername);
         if (invites == null || invites.isEmpty()) return new InviteNotificationResponse[0];
 
-        return invites.stream()
-                .map(InviteNotificationResponse::new)
-                .toArray(InviteNotificationResponse[]::new);
+        return invites.stream().map(InviteNotificationResponse::new).toArray(InviteNotificationResponse[]::new);
     }
 
     // -----------------------
-    // Rematch logic (flattened)
+    // Rematch
     // -----------------------
     public void sendRematchRequest(String username) {
-        matchManager.getMatchByPlayer(username).ifPresent(Match -> {
+        matchManager.getMatchByPlayer(username).ifPresent(match -> {
+            String other = match.getPlayer1().equals(username) ? match.getPlayer2() : match.getPlayer1();
 
-            if (Match.isRematchTimedOut()) {
-                Match.cancelRematch();
-                sendToClient.accept(Match.getPlayer1(), new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(false, "Rematch timed out")));
-                sendToClient.accept(Match.getPlayer2(), new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(false, "Rematch timed out")));
+            if (!lobbyController.isUserLoggedIn(username) || !lobbyController.isUserLoggedIn(other)) {
+                sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                        new RematchResponse(false, "Other player offline")));
                 return;
             }
 
-            Match.requestRematch(username);
-
-            String other = Match.getPlayer1().equals(username) ? Match.getPlayer2() : Match.getPlayer1();
-            sendToClient.accept(other, new NetPacket(PacketType.REMATCH_NOTIFICATION_RESPONSE, "server",
-                    new RematchNotificationResponse(username)));
-
-            if (Match.canStartRematch()) {
-                Match.resetRematchState();
-                matchManager.endMatch(Match.getMatchId());
-                matchManager.createMatch(Match.getPlayer1(), Match.getPlayer2());
+            try {
+                Match newMatch = matchManager.createMatch(username, other);
+                broadcastMatchCreate(newMatch);
+            } catch (IllegalStateException e) {
+                sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                        new RematchResponse(false, "Cannot create rematch, one of the players is busy")));
             }
         });
     }
 
     public void processRematchDecision(String username, boolean accepted) {
-        matchManager.getMatchByPlayer(username).ifPresent(Match -> {
+        matchManager.getMatchByPlayer(username).ifPresent(match -> {
             if (!accepted) {
-                Match.cancelRematch();
-                sendToClient.accept(Match.getPlayer1(), new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                sendToClient.accept(match.getPlayer1(), new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                         new RematchResponse(false, "Rematch declined")));
-                sendToClient.accept(Match.getPlayer2(), new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                sendToClient.accept(match.getPlayer2(), new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                         new RematchResponse(false, "Rematch declined")));
             }
         });
     }
 
+    // -----------------------
+    // Cleanup
+    // -----------------------
+    public void cleanupMatches() {
+        matchManager.cleanupInactiveMatches();
+    }
+
     public GameStateResponse getCurrentGame(String username) {
         return matchManager.getMatchByPlayer(username).map(Match::getCurrentState).orElse(null);
     }
-
 
     // -----------------------
     // Broadcasting helpers
@@ -204,11 +207,6 @@ public class MatchController {
 
     private void sendUpdatedStats(String username) {
         PlayerStatsResponse stats = persistence.getPlayerStats(username);
-        sendToClient.accept(
-                username,
-                new NetPacket(PacketType.PLAYER_STATS_RESPONSE, "server", stats)
-        );
+        sendToClient.accept(username, new NetPacket(PacketType.PLAYER_STATS_RESPONSE, "server", stats));
     }
-
-
 }
