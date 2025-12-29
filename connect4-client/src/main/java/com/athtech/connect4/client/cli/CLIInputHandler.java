@@ -16,35 +16,30 @@ public class CLIInputHandler {
         this.isInGame = isInGame;
     }
 
-
-    /** Read a full line (blocks). Trims result. */
     public String readLine() {
         return scanner.nextLine().trim();
     }
 
-    /** Read an integer with validation; reprompts until a valid int is entered. */
-    public int readInt() {
+    public int readIntOrQuit() {
         while (true) {
             String s = scanner.nextLine().trim();
+            if ("q".equalsIgnoreCase(s)) return -1;
             try {
                 return Integer.parseInt(s);
             } catch (NumberFormatException e) {
-                System.out.print("Invalid number. Try again: ");
+                System.out.print("Invalid number. Try again or type 'q' to go back: ");
             }
         }
     }
 
-    /**
-     * Reads a move input in the form "row,column" and returns it as an int array [row, col].
-     * Keeps prompting until a valid input is entered.
-     */
     public int[] readMove() {
         while (true) {
             String line = scanner.nextLine().trim();
             if (!isInGame.getAsBoolean() || line.isEmpty()) return null;
+            if ("q".equalsIgnoreCase(line)) return null; // treat as cancel/back
             String[] parts = line.split(",");
             if (parts.length != 2) {
-                System.out.print("Invalid format. Enter as row,column: ");
+                System.out.print("Invalid format. Enter as row,column or 'q' to leave the game: ");
                 continue;
             }
             try {
@@ -52,16 +47,15 @@ public class CLIInputHandler {
                 int col = Integer.parseInt(parts[1].trim());
                 return new int[]{row, col};
             } catch (NumberFormatException e) {
-                System.out.print("Invalid numbers. Enter as row,column: ");
+                System.out.print("Invalid numbers. Enter as row,column or 'q' to leave the game: ");
             }
         }
     }
 
-    /**
-     * Read a menu choice (single token). Returns the trimmed token.
-     * Keeps the caller in charge of validation.
-     */
     public String readChoice() {
-        return scanner.nextLine().trim();
+        String choice = scanner.nextLine().trim();
+        if ("q".equalsIgnoreCase(choice)) return "q";
+        return choice;
     }
 }
+

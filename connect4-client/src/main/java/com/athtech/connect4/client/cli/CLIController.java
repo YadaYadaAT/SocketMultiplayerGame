@@ -202,9 +202,16 @@ public class CLIController {
         List<String> snapshot = requestLobbyPlayers();
         if (snapshot.isEmpty()) return;
 
-        view.prompt("Choose a player to invite (number): ");
-        int choice = input.readInt();
-        if (choice < 1 || choice > snapshot.size()) { view.show("Invalid choice."); return; }
+        view.prompt("Choose a player to invite (number), press `q` to go back: ");
+        int choice = input.readIntOrQuit();
+        if (choice == -1) {
+            view.show("Invite cancelled. Returning to lobby menu.");
+            return;
+        }
+        if (choice < 1 || choice > snapshot.size()) {
+            view.show("Invalid choice. Returning to lobby menu.");
+            return;
+        }
 
         clientNetwork.sendPacket(new NetPacket(PacketType.INVITE_REQUEST, username,
                 new InviteRequest(snapshot.get(choice - 1))));
