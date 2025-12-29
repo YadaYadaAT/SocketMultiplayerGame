@@ -7,7 +7,7 @@ public interface Match {
     String getMatchId();
     String getPlayer1();
     String getPlayer2();
-    String getCurrentTurn(); // username of player whose turn it is
+    String getCurrentPlayer(); // username of player whose turn it is
     GameStateResponse getCurrentState();
     String getWinner();
     String getLoser();

@@ -39,7 +39,7 @@ public class MatchImpl implements Match {
     public String getPlayer2() { return player2; }
 
     @Override
-    public String getCurrentTurn() { return game.getCurrentPlayer(); }
+    public String getCurrentPlayer() { return game.getCurrentPlayer(); }
 
     @Override
     public GameStateResponse getCurrentState() {

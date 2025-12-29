@@ -40,7 +40,7 @@ public class MatchController {
         matchManager.getMatchByPlayer(username).ifPresentOrElse(match -> {
             boolean ok = match.makeMove(username, move);
             if (!ok) sendToClient.accept(username, new NetPacket(PacketType.MOVE_REJECTED_RESPONSE, "server",
-                    new MoveRejectedResponse("Invalid move or not your turn")));
+                    new MoveRejectedResponse("Invalid move or not your turn",match.getCurrentPlayer())));
             else {
                 if (!match.isFinished()){
                     broadcastMatchUpdate(match);
@@ -50,7 +50,7 @@ public class MatchController {
 
             }
         }, () -> sendToClient.accept(username, new NetPacket(PacketType.MOVE_REJECTED_RESPONSE, "server",
-                new MoveRejectedResponse("No active match found. Are you in a game?"))));
+                new MoveRejectedResponse("No active match found. Are you in a game?",null))));
     }
 
     public void endMatch(Match match) {
