@@ -40,11 +40,15 @@ public class MatchImpl implements Match {
 
     @Override
     public synchronized void requestRematch(String player) {
-        if (ended || !activePlayers.contains(player)) return;
+        if (!ended || !activePlayers.contains(player)) {
+            throw new IllegalStateException("Rematch no longer possible");
+        }
 
-        RematchDecision current = rematchDecisions.get(player);
-        if (current == RematchDecision.DECLINED ||
-                current == RematchDecision.UNAVAILABLE) {
+        boolean otherDeclined = rematchDecisions.entrySet().stream()
+                .anyMatch(e -> !e.getKey().equals(player) &&
+                        (e.getValue() == RematchDecision.DECLINED ||
+                                e.getValue() == RematchDecision.UNAVAILABLE));
+        if (otherDeclined) {
             throw new IllegalStateException("Rematch no longer possible");
         }
 
@@ -94,7 +98,6 @@ public class MatchImpl implements Match {
 
     private synchronized void removePlayer(String player) {
         activePlayers.remove(player);
-        rematchDecisions.remove(player);
 
         if (activePlayers.isEmpty()) {
             ended = true;

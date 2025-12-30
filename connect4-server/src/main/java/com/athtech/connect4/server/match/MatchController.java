@@ -128,6 +128,7 @@ public class MatchController {
     }
 
     public void sendRematchRequest(String username, boolean consent) {
+
         matchManager.getEndedMatchByPlayer(username).ifPresent(match -> {
 
             // FAST FAIL: rematch already impossible
@@ -146,7 +147,7 @@ public class MatchController {
                 sendToClient.accept(username, new NetPacket(
                         PacketType.MATCH_SESSION_ENDED_RESPONSE,
                         "server",
-                        new MatchSessionEndedResponse()
+                        new MatchSessionEndedResponse(false)
                 ));
 
                 return;
@@ -154,6 +155,7 @@ public class MatchController {
 
             // User decision
             if (!consent) {
+                System.out.println("!consent");
                 match.declineRematch(username);
 
                 sendToClient.accept(username, new NetPacket(
@@ -166,29 +168,29 @@ public class MatchController {
                 sendToClient.accept(username, new NetPacket(
                         PacketType.MATCH_SESSION_ENDED_RESPONSE,
                         "server",
-                        new MatchSessionEndedResponse()
+                        new MatchSessionEndedResponse(false)
                 ));
             } else {
+
                 try {
                     match.requestRematch(username);
-
-                    sendToClient.accept(username, new NetPacket(
-                            PacketType.REMATCH_RESPONSE,
-                            "server",
+                    System.out.println("!consent else");
+                    sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE,"server",
                             new RematchResponse(true, "Rematch request recorded")
                     ));
-                } catch (IllegalStateException e) {
-                    // Other player already declined / left
-                    sendToClient.accept(username, new NetPacket(
-                            PacketType.REMATCH_RESPONSE,
-                            "server",
-                            new RematchResponse(false, "Rematch no longer available")
-                    ));
+                    } catch (IllegalStateException e)
+                {
+                                // Other player already declined / left
+                                sendToClient.accept(username, new NetPacket(
+                                PacketType.REMATCH_RESPONSE,
+                                "server",
+                                new RematchResponse(false, "Rematch no longer available")
+                                    ));
 
                     sendToClient.accept(username, new NetPacket(
                             PacketType.MATCH_SESSION_ENDED_RESPONSE,
                             "server",
-                            new MatchSessionEndedResponse()
+                            new MatchSessionEndedResponse(false)
                     ));
 
                     return;
@@ -197,6 +199,7 @@ public class MatchController {
 
             // Garbage collect empty match
             if (match.getActivePlayers().isEmpty()) {
+                System.out.println("match.getActivePlayers().isEmpty()");
                 matchManager.endMatch(match.getMatchId());
                 return;
             }
@@ -209,7 +212,20 @@ public class MatchController {
                 try {
                     String p1 = match.getPlayer1();
                     String p2 = match.getPlayer2();
+                    String matchId = match.getMatchId();
+                    matchManager.endMatch(matchId);
+                    System.out.println("p1 being:" + p1);
+                    System.out.println("p2 being:" + p2);
                     Match newMatch = matchManager.createMatch(p1, p2);
+                    sendToClient.accept(newMatch.getPlayer1(), new NetPacket(PacketType.MATCH_SESSION_ENDED_RESPONSE,"server",
+                            new MatchSessionEndedResponse(true)));
+
+                    sendToClient.accept(newMatch.getPlayer2(), new NetPacket(
+                            PacketType.MATCH_SESSION_ENDED_RESPONSE,
+                            "server",
+                            new MatchSessionEndedResponse(true)));
+                    System.out.println("newMatch.getPlayer1 being:" + newMatch.getPlayer1());
+                    System.out.println("newMatch.getPlayer2 being:" + newMatch.getPlayer2());
                     broadcastMatchCreate(newMatch);
                 } catch (IllegalStateException e) {
                     match.getActivePlayers().forEach(player ->

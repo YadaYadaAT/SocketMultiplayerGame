@@ -90,7 +90,7 @@ public class Game {
         int count = 1;
         count += countDirection(row, col, symbol, dRow, dCol);
         count += countDirection(row, col, symbol, -dRow, -dCol);
-        return count >= 4;
+        return count >= 2;
     }
 
     private int countDirection(int row, int col, char symbol, int dRow, int dCol) {

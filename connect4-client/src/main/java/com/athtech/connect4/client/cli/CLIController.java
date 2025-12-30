@@ -114,12 +114,13 @@ public class CLIController {
         while (loggedIn) {
             if (sessionClosing) { waitFor(logoutLock, 1000); continue; }
 
-            if (!inGame && pendingRematchRequester != null) handleIncomingRematchRequest();
-            if (!inGame && pendingRematchOpponent != null) handleRematchPrompt();
-
+            if (!inGame && rematchPhase){
+                handleRematchPrompt();
+                waitFor(rematchLock, 55_000);
+                rematchPhase = false;
+            }
             gameStartingPromptConsumsed = false;
-            if (!inGame && pendingRematchRequester == null && pendingRematchOpponent == null) handleLobby();
-
+            if (!inGame) handleLobby();
             if (inGame) runGameLoop();
         }
     }
@@ -164,32 +165,24 @@ public class CLIController {
         }
     }
 
-    private void handleIncomingRematchRequest() {
-        view.show("Rematch offer from: " + pendingRematchRequester);
-        view.prompt("Accept rematch? (y/n): ");
-        boolean accept = input.readLine().trim().equalsIgnoreCase("y");
-        clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_DECISION_REQUEST, username,
-                new RematchDecisionRequest(pendingRematchRequester, accept)));
-        pendingRematchRequester = null;
-    }
-
     private void handleRematchPrompt() {
         if (!rematchPhase) return;
-
         view.showRematchPrompt();
-        boolean wantRematch = input.readLine().trim().equalsIgnoreCase("y");
-        if (wantRematch) {
-            clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest(true)));
-            view.show("Rematch request sent.");
-        }else{
-            clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest(false)));
+        String line;
+        do { //GZ you found a CLI bug....although o consume the buffers on the callback
+            //there's a good chance that console buffering still have values
+            //so we had to guard this specifically with a do while T.T ...CLI games for the win!
+            //thereore we cant have messages here if put something else since they might confuse the user.
+            line = input.readLine().trim().toLowerCase();
+        } while (!line.equals("y") && !line.equals("n"));
+
+        boolean wantRematch = line.equals("y");
+        if (wantRematch){
+            view.show("Rematch request in progress please wait...");
         }
-        rematchPhase = false;
-        pendingRematchOpponent = null;
+
+        clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest(wantRematch)));
     }
-
-
-
 
     private void sendInviteRequest() {
         if (inGame) return;
@@ -283,16 +276,6 @@ public class CLIController {
         try { clientNetwork.disconnect(); } catch (Exception ignored) {}
     }
 
-
-
-    private int readGameInt(String prompt) {
-        while (true) {
-            view.prompt(prompt);
-            try { return Integer.parseInt(input.readLine().trim()); }
-            catch (NumberFormatException e) { view.showCallback("Invalid number. Try again."); }
-        }
-    }
-
     private void handleServerPacket(NetPacket packet) {
         if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE) return;
 
@@ -304,13 +287,20 @@ public class CLIController {
             case PLAYER_STATS_RESPONSE -> onPlayerStatsResponse(packet);
             case INVITE_RESPONSE -> onInviteResponse(packet);
             case INVITE_NOTIFICATION_RESPONSE -> onInviteNotificationResponse(packet);
+
             case INVITE_DECISION_RESPONSE -> onInviteDecisionResponse(packet);
+
             case GAME_START_RESPONSE -> onGameStartResponse(packet);
+
             case GAME_STATE_RESPONSE -> onGameStateResponse(packet);
-            case GAME_END_RESPONSE -> onGameEndResponse(packet);
+            case GAME_END_RESPONSE ->  onGameEndResponse(packet);
+
+            case REMATCH_RESPONSE ->  onRematchResponse(packet);
+            case MATCH_SESSION_ENDED_RESPONSE ->   onMatchSessionEndedResponse(packet);
+
+
             case MOVE_REJECTED_RESPONSE -> onMoveRejectedResponse(packet);
-            case REMATCH_RESPONSE -> onRematchResponse(packet);
-            case REMATCH_NOTIFICATION_RESPONSE -> onRematchNotificationResponse(packet);
+
             case RECONNECT_RESPONSE -> onReconnectResponse(packet);
             case ERROR_MESSAGE_RESPONSE -> onErrorMessageResponse(packet);
             case INFO_RESPONSE -> onInfoResponse(packet);
@@ -381,6 +371,7 @@ public class CLIController {
         }
 
         inGame = !gs.gameOver();
+        System.out.println("Boolean being : " + inGame);
         notifyAllLock(gameLock);
     }
 
@@ -409,49 +400,44 @@ public class CLIController {
 
     private void onGameEndResponse(NetPacket packet) {
         GameEndResponse end = (GameEndResponse) packet.payload();
-        inGame = false;
-        if (end.finalBoard() != null) {
-            view.showBoard(end.finalBoard());
-        }
-        boolean iWon = username.equals(end.winner());
-        boolean draw = "Draw".equals(end.reason());
-        String message = "Draw".equals(end.reason())
-                ? "Game ended in a draw against " + end.opponent()
-                : (username.equals(end.winner())
-                ? "You won against " + end.opponent()
-                : "You lost against " + end.opponent());
-
-        view.showCallback(message);
-
-
-        notifyAllLock(gameLock);
-
-        if (!iWon && !draw) {
-            view.showCallback("Press ENTER to continue...");
-        }
 
         rematchPhase = true;
-        pendingRematchOpponent = end.opponent();
+        inGame = false;
+        if (end.finalBoard() != null) view.showBoard(end.finalBoard());
 
-        notifyAllLock(rematchLock);
+        boolean draw = "Draw".equals(end.reason());
+        String message = draw
+                ? "Game ended in a draw against " + end.opponent()
+                : (username.equals(end.winner()) ? "You won against " + end.opponent() : "You lost against "
+                + end.opponent() + " , press Enter and then answer if you want a rematch");
+        view.showCallback(message);
+
+        notifyAllLock(gameLock);
     }
 
     private void onRematchResponse(NetPacket packet) {
         RematchResponse resp = (RematchResponse) packet.payload();
-        view.showCallback("Rematch response: " + (resp.accepted() ? "accepted" : "declined") + ". " + resp.message());
+        view.showCallback(resp.message());
     }
 
-    private void onRematchNotificationResponse(NetPacket packet) {
-        var offer = (RematchNotificationResponse) packet.payload();
-        view.showCallback("Rematch offer from: " + offer.requester());
-        pendingRematchRequester = offer.requester();
+    private void onMatchSessionEndedResponse(NetPacket packet) {
+        MatchSessionEndedResponse resp = (MatchSessionEndedResponse) packet.payload();
+        if (resp !=null && resp.isRematchOn()){
+            view.showCallback("Get Ready for the rematch");
+            inGame = true;
+        }else{
+            view.showCallback("Match session ended. Returning to lobby...");
+            inGame = false;
+        }
+
+        rematchPhase = false;
+
+        notifyAllLock(rematchLock);
     }
 
     private void onMoveRejectedResponse(NetPacket packet) {
         MoveRejectedResponse rej = (MoveRejectedResponse) packet.payload();
-
         view.showCallback("Move rejected: " + rej.reason());
-
         if (rej.currentPlayer() == null) {
             inGame = false;
             view.showCallback("Game session lost. Returning to lobby...");
@@ -531,5 +517,7 @@ public class CLIController {
     public boolean getIsInGame() {
         return inGame;
     }
+
+
 
 }
