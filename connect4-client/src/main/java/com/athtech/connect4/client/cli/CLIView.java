@@ -54,13 +54,6 @@ public class CLIView {
         }
     }
 
-    /** --- For send/confirmation messages (local thread actions) --- */
-    public void showSend(String msg) {
-        synchronized (consoleLock) {
-            System.out.println(GREEN + ">> " + msg + RESET);
-        }
-    }
-
     /** Optional: for high-priority or warning messages */
     public void showCallbackHighlight(String msg) {
         synchronized (consoleLock) {
@@ -101,24 +94,6 @@ public class CLIView {
     public void showGameStart() {
         synchronized (consoleLock) {
             System.out.println("\n (Game mode enabled)");
-        }
-    }
-
-    public void showGamePromptRow() {
-        synchronized (consoleLock) {
-            System.out.print("Row: ");
-        }
-    }
-
-    public void showGamePromptCol() {
-        synchronized (consoleLock) {
-            System.out.print("Column: ");
-        }
-    }
-
-    public void showInvitePrompt() {
-        synchronized (consoleLock) {
-            System.out.print("Player to invite: ");
         }
     }
 

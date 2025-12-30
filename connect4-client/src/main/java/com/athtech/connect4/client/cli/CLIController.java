@@ -19,9 +19,6 @@ public class CLIController {
     private String username;
     private String relogCode;
 
-    private volatile String pendingRematchRequester = null;
-    private volatile String pendingRematchOpponent = null;
-
     private volatile List<String> lobbyPlayers = new ArrayList<>();
     private volatile PlayerStatsResponse myStats;
 
@@ -32,10 +29,10 @@ public class CLIController {
     private final Object inviteLock = new Object();
     private final Object reconnectLock = new Object();
     private final Object rematchLock = new Object();
-    private volatile boolean rematchPhase = false; // true when waiting for rematch decision
+    private volatile boolean rematchPhase = false;
     private volatile boolean reconnectInProgress = false;
-    private final int MAX_RECONNECT_ATTEMPTS = 3;
-    private final long RECONNECT_INTERVAL_MS = 12_000;
+    private final int MAX_RECONNECT_ATTEMPTS = 4;
+    private final long RECONNECT_INTERVAL_MS = 15_000;
 
     private volatile boolean gameStartingPromptConsumsed = false;
 
@@ -68,11 +65,12 @@ public class CLIController {
         lastInvite = null;
         username = null;
         relogCode = null;
-        pendingRematchRequester = null;
-        pendingRematchOpponent = null;
         lobbyPlayers.clear();
         myStats = null;
         gameStartingPromptConsumsed = false;
+        rematchPhase = false;
+        reconnectInProgress = false;
+        simulateServerDown = false;
     }
 
     private void authenticationMenu() {
@@ -318,8 +316,16 @@ public class CLIController {
 
     private void onLobbyPlayersResponse(NetPacket packet) {
         var lobP = (String[]) packet.payload();
-        lobbyPlayers = new ArrayList<>(Arrays.asList(lobP));
+
+        lobbyPlayers.clear();
+        lobbyPlayers.addAll(Arrays.asList(lobP));
+
+        if (username != null) {
+            lobbyPlayers.removeIf(u -> u.equals(username));
+        }
+
         view.showCallback("Lobby: " + String.join(", ", lobbyPlayers));
+
     }
 
     private void onInviteNotificationResponse(NetPacket packet) {
@@ -337,7 +343,14 @@ public class CLIController {
         if (resp.accepted()) {
             view.showCallback("Invitation accepted. Match starting...");
             inGame = true;
-        } else view.showCallback("Invitation declined.");
+        } else {
+            if (resp.targetUsername().equals(username)){
+                view.showCallback("You declined invitation to " + resp.inviterUsername());
+            }else{
+                view.showCallback(resp.targetUsername() + " declined your invitation");
+            }
+
+        }
         notifyAllLock(gameLock);
     }
 

@@ -78,15 +78,24 @@ public class MatchController {
     // Invites
     // -----------------------
     public void sendInvite(String fromUsername, String targetUsername) {
+        if (fromUsername.equals(targetUsername) ){
+            sendToClient.accept(fromUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
+                    new InviteResponse(false, "Hey choom you cant invite yourself")));
+            return;
+        }
+
+
         if (!lobbyController.isUserLoggedIn(targetUsername)) {
             sendToClient.accept(fromUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
-                    new InviteResponse(false, "Player is not online")));
+                    new InviteResponse(false, "Invitation to " + targetUsername
+                            +"failed due to player not being online")));
             return;
         }
 
         if (matchManager.getMatchByPlayer(targetUsername).isPresent()) {
             sendToClient.accept(fromUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
-                    new InviteResponse(false, "Player not available")));
+                    new InviteResponse(false, "Invitation failed since player "
+                            +targetUsername +" is already in game")));
             return;
         }
 
@@ -99,10 +108,20 @@ public class MatchController {
     }
 
     public void processInviteDecision(String targetUsername, String inviterUsername, boolean accepted) {
+
+
         CopyOnWriteArrayList<String> invites = pendingInvites.get(targetUsername);
         if (invites == null || !invites.contains(inviterUsername)) return;
 
         invites.remove(inviterUsername);
+
+
+        if (inviterUsername.equals(targetUsername) ){
+            sendToClient.accept(inviterUsername, new NetPacket(PacketType.INVITE_DECISION_RESPONSE,
+                    "server", new InviteDecisionResponse(inviterUsername, targetUsername, false)));
+            sendToClient.accept(targetUsername, new NetPacket(PacketType.INVITE_DECISION_RESPONSE, "server",
+                    false));
+        }
 
         InviteDecisionResponse resp = new InviteDecisionResponse(inviterUsername, targetUsername, accepted);
         sendToClient.accept(inviterUsername, new NetPacket(PacketType.INVITE_DECISION_RESPONSE, "server", resp));
@@ -111,6 +130,7 @@ public class MatchController {
         if (invites.isEmpty()) pendingInvites.remove(targetUsername);
 
         if (accepted) {
+
             try {
                 createMatch(inviterUsername, targetUsername);
             } catch (IllegalStateException e) {
@@ -118,6 +138,8 @@ public class MatchController {
                         new InviteResponse(false, "Cannot create match, one of the players is busy")));
             }
         }
+
+
     }
 
     public InviteNotificationResponse[] getInvitationsFor(String targetUsername) {
