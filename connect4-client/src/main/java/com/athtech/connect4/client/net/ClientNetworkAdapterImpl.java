@@ -1,66 +1,92 @@
 package com.athtech.connect4.client.net;
 
 import com.athtech.connect4.protocol.messaging.NetPacket;
-import com.athtech.connect4.protocol.messaging.PacketType;
-import com.athtech.connect4.protocol.payload.ReconnectRequest;
-import com.athtech.connect4.protocol.payload.ReconnectResponse;
 
 import java.io.*;
 import java.net.Socket;
 
 public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
+    private final String host;
+    private final int port;
+
+    private final Object ioLock = new Object();
+
     private Socket socket;
     private ObjectInputStream in;
     private ObjectOutputStream out;
+
     private PacketListener listener;
     private Runnable connectionLostListener;
 
-    public ClientNetworkAdapterImpl(String host, int port, Runnable connectionLostCallback) {
-        this.connectionLostListener = connectionLostCallback;
-        openSocket(host, port);
-    }
+    private Thread listenThread;
+    private volatile boolean listening = false;
 
-    private void openSocket(String host, int port) {
+    public ClientNetworkAdapterImpl(String host, int port, Runnable connectionLostCallback) {
+        this.host = host;
+        this.port = port;
+        this.connectionLostListener = connectionLostCallback;
+
         try {
-            socket = new Socket(host, port);
-            out = new ObjectOutputStream(socket.getOutputStream());
-            out.flush();
-            in = new ObjectInputStream(socket.getInputStream());
-            new Thread(this::listenLoop, "ClientNetworkAdapter-ListenThread").start();
+            openSocket();
+            startListenThread();
         } catch (IOException e) {
             System.err.println("Connection failed: " + e.getMessage());
             if (connectionLostListener != null) connectionLostListener.run();
         }
     }
 
+    private void openSocket() throws IOException {
+        socket = new Socket(host, port);
+        out = new ObjectOutputStream(socket.getOutputStream());
+        out.flush();
+        in = new ObjectInputStream(socket.getInputStream());
+    }
+
+    private void startListenThread() {
+        listening = true;
+        listenThread = new Thread(this::listenLoop, "ClientNetworkAdapter-ListenThread");
+        listenThread.setDaemon(true);
+        listenThread.start();
+    }
+
+    private void stopListenThread() {
+        listening = false;
+        Thread t = listenThread;
+        if (t != null && t.isAlive() && t != Thread.currentThread()) {
+            try { t.join(300); } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        listenThread = null;
+    }
+
     private void listenLoop() {
         try {
-            while (true) {
+            while (listening) {
                 Object obj = in.readObject();
-                if (obj instanceof NetPacket packet && listener != null && packet.type() != null) {
+                if (!listening) break;
+
+                if (obj instanceof NetPacket packet
+                        && listener != null
+                        && packet.type() != null) {
                     listener.onPacketReceived(packet);
                 }
             }
         } catch (IOException | ClassNotFoundException e) {
+            if (!listening) return;
             System.err.println("Connection closed: " + e.getMessage());
             if (connectionLostListener != null) connectionLostListener.run();
         }
     }
 
     @Override
-    public boolean attemptReconnectWithRelogCode(String username, String relogCode) {
-        if (socket == null || socket.isClosed()) return false;
-
-        try {
-            var req = new ReconnectRequest(username, relogCode);
-            var packet = new NetPacket(PacketType.RECONNECT_REQUEST, username, req);
-            out.writeObject(packet);
-            out.flush();
-            return true; // actual response handled in server listener
-        } catch (IOException e) {
-            System.err.println("Reconnect attempt failed: " + e.getMessage());
-            return false;
+    public void reconnect() throws IOException {
+        synchronized (ioLock) {
+            stopListenThread();
+            disconnectInternal();
+            openSocket();
+            startListenThread();
         }
     }
 
@@ -71,20 +97,35 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     @Override
     public void disconnect() {
+        synchronized (ioLock) {
+            stopListenThread();
+            disconnectInternal();
+        }
+    }
+
+    private void disconnectInternal() {
+        try { if (in != null) in.close(); } catch (IOException ignored) {}
+        try { if (out != null) out.close(); } catch (IOException ignored) {}
         try { if (socket != null) socket.close(); } catch (IOException ignored) {}
+
+        in = null;
+        out = null;
+        socket = null;
     }
 
     @Override
-    public void sendPacket(NetPacket packet) {
-        try {
-            if (socket != null && !socket.isClosed()) {
-                out.writeObject(packet);
-                out.flush();
-            } else if (connectionLostListener != null) connectionLostListener.run();
-        } catch (IOException e) {
-            System.err.println("Send failed: " + e.getMessage());
-            if (connectionLostListener != null) connectionLostListener.run();
+    public void sendPacket(NetPacket packet){
+        synchronized (ioLock) {
+            try{
+                if (socket == null || socket.isClosed() || out == null) {  throw new IOException("Socket is closed");  }
+                        out.writeObject(packet);
+                        out.flush();
+
+            }catch (IOException e){
+
+             }
         }
+
     }
 
     @Override

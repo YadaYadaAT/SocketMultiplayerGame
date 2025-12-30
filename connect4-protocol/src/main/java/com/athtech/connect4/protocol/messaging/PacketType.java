@@ -35,7 +35,7 @@ public enum PacketType {
     REMATCH_DECISION_REQUEST,
 
 //Reconnect
-    RECONNECT_REQUEST,
+    RESYNC_REQUEST,
 
 // Misc / Errors
     //--No request
@@ -75,8 +75,8 @@ public enum PacketType {
 //Rematch
     REMATCH_RESPONSE,
 
-//Reconnect
-    RECONNECT_RESPONSE,
+//Resync
+    RESYNC_RESPONSE,
 
 // Misc / Errors
     ERROR_MESSAGE_RESPONSE,

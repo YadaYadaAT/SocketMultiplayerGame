@@ -4,7 +4,6 @@ import com.athtech.connect4.protocol.messaging.NetPacket;
 import com.athtech.connect4.protocol.messaging.PacketType;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public class LobbyController {

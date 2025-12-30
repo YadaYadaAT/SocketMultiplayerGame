@@ -6,7 +6,6 @@ import com.athtech.connect4.protocol.payload.*;
 import com.athtech.connect4.server.match.MatchController;
 import com.athtech.connect4.server.persistence.PersistenceManager;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,7 +29,7 @@ public class PacketDispatcher {
             case LOGIN_REQUEST -> handleLogin(client, packet);
             case SIGNUP_REQUEST -> handleSignup(client, packet);
             case LOGOUT_REQUEST -> handleLogout(client);
-            case RECONNECT_REQUEST -> handleReconnect(client, packet);
+            case RESYNC_REQUEST -> handleResyncRequest(client, packet);
             case INVITE_REQUEST -> handleInviteRequest(client, packet);
             case INVITE_DECISION_REQUEST -> handleInviteDecision(client, packet);
             case REMATCH_REQUEST -> handleRematchRequest(client, packet);
@@ -77,12 +76,12 @@ public class PacketDispatcher {
         }
     }
 
-    private void handleReconnect(ClientHandler client, NetPacket packet) {
-        var req = (ReconnectRequest) packet.payload();
+    private void handleResyncRequest(ClientHandler client, NetPacket packet) {
+        var req = (ResyncRequest) packet.payload();
         Optional<String> stored = persistence.getRelogCode(req.username());
         if (stored.isEmpty() || !stored.get().equals(req.relogCode()) || lobbyController.isUserLoggedIn(req.username())) {
-            client.sendPacket(new NetPacket(PacketType.RECONNECT_RESPONSE, "server",
-                    new ReconnectResponse(false, "Invalid relog code. Please login again.",
+            client.sendPacket(new NetPacket(PacketType.RESYNC_RESPONSE, "server",
+                    new ResyncResponse(false, "Invalid relog code. Please login again.",
                             null, null, null, null, null)));
             return;
         }
@@ -94,13 +93,13 @@ public class PacketDispatcher {
 
         lobbyController.userLoggedIn(client.getUsername(), client.getClientId());
 
-        String[] lobbyPlayers = lobbyController.getLoggedInUsernames().toArray(new String[0]);
+        List<String> lobbyPlayers = lobbyController.getLoggedInUsernames();
         PlayerStatsResponse stats = persistence.getPlayerStats(client.getUsername());
         InviteNotificationResponse[] pendingInvites = matchController.getInvitationsFor(client.getUsername());
         GameStateResponse currentGame = matchController.getCurrentGame(client.getUsername());
-        client.sendPacket(new NetPacket(PacketType.RECONNECT_RESPONSE, "server",
-                new ReconnectResponse(true, "Reconnected successfully.",
-                        new LobbyPlayersResponse(Arrays.asList(lobbyPlayers)), stats, pendingInvites, currentGame, relogCode)));
+        client.sendPacket(new NetPacket(PacketType.RESYNC_RESPONSE, "server",
+                new ResyncResponse(true, "Reconnected successfully.",
+                        new LobbyPlayersResponse(lobbyPlayers), stats, pendingInvites, currentGame, relogCode)));
     }
 
     private void handleInviteRequest(ClientHandler client, NetPacket packet) {

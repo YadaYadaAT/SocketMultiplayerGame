@@ -8,7 +8,7 @@ public class Player {
     private int losses;
     private int draws;
     private int gamesPlayed;
-    private String relogCode; // <-- new field for reconnect
+    private String relogCode;
 
     public Player(String id, String username, String password, int wins, int losses, int draws, int gamesPlayed) {
         this.id = id;

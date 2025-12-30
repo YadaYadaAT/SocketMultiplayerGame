@@ -2,7 +2,7 @@ package com.athtech.connect4.protocol.payload;
 
 import java.io.Serializable;
 
-public record ReconnectResponse(
+public record ResyncResponse(
         boolean success,
         String message,
         LobbyPlayersResponse lobbyPlayers,
