@@ -9,6 +9,7 @@ public class Connect4CliGameClient {
         CLIView view = new CLIView();
         ClientNetworkAdapterImpl adapter = new ClientNetworkAdapterImpl("localhost", 999);
         CLIController controller = new CLIController(view, adapter);
+        adapter.setReconnectListener(controller);
         controller.run();
     }
 }

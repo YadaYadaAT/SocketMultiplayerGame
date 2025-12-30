@@ -1,11 +1,16 @@
 package com.athtech.connect4.client.net;
 
+import com.athtech.connect4.client.cli.CLIController;
 import com.athtech.connect4.protocol.messaging.NetPacket;
 
 import java.io.*;
 import java.net.Socket;
 
+
+
 public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
+
+    private CLIController reconnectListener;
 
     private final String host;
     private final int port;
@@ -55,6 +60,8 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         listenThread.setDaemon(true);
         listenThread.start();
     }
+
+
 
     private void stopListenThread() {
         listening = false;
@@ -106,6 +113,9 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
                     state = State.CONNECTED;
                     ioLock.notifyAll();
                     System.out.println("Reconnected successfully.");
+                    if (reconnectListener != null) {
+                        reconnectListener.onNetworkReconnected();
+                    }
                     return;
                 }
             } catch (Exception ignored) {}
@@ -144,6 +154,10 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     @Override
     public void setListener(PacketListener listener) {
         this.listener = listener;
+    }
+
+    public void setReconnectListener(CLIController controller) {
+        this.reconnectListener = controller;
     }
 
     @Override

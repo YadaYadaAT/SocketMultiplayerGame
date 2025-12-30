@@ -17,13 +17,14 @@ public class CLIController {
     private volatile boolean inGame = false;
     private volatile boolean rematchPhase = false;
 
+    private volatile long lastServerActivity = System.currentTimeMillis();
 
-    private volatile InviteNotificationResponse lastInvite = null;
+
     private String username;
     private String relogCode;
-
     private volatile List<String> lobbyPlayers = new ArrayList<>();
     private volatile PlayerStatsResponse myStats;
+    private volatile InviteNotificationResponse lastInvite = null;
 
     // Locks
     private final Object loginLock = new Object();
@@ -208,7 +209,14 @@ public class CLIController {
         }
     }
 
-    public void handleNoResponseOnSend() {
+    public void onNetworkReconnected() {
+        if (username != null && relogCode != null && !resyncInProgress) {
+            view.showCallback("Network restored, attempting automatic resync...");
+            ResyncWithAuth();
+        }
+    }
+
+    public void ResyncWithAuth() {
         synchronized (resyncLock) {
             if (resyncInProgress || username == null || relogCode == null) return;
             resyncInProgress = true;
@@ -225,7 +233,8 @@ public class CLIController {
 
                 synchronized (resyncLock) {
                         try {
-                            resyncLock.wait(8000);} catch (InterruptedException ignored) {}
+                            resyncLock.wait(8000);}
+                        catch (InterruptedException e) { }
                         success = resyncSucceeded;
                 }
 
@@ -250,11 +259,18 @@ public class CLIController {
     }
 
     private void sendPacketWithResync(NetPacket packet,Object lock, long timeoutMillis) {
+        long sentAt = System.currentTimeMillis();
         sendPacket(packet);
-        if(!waitFor(lock,timeoutMillis)){
-            view.showCallback("No response from server. Attempting resync...");
-            handleNoResponseOnSend();
-        }
+        new Thread(() -> {
+            try {
+                Thread.sleep(timeoutMillis);
+            } catch (InterruptedException ignored) {}
+
+            if (lastServerActivity < sentAt) {
+                view.showCallback("No server activity detected. Attempting resync...");
+                ResyncWithAuth();
+            }
+        }).start();
     }
 
     private List<String> requestLobbyPlayers() {
@@ -283,6 +299,7 @@ public class CLIController {
     }
 
     private void handleServerPacket(NetPacket packet) {
+        lastServerActivity = System.currentTimeMillis();
         if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE) return;
 
         switch (packet.type()) {
