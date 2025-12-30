@@ -78,7 +78,7 @@ public class MatchManagerImpl implements MatchManager {
     @Override
     public Optional<Match> getMatchByPlayer(String username) {
         return matches.values().stream()
-                .filter(m -> m.getPlayer1().equals(username) || m.getPlayer2().equals(username))
+                .filter(m -> m.getActivePlayers().contains(username))
                 .findFirst();
     }
 

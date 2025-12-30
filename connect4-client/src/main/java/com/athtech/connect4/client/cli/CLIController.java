@@ -287,20 +287,13 @@ public class CLIController {
             case PLAYER_STATS_RESPONSE -> onPlayerStatsResponse(packet);
             case INVITE_RESPONSE -> onInviteResponse(packet);
             case INVITE_NOTIFICATION_RESPONSE -> onInviteNotificationResponse(packet);
-
             case INVITE_DECISION_RESPONSE -> onInviteDecisionResponse(packet);
-
             case GAME_START_RESPONSE -> onGameStartResponse(packet);
-
             case GAME_STATE_RESPONSE -> onGameStateResponse(packet);
             case GAME_END_RESPONSE ->  onGameEndResponse(packet);
-
             case REMATCH_RESPONSE ->  onRematchResponse(packet);
-            case MATCH_SESSION_ENDED_RESPONSE ->   onMatchSessionEndedResponse(packet);
-
-
+            case MATCH_SESSION_ENDED_RESPONSE ->  onMatchSessionEndedResponse(packet);
             case MOVE_REJECTED_RESPONSE -> onMoveRejectedResponse(packet);
-
             case RECONNECT_RESPONSE -> onReconnectResponse(packet);
             case ERROR_MESSAGE_RESPONSE -> onErrorMessageResponse(packet);
             case INFO_RESPONSE -> onInfoResponse(packet);

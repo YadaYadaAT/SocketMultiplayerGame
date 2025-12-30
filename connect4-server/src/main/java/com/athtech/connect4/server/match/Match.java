@@ -11,7 +11,8 @@ public interface Match {
     void resetRematchRequests();
     void declineRematch(String player);
     Set<String> getActivePlayers();
-    RematchDecision getRematchOutcome();
+    RematchVote getRematchOutcome();
+//    RematchOutcome evaluateRematchFor(String player);
     void markUnavailable(String player);
     String getMatchId();
     String getPlayer1();

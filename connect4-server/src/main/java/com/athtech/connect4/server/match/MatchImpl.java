@@ -14,8 +14,7 @@ public class MatchImpl implements Match {
     private final Set<String> activePlayers =
             Collections.synchronizedSet(new HashSet<>());
 
-    // null = waiting for response
-    private final Map<String, RematchDecision> rematchDecisions =
+    private final Map<String, RematchVote> rematchVotes =
             Collections.synchronizedMap(new HashMap<>());
 
     private boolean ended = false;
@@ -26,39 +25,41 @@ public class MatchImpl implements Match {
         this.game = new Game(player1, player2);
         activePlayers.add(player1);
         activePlayers.add(player2);
-        rematchDecisions.put(player1, null);
-        rematchDecisions.put(player2, null);
+        rematchVotes.put(player1, RematchVote.PENDING);
+        rematchVotes.put(player2, RematchVote.PENDING);
 
         touch();
     }
 
-
     @Override
-    //TODO :buggy method..player which accepts the rematch after the one who denied it gets stuck
     public synchronized void requestRematch(String player) {
-        if (!ended) {
-            throw new IllegalStateException("Rematch no longer possible");
+        if (!ended)
+            throw new IllegalStateException("Game is not over yet");
+        if (!activePlayers.contains(player))
+            throw new IllegalStateException("Player requesting the rematch doesnt exist in the match");
+
+        String opponent = getTheOpponentFromRematchVote(player);
+        if (opponent == null){//since opponent is extracted from the rematch list which players are never deleted)
+            removePlayer(player);
+            throw new IllegalStateException("We are sorry there has been an internal error we cant offer a rematch");
         }
-
-        RematchDecision otherDecision = rematchDecisions.entrySet().stream()
-                .filter(e -> !e.getKey().equals(player))
-                .map(Map.Entry::getValue)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
-
-        if (otherDecision == RematchDecision.DECLINED || otherDecision == RematchDecision.UNAVAILABLE) {
-            throw new IllegalStateException("Rematch no longer possible");
+        if (rematchVotes.get(opponent) == RematchVote.DECLINED  ){
+            removePlayer(player);
+            throw new IllegalStateException("Opponent has already declined the rematch request");
         }
-
-        rematchDecisions.put(player, RematchDecision.ACCEPTED);
+        if (rematchVotes.get(opponent) == RematchVote.UNAVAILABLE ){
+            removePlayer(player);
+            throw new IllegalStateException("Opponent left without voting for a rematch");
+        }
+        //any other case like accepted or pending the rematch vote pass
+        rematchVotes.put(player, RematchVote.ACCEPTED);
     }
 
     @Override
     public synchronized void declineRematch(String player) {
-        if (ended || !activePlayers.contains(player)) return;
+        if (!ended || !activePlayers.contains(player)) return;
 
-        rematchDecisions.put(player, RematchDecision.DECLINED);
+        rematchVotes.put(player, RematchVote.DECLINED);
         removePlayer(player);
     }
 
@@ -66,31 +67,31 @@ public class MatchImpl implements Match {
     public synchronized void markUnavailable(String player) {
         if (ended || !activePlayers.contains(player)) return;
 
-        rematchDecisions.put(player, RematchDecision.UNAVAILABLE);
+        rematchVotes.put(player, RematchVote.UNAVAILABLE);
         removePlayer(player);
     }
 
     @Override
     public synchronized boolean isRematchReady() {
-        return !rematchDecisions.isEmpty() &&
-                rematchDecisions.values().stream()
-                        .allMatch(d -> d == RematchDecision.ACCEPTED);
+        return rematchVotes.size() == 2 &&
+                rematchVotes.values().stream()
+                        .allMatch(d -> d == RematchVote.ACCEPTED);
     }
 
     @Override
-    public synchronized RematchDecision getRematchOutcome() {
-        if (rematchDecisions.values().contains(RematchDecision.DECLINED))
-            return RematchDecision.DECLINED;
+    public synchronized RematchVote getRematchOutcome() {
+        if (rematchVotes.values().contains(RematchVote.DECLINED))
+            return RematchVote.DECLINED;
 
-        if (rematchDecisions.values().contains(RematchDecision.UNAVAILABLE))
-            return RematchDecision.UNAVAILABLE;
+        if (rematchVotes.values().contains(RematchVote.UNAVAILABLE))
+            return RematchVote.UNAVAILABLE;
 
         return null;
     }
 
     @Override
     public synchronized void resetRematchRequests() {
-        rematchDecisions.replaceAll((k, v) -> null);
+        rematchVotes.replaceAll((k, v) -> null);
     }
 
     // Player / match removal
@@ -110,7 +111,6 @@ public class MatchImpl implements Match {
 
     @Override
     public synchronized boolean markEnded() {
-        if (ended) return false;
         ended = true;
         return true;
     }
@@ -190,5 +190,12 @@ public class MatchImpl implements Match {
     @Override
     public boolean isDraw() {
         return game.isGameOver() && game.getWinner() == null;
+    }
+
+    private String getTheOpponentFromRematchVote(String requester) {
+        return rematchVotes.keySet().stream()
+                .filter(p -> !p.equals(requester))
+                .findFirst()
+                .orElse(null);
     }
 }

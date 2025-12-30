@@ -131,31 +131,8 @@ public class MatchController {
 
         matchManager.getEndedMatchByPlayer(username).ifPresent(match -> {
 
-            // FAST FAIL: rematch already impossible
-            RematchDecision outcome = match.getRematchOutcome();
-            if (outcome == RematchDecision.DECLINED ||
-                    outcome == RematchDecision.UNAVAILABLE) {
-
-                // Inform user immediately
-                sendToClient.accept(username, new NetPacket(
-                        PacketType.REMATCH_RESPONSE,
-                        "server",
-                        new RematchResponse(false, "Rematch no longer available")
-                ));
-
-                // Explicit session end
-                sendToClient.accept(username, new NetPacket(
-                        PacketType.MATCH_SESSION_ENDED_RESPONSE,
-                        "server",
-                        new MatchSessionEndedResponse(false)
-                ));
-
-                return;
-            }
-
             // User decision
             if (!consent) {
-                System.out.println("!consent");
                 match.declineRematch(username);
 
                 sendToClient.accept(username, new NetPacket(
@@ -163,90 +140,72 @@ public class MatchController {
                         "server",
                         new RematchResponse(false, "You declined rematch")
                 ));
+                sendMatchSessionEndResponseToPlayer(username,false);
 
-                // Decline = immediate detachment
-                sendToClient.accept(username, new NetPacket(
-                        PacketType.MATCH_SESSION_ENDED_RESPONSE,
-                        "server",
-                        new MatchSessionEndedResponse(false)
-                ));
             } else {
-
                 try {
                     match.requestRematch(username);
-                    System.out.println("!consent else");
-                    sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE,"server",
+                    sendToClient.accept(username, new NetPacket(
+                            PacketType.REMATCH_RESPONSE,
+                            "server",
                             new RematchResponse(true, "Rematch request recorded")
                     ));
-                    } catch (IllegalStateException e)
-                {
-                                // Other player already declined / left
-                                sendToClient.accept(username, new NetPacket(
-                                PacketType.REMATCH_RESPONSE,
-                                "server",
-                                new RematchResponse(false, "Rematch no longer available")
-                                    ));
 
+                } catch (IllegalStateException e) {
+                    // Other player already declined / left or any other case that request rematch cant happen
                     sendToClient.accept(username, new NetPacket(
-                            PacketType.MATCH_SESSION_ENDED_RESPONSE,
+                            PacketType.REMATCH_RESPONSE,
                             "server",
-                            new MatchSessionEndedResponse(false)
+                            new RematchResponse(false, e.getMessage())
                     ));
 
+                    sendMatchSessionEndResponseToPlayer(username,false);
+                    // Garbage collect empty match
+                    if (match.getActivePlayers().isEmpty()) {
+                        matchManager.endMatch(match.getMatchId());
+                    }
                     return;
                 }
             }
 
-            // Garbage collect empty match
-            if (match.getActivePlayers().isEmpty()) {
-                System.out.println("match.getActivePlayers().isEmpty()");
-                matchManager.endMatch(match.getMatchId());
-                return;
-            }
+
 
             // Both accepted → create rematch
             if (match.isRematchReady()) {
-                match.markEnded();
-                match.resetRematchRequests();
-
+                String p1 = match.getPlayer1();
+                String p2 = match.getPlayer2();
                 try {
-                    String p1 = match.getPlayer1();
-                    String p2 = match.getPlayer2();
                     String matchId = match.getMatchId();
                     matchManager.endMatch(matchId);
-                    System.out.println("p1 being:" + p1);
-                    System.out.println("p2 being:" + p2);
                     Match newMatch = matchManager.createMatch(p1, p2);
-                    sendToClient.accept(newMatch.getPlayer1(), new NetPacket(PacketType.MATCH_SESSION_ENDED_RESPONSE,"server",
-                            new MatchSessionEndedResponse(true)));
-
-                    sendToClient.accept(newMatch.getPlayer2(), new NetPacket(
-                            PacketType.MATCH_SESSION_ENDED_RESPONSE,
-                            "server",
-                            new MatchSessionEndedResponse(true)));
-                    System.out.println("newMatch.getPlayer1 being:" + newMatch.getPlayer1());
-                    System.out.println("newMatch.getPlayer2 being:" + newMatch.getPlayer2());
+                    sendMatchSessionEndResponseToPlayers(p1 ,p2,true);
                     broadcastMatchCreate(newMatch);
+
                 } catch (IllegalStateException e) {
-                    match.getActivePlayers().forEach(player ->
-                            sendToClient.accept(player, new NetPacket(
-                                    PacketType.REMATCH_RESPONSE,
-                                    "server",
-                                    new RematchResponse(false, "Cannot create rematch")
-                            ))
-                    );
+                    sendMatchSessionEndResponseToPlayers(p1 ,p2,false);
                 }
             }
         });
     }
 
 
+    private void sendMatchSessionEndResponseToPlayers(String p1 , String p2, boolean isRematchOn){
+        sendToClient.accept(p1, new NetPacket(PacketType.MATCH_SESSION_ENDED_RESPONSE,
+                "server",
+                new MatchSessionEndedResponse(isRematchOn)
+        ));
 
-    // -----------------------
-    // Cleanup
-    // -----------------------
-    public void cleanupMatches() {
-        matchManager.cleanupInactiveMatches();
+        sendToClient.accept(p2, new NetPacket(PacketType.MATCH_SESSION_ENDED_RESPONSE,
+                "server",
+                new MatchSessionEndedResponse(isRematchOn)
+        ));
+    }
+
+    private void sendMatchSessionEndResponseToPlayer(String p1 , boolean isRematchOn){
+        sendToClient.accept(p1, new NetPacket(PacketType.MATCH_SESSION_ENDED_RESPONSE,
+                "server",
+                new MatchSessionEndedResponse(isRematchOn)
+        ));
     }
 
     public GameStateResponse getCurrentGame(String username) {
