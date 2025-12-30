@@ -32,8 +32,8 @@ public class CLIController {
     private volatile boolean rematchPhase = false;
     private volatile boolean resyncInProgress = false;
     private volatile boolean resyncSucceeded = false;
-    private final int MAX_RECONNECT_ATTEMPTS = 10;
-    private final long RECONNECT_INTERVAL_MS = 5_000;
+    private final int MAX_RESYNC_ATTEMPTS = 10;
+    private final long RESYNC_INTERVAL_MS = 5_000;
 
     private volatile boolean gameStartingPromptConsumsed = false;
 
@@ -223,12 +223,11 @@ public class CLIController {
         new Thread(() -> {
             int attempts = 0;
             boolean success = false;
-
-            while (attempts < MAX_RECONNECT_ATTEMPTS && !success) {
+            while (attempts < MAX_RESYNC_ATTEMPTS && !success) {
                 attempts++;
-                view.showCallback("Attempting reconnect (" + attempts + "/" + MAX_RECONNECT_ATTEMPTS + ")...");
-                clientNetwork.sendPacket(new NetPacket(PacketType.RECONNECT_REQUEST, username,
-                        new ReconnectRequest(username, relogCode)));
+                view.showCallback("Attempting reconnect (" + attempts + "/" + MAX_RESYNC_ATTEMPTS + ")...");
+                clientNetwork.sendPacket(new NetPacket(PacketType.RESYNC_REQUEST, username,
+                        new ResyncRequest(username, relogCode)));
 
                 synchronized (resyncLock) {
                         try {
@@ -236,7 +235,7 @@ public class CLIController {
                         success = resyncSucceeded;
                 }
 
-                if (!success) {  try { Thread.sleep(RECONNECT_INTERVAL_MS); } catch (InterruptedException ignored) {}  }
+                if (!success) {  try { Thread.sleep(RESYNC_INTERVAL_MS); } catch (InterruptedException ignored) {}  }
             }
 
             synchronized (resyncLock) {
@@ -502,7 +501,7 @@ public class CLIController {
     }
 
     private void onResyncResponse(NetPacket packet) {
-        ReconnectResponse resp = (ReconnectResponse) packet.payload();
+        ResyncResponse resp = (ResyncResponse) packet.payload();
         synchronized (resyncLock) {
             resyncInProgress = false;
             resyncSucceeded = resp.success();
