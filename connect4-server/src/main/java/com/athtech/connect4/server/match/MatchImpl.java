@@ -5,12 +5,7 @@ import com.athtech.connect4.protocol.payload.GameStateResponse;
 import com.athtech.connect4.protocol.payload.MoveRequest;
 import com.athtech.connect4.server.game.Game;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 public class MatchImpl implements Match {
 
@@ -39,16 +34,20 @@ public class MatchImpl implements Match {
 
 
     @Override
+    //TODO :buggy method..player which accepts the rematch after the one who denied it gets stuck
     public synchronized void requestRematch(String player) {
-        if (!ended || !activePlayers.contains(player)) {
+        if (!ended) {
             throw new IllegalStateException("Rematch no longer possible");
         }
 
-        boolean otherDeclined = rematchDecisions.entrySet().stream()
-                .anyMatch(e -> !e.getKey().equals(player) &&
-                        (e.getValue() == RematchDecision.DECLINED ||
-                                e.getValue() == RematchDecision.UNAVAILABLE));
-        if (otherDeclined) {
+        RematchDecision otherDecision = rematchDecisions.entrySet().stream()
+                .filter(e -> !e.getKey().equals(player))
+                .map(Map.Entry::getValue)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+
+        if (otherDecision == RematchDecision.DECLINED || otherDecision == RematchDecision.UNAVAILABLE) {
             throw new IllegalStateException("Rematch no longer possible");
         }
 
