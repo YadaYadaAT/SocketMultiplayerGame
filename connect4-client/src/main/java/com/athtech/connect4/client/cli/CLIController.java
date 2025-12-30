@@ -11,10 +11,13 @@ public class CLIController {
     private final ClientNetworkAdapter clientNetwork;
     private final CLIInputHandler input;
 
-    // Session state
+    // Session states
     private volatile boolean loggedIn = false;
     private volatile boolean sessionClosing = false;
     private volatile boolean inGame = false;
+    private volatile boolean rematchPhase = false;
+
+
     private volatile InviteNotificationResponse lastInvite = null;
     private String username;
     private String relogCode;
@@ -29,25 +32,21 @@ public class CLIController {
     private final Object inviteLock = new Object();
     private final Object resyncLock = new Object();
     private final Object rematchLock = new Object();
-    private volatile boolean rematchPhase = false;
+
     private volatile boolean resyncInProgress = false;
     private volatile boolean resyncSucceeded = false;
     private final int MAX_RESYNC_ATTEMPTS = 10;
     private final long RESYNC_INTERVAL_MS = 5_000;
 
     private volatile boolean gameStartingPromptConsumsed = false;
-
     private boolean shouldAppExit = false;
 
-    // --- Testing hook ---
-    private volatile boolean simulateServerDown = false;
 
     public CLIController(CLIView view, ClientNetworkAdapter clientNetwork ) {
         this.view = view;
         this.clientNetwork = clientNetwork;
         input = new CLIInputHandler(this::getIsInGame);
         clientNetwork.setListener(this::handleServerPacket);
-        clientNetwork.setConnectionLostListener(this::handleNoResponseOnSend);
     }
 
     public void run() {
@@ -71,7 +70,6 @@ public class CLIController {
         gameStartingPromptConsumsed = false;
         rematchPhase = false;
         resyncInProgress = false;
-        simulateServerDown = false;
     }
 
     private void authenticationMenu() {
@@ -95,8 +93,7 @@ public class CLIController {
         String password = input.readLine();
 
         sendPacketWithResync(new NetPacket(PacketType.LOGIN_REQUEST, username, new LoginRequest(username, password)),
-                waitFor(loginLock, 8000)
-                );
+                loginLock, 8000);
     }
 
     private void attemptSignupFlow() {
@@ -107,8 +104,7 @@ public class CLIController {
         String pwd = input.readLine();
 
         sendPacketWithResync(new NetPacket(PacketType.SIGNUP_REQUEST, desired, new SignupRequest(desired, pwd)),
-                waitFor(loginLock, 8000)
-                );
+                loginLock, 8000);
     }
 
     private void mainLoop() {
@@ -134,8 +130,7 @@ public class CLIController {
             if (!inGame || move == null) {break;}
             int row = move[0];
             int col = move[1];
-            sendPacketWithResync(new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col)),
-                    waitFor(gameLock, 60_000));
+            sendPacketWithResync(new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col)),gameLock,60_000);
         }
     }
 
@@ -178,8 +173,7 @@ public class CLIController {
             view.show("Rematch request in progress please wait...");
         }
 
-        sendPacketWithResync(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest(wantRematch)),
-                false);
+        sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest(wantRematch)));
     }
 
     private void sendInviteRequest() {
@@ -198,8 +192,8 @@ public class CLIController {
             return;
         }
 
-        sendPacketWithResync(new NetPacket(PacketType.INVITE_REQUEST, username,
-                new InviteRequest(snapshot.get(choice - 1))),false);
+        sendPacket(new NetPacket(PacketType.INVITE_REQUEST, username,
+                new InviteRequest(snapshot.get(choice - 1))));
     }
 
     private void handleReceivedInviteRequest() {
@@ -208,8 +202,8 @@ public class CLIController {
             view.show("Invite from: " + lastInvite.fromUsername());
             view.showAcceptPrompt();
             boolean accept = input.readLine().trim().equalsIgnoreCase("y");
-            sendPacketWithResync(new NetPacket(PacketType.INVITE_DECISION_REQUEST, username,
-                    new InviteDecisionRequest(lastInvite.fromUsername(), accept)),false);
+            sendPacket(new NetPacket(PacketType.INVITE_DECISION_REQUEST, username,
+                    new InviteDecisionRequest(lastInvite.fromUsername(), accept)));
             lastInvite = null;
         }
     }
@@ -244,7 +238,7 @@ public class CLIController {
             }
 
             if (!resyncSucceeded) {
-                view.showCallback("Reconnect failed. Session lost.");
+                view.showCallback("Resync failed. Session lost.");
                 resetSessionState();
                 notifyAllLock(gameLock);
             }
@@ -255,9 +249,9 @@ public class CLIController {
         clientNetwork.sendPacket(packet);
     }
 
-    private void sendPacketWithResync(NetPacket packet,boolean serverDidntRespond) {
+    private void sendPacketWithResync(NetPacket packet,Object lock, long timeoutMillis) {
         sendPacket(packet);
-        if(serverDidntRespond){
+        if(!waitFor(lock,timeoutMillis)){
             view.showCallback("No response from server. Attempting resync...");
             handleNoResponseOnSend();
         }
@@ -282,8 +276,8 @@ public class CLIController {
         if (inGame || sessionClosing) { view.showCallback("Logout already in progress..."); return; }
 
         sessionClosing = true;
-        sendPacketWithResync(new NetPacket(PacketType.LOGOUT_REQUEST, username, new LogoutRequest())
-                ,waitFor(logoutLock, 4000));
+        sendPacketWithResync(new NetPacket(PacketType.LOGOUT_REQUEST, username, new LogoutRequest()),
+                logoutLock, 4000);
         resetSessionState();
         try { clientNetwork.disconnect(); } catch (Exception ignored) {}
     }

@@ -15,6 +15,7 @@ public class ServerNetworkAdapter {
 
     private ServerSocket srvSocket;
     private final Map<String, ClientHandler> connectedClients = new ConcurrentHashMap<>();
+    //username -clientID
     private final Map<String, String> loggedInClients = new ConcurrentHashMap<>();
     private final PersistenceManager persistenceManager;
     private final LobbyController lobbyController;
