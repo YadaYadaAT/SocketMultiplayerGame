@@ -316,6 +316,10 @@ public class CLIController {
 
     private void onLobbyPlayersResponse(NetPacket packet) {
         var lobP = (String[]) packet.payload();
+        onLobbyPlayersFromPayload(lobP, true);
+    }
+
+    private void onLobbyPlayersFromPayload(String[] lobP, boolean printOn) {
 
         lobbyPlayers.clear();
         lobbyPlayers.addAll(Arrays.asList(lobP));
@@ -323,8 +327,10 @@ public class CLIController {
         if (username != null) {
             lobbyPlayers.removeIf(u -> u.equals(username));
         }
+        if(printOn){
+            view.showCallback("Lobby: " + String.join(", ", lobbyPlayers));
+        }
 
-        view.showCallback("Lobby: " + String.join(", ", lobbyPlayers));
 
     }
 
@@ -383,6 +389,10 @@ public class CLIController {
 
     private void onGameStateResponse(NetPacket packet) {
         GameStateResponse gs = (GameStateResponse) packet.payload();
+        onGameStateFromPayload(gs);
+    }
+
+    private void onGameStateFromPayload(GameStateResponse gs){
         view.showBoard(gs.board());
 
         if (gs.currentPlayer().equals(username)) {
@@ -490,17 +500,27 @@ public class CLIController {
         view.showCallback(resp.message());
         loggedIn = true;
         sessionClosing = false;
-        relogCode = resp.relogCode();
-        myStats = resp.myStats();
-        lobbyPlayers = resp.lobbyPlayers() != null ? Arrays.asList(resp.lobbyPlayers()) : new ArrayList<>();
-        if (resp.currentGameState() != null) {
-            inGame = !resp.currentGameState().gameOver();
-            view.showCallbackHighlight(resp.currentGameState().currentPlayer().equals(username) ? "It's your turn!" : "Opponent's turn.");
-        }
         InviteNotificationResponse[] invites = resp.pendingInvites();
         lastInvite = (invites != null && invites.length > 0) ? invites[invites.length - 1] : null;
+        myStats = resp.myStats();
+        relogCode = resp.relogCode();
+        onLobbyPlayersFromPayload(resp.lobbyPlayers().players().toArray(new String[0]),false);
+
+        if (resp.currentGameState() != null) {
+            inGame = !resp.currentGameState().gameOver();
+            if(inGame){
+                gameStartingPromptConsumsed = true;
+            }
+            onGameStateFromPayload(resp.currentGameState());
+        }
+
+
         notifyAllLock(gameLock);
         notifyAllLock(loginLock);
+    }
+
+    private void extractLobbyPlayers(){
+
     }
 
     private void onInfoResponse(NetPacket packet){

@@ -6,6 +6,8 @@ import com.athtech.connect4.protocol.payload.*;
 import com.athtech.connect4.server.match.MatchController;
 import com.athtech.connect4.server.persistence.PersistenceManager;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -98,7 +100,7 @@ public class PacketDispatcher {
         GameStateResponse currentGame = matchController.getCurrentGame(client.getUsername());
         client.sendPacket(new NetPacket(PacketType.RECONNECT_RESPONSE, "server",
                 new ReconnectResponse(true, "Reconnected successfully.",
-                        lobbyPlayers, stats, pendingInvites, currentGame, relogCode)));
+                        new LobbyPlayersResponse(Arrays.asList(lobbyPlayers)), stats, pendingInvites, currentGame, relogCode)));
     }
 
     private void handleInviteRequest(ClientHandler client, NetPacket packet) {

@@ -5,7 +5,7 @@ import java.io.Serializable;
 public record ReconnectResponse(
         boolean success,
         String message,
-        String[] lobbyPlayers,
+        LobbyPlayersResponse lobbyPlayers,
         PlayerStatsResponse myStats,
         InviteNotificationResponse[] pendingInvites,
         GameStateResponse currentGameState,
