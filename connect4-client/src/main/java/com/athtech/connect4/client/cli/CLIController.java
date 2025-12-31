@@ -37,25 +37,24 @@ public class CLIController {
     private final Object resyncLock = new Object();
     private final Object rematchLock = new Object();
 
-    private volatile boolean resyncInProgress = false;
-
-    private volatile boolean resyncSucceeded = false;
-    private final int MAX_RESYNC_ATTEMPTS = 10;
-    private final long RESYNC_INTERVAL_MS = 5_000;
-
+    private volatile CLIstateIndicatorHelper stateIndicator;
     private volatile boolean gameStartingPromptConsumsed = false;
     private boolean shouldAppExit = false;
 
 
+
+
     public CLIController(CLIView view, ClientNetworkAdapter clientNetwork ) {
+        stateIndicator = CLIstateIndicatorHelper.AUTHENTICATION_LOOP;
         this.view = view;
         this.clientNetwork = clientNetwork;
-        input = new CLIInputHandler(this::getIsInGame);
+        input = new CLIInputHandler();
         clientNetwork.setListener(this::handleServerPacket);
     }
 
     public void run() {
         while (!shouldAppExit) {
+            stateIndicator = CLIstateIndicatorHelper.AUTHENTICATION_LOOP;
             resetSessionState();
             authenticationMenu();
             if (loggedIn) mainLoop();
@@ -111,6 +110,7 @@ public class CLIController {
 
     private void mainLoop() {
         while (loggedIn) {
+            stateIndicator = CLIstateIndicatorHelper.LOBBY_LOOP;
             if (sessionClosing) { waitLockAndResync(logoutLock); continue; }
 
             if (!inGame && rematchPhase){
@@ -126,8 +126,10 @@ public class CLIController {
 
     // CLIController
     private void runGameLoop() {
+
         view.showGameStart();
         while (inGame && loggedIn && !sessionClosing) {
+            stateIndicator = CLIstateIndicatorHelper.GAME_LOOP;
             String rawInput = input.readMoveRaw();
 
             if (rawInput.equalsIgnoreCase("q")) {
@@ -137,6 +139,10 @@ public class CLIController {
                 break;
             }
 
+
+            if ( forceExitGame || !inGame ) {
+                break;
+            }
             // attempt to parse move
             String[] parts = rawInput.split(",");
             if (parts.length != 2) {
@@ -355,6 +361,10 @@ public class CLIController {
         notifyAllLock(gameLock);
     }
 
+    public boolean getForceExitGame() {
+        return forceExitGame;
+    }
+
     private void onGameStartResponse(NetPacket packet) {
         view.showGameStarted("Ignore Lobby Menu! Game started!");
 
@@ -376,7 +386,7 @@ public class CLIController {
                     "Press "
                             + "\u001B[38;5;208m`enter`\u001B[0m"
                             + " once to enter into the gaming mode"
-                            + "\nAnd then wait since it's your opponent's turn."
+                            + "\n \n wait since it's your opponent's turn..."
             );
         }
 
@@ -445,7 +455,6 @@ public class CLIController {
             view.showCallback("Get Ready for the rematch");
             inGame = true;
         }else{
-            view.showCallback("Match session ended. Returning to lobby...");
             inGame = false;
         }
 
@@ -493,8 +502,7 @@ public class CLIController {
     private void onResyncResponse(NetPacket packet) {
         ResyncResponse resp = (ResyncResponse) packet.payload();
 
-//        // If this response is negative, we handle it safely without overwriting state
-//        if (!resyncInProgress) return;
+
 
         if (!resp.success()) {
             view.showCallback("Resync attempt rejected: " + resp.message());
@@ -506,8 +514,6 @@ public class CLIController {
         }
 
         synchronized (resyncLock) {
-            resyncSucceeded = true;
-            resyncInProgress = false;
             resyncLock.notifyAll();
         }
 
@@ -537,22 +543,25 @@ public class CLIController {
                 (GameQuitNotificationResponse) packet.payload();
 
         abortGameSession("Opponent " + resp.quitter() + " quit the game.");
+        if (stateIndicator.equals(CLIstateIndicatorHelper.LOBBY_LOOP)){
+            view.showLobbyMenu();
+        }else{
+            view.showCallbackHighlight("Press enter to return to lobby...");
+        }
 
-        // Make sure any thread waiting is notified
-        notifyAllLock(gameLock);
-        notifyAllLock(gameQuitLock);
+
+
     }
 
     private void onGameQuitResponse(NetPacket packet) {
-        // You can show a simple confirmation
+
         view.showCallback("You quit the game. Returning to lobby...");
 
-        // End local game session properly
+
         inGame = false;
         rematchPhase = false;
         gameStartingPromptConsumsed = false;
 
-        // Wake the quit lock so runGameLoop stops waiting
         notifyAllLock(gameQuitLock);
     }
 
@@ -592,6 +601,7 @@ public class CLIController {
 
     private void abortGameSession(String reason) {
         view.showCallbackHighlight(reason);
+
         forceExitGame = true;
         inGame = false;
         rematchPhase = false;
