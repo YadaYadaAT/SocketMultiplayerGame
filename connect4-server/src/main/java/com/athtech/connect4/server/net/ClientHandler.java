@@ -55,11 +55,17 @@ public class ClientHandler implements Runnable {
     }
 
     public void sendPacket(NetPacket packet) {
-        try {
-            out.writeObject(packet);
-            out.flush();
-        } catch (IOException e) {
-            System.err.println("Send failed to client " + clientId + ": " + e.getMessage());
+        synchronized (this) { //!!! CULPRIT....during broadcast of login and logout
+            // this little monster here was breaking since it the socket was being used
+            //by multiple threads. At the start we thought that it was safe to by unsync
+            //since it belongs to the thread of a cliend only but obviously it is being used by everyone who wants
+            //to send to him.
+            try {
+                out.writeObject(packet);
+                out.flush();
+            } catch (IOException e) {
+                System.err.println("Send failed to client " + clientId + ": " + e.getMessage());
+            }
         }
     }
 

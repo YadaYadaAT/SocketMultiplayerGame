@@ -70,6 +70,7 @@ public class ServerNetworkAdapter {
     }
 
     public void sendToClient(String username, NetPacket packet) {
+
         String clientId = loggedInClients.get(username);
         if (clientId != null) {
             ClientHandler handler = connectedClients.get(clientId);

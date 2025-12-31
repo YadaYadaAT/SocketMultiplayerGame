@@ -6,8 +6,6 @@ import com.athtech.connect4.protocol.messaging.PacketType;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.LinkedList;
-import java.util.Queue;
 
 public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
@@ -27,8 +25,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     private Thread listenThread;
     private volatile boolean listening = false;
 
-    private enum State {CONNECTED, RECONNECTING, DEAD}
-    private volatile State state = State.DEAD;
+    private volatile NetState netState = NetState.DEAD;
 
     public ClientNetworkAdapterImpl(String host, int port) {
         this.host = host;
@@ -40,7 +37,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         try {
             openSocket();
             startListenThread();
-            state = State.CONNECTED;
+            netState = NetState.CONNECTED;
         } catch (IOException e) {
             System.err.println("Initial connection failed: " + e.getMessage());
             handleConnectionLost();
@@ -51,6 +48,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         socket = new Socket(host, port);
         out = new ObjectOutputStream(socket.getOutputStream());
         out.flush();
+        try { Thread.sleep(500); } catch (InterruptedException ignored) {}
         in = new ObjectInputStream(socket.getInputStream());
         try { Thread.sleep(500); } catch (InterruptedException ignored) {}
         out.writeObject(new NetPacket(PacketType.HANDSHAKE,"user","handshake"));
@@ -93,27 +91,13 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     private void handleConnectionLost() {
         synchronized (ioLock) {
-            if (state == State.RECONNECTING) return;
-            state = State.RECONNECTING;
+            if (netState == NetState.RECONNECTING) return;
+            netState = NetState.RECONNECTING;
             stopListenThread();
-            drainInputQuietly();
             disconnectInternal();
         }
 
         new Thread(this::reconnectLoop, "ClientNetworkAdapter-Reconnect").start();
-    }
-
-    private void drainInputQuietly() {
-        if (socket == null) return;
-        try {
-            socket.setSoTimeout(1);
-            InputStream is = socket.getInputStream();
-            byte[] buf = new byte[1024];
-            while (is.read(buf) != -1) {
-                // discard
-            }
-            out.reset();
-        } catch (Exception ignored) {}
     }
 
     private void reconnectLoop() {
@@ -123,15 +107,24 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         while (attempts < MAX_ATTEMPTS) {
             attempts++;
             try {
-                Thread.sleep(6000);
+                Thread.sleep(3000);
 
                 synchronized (ioLock) {
+                    if(netState == NetState.CONNECTED) {
+                        ioLock.notifyAll();
+                        return;
+                    }
+                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
                     openSocket();
                     startListenThread();
-                    state = State.CONNECTED;
-                    ioLock.notifyAll();
+                    netState = NetState.CONNECTED;
                     System.out.println("Reconnected successfully.");
-                    if (reconnectListener != null) reconnectListener.onNetworkReconnected();
+                    try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
+                    if (reconnectListener != null){
+
+                        reconnectListener.onNetworkReconnected();
+                    }
+                    ioLock.notifyAll();
                     return;
                 }
 
@@ -139,7 +132,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         }
 
         synchronized (ioLock) {
-            state = State.DEAD;
+            netState = NetState.DEAD;
             ioLock.notifyAll();
         }
         System.err.println("Failed to reconnect after " + MAX_ATTEMPTS + " attempts.");
@@ -148,11 +141,14 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     @Override
     public void sendPacket(NetPacket packet) {
         synchronized (ioLock) {
-            if (state == State.RECONNECTING) {
+            if (netState != NetState.CONNECTED || out == null || socket == null || socket.isClosed()) {
+                return;
+            }
+            if (netState == NetState.RECONNECTING) {
                 System.err.println("[Network] Currently reconnecting.");
                 return;
             }
-            if (state != State.CONNECTED) {
+            if (netState != NetState.CONNECTED) {
                 System.err.println("[Network] Cannot send packet, network is down: ");
                 return;
             }
@@ -171,6 +167,11 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         this.listener = listener;
     }
 
+    @Override
+    public NetState getState() {
+        return netState;
+    }
+
     public void setReconnectListener(CLIController controller) {
         this.reconnectListener = controller;
     }
@@ -180,7 +181,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         synchronized (ioLock) {
             stopListenThread();
             disconnectInternal();
-            state = State.DEAD;
+            netState = NetState.DEAD;
             ioLock.notifyAll();
         }
     }

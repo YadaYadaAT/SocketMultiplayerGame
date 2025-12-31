@@ -9,6 +9,8 @@ public interface ClientNetworkAdapter {
     void sendPacket(NetPacket packet);
     void setListener(PacketListener listener);
 
+    NetState getState();
+
     interface PacketListener {
         void onPacketReceived(NetPacket packet);
     }

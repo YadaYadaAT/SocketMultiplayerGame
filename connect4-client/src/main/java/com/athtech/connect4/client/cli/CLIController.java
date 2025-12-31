@@ -1,6 +1,7 @@
 package com.athtech.connect4.client.cli;
 
 import com.athtech.connect4.client.net.ClientNetworkAdapter;
+import com.athtech.connect4.client.net.NetState;
 import com.athtech.connect4.protocol.messaging.*;
 import com.athtech.connect4.protocol.payload.*;
 
@@ -217,7 +218,11 @@ public class CLIController {
 
     public void ResyncWithAuth() {
         synchronized (resyncLock) {
-            if (resyncInProgress || username == null || relogCode == null) return;
+            if (resyncInProgress || username == null || relogCode == null
+                    || clientNetwork.getState() != NetState.CONNECTED)
+                {
+                    return;
+                }
             resyncInProgress = true;
             resyncSucceeded = false;
         }
@@ -228,10 +233,9 @@ public class CLIController {
             while (attempts < MAX_RESYNC_ATTEMPTS && resyncInProgress && !resyncSucceeded) {
                 attempts++;
                 view.showCallback("Attempting resync (" + attempts + "/" + MAX_RESYNC_ATTEMPTS + ")...");
-
+                clientNetwork.sendPacket(new NetPacket(PacketType.RESYNC_REQUEST, username,
+                        new ResyncRequest(username, relogCode)));
                 synchronized (resyncLock) {
-                    clientNetwork.sendPacket(new NetPacket(PacketType.RESYNC_REQUEST, username,
-                            new ResyncRequest(username, relogCode)));
 
                     long timeout = 8000;
                     long startTime = System.currentTimeMillis();
@@ -316,7 +320,7 @@ public class CLIController {
     }
 
     private void onHandshake(NetPacket packet){
-        //empty just to sync ;...
+        System.out.println(packet.payload());
     }
 
     // --- on* callbacks now use showCallback / showCallbackHighlight ---
