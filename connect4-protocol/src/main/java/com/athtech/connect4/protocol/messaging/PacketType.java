@@ -28,6 +28,7 @@ public enum PacketType {
 
 // Game actions
     MOVE_REQUEST,
+    GAME_QUIT_REQUEST,
 
 
 //Rematch
@@ -71,6 +72,8 @@ public enum PacketType {
     PLAYER_TIMEOUT_RESPONSE,
     DISCONNECT_NOTICE_RESPONSE,
     MATCH_SESSION_ENDED_RESPONSE,
+    GAME_QUIT_RESPONSE,
+    GAME_QUIT_NOTIFICATION_RESPONSE,
 
 //Rematch
     REMATCH_RESPONSE,

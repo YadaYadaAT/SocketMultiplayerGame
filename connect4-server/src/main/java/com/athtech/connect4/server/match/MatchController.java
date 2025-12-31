@@ -74,6 +74,54 @@ public class MatchController {
 
     }
 
+
+    public boolean handleGameQuit(String quitter) {
+
+        return matchManager.getMatchByPlayer(quitter).map(match -> {
+
+            String opponent =
+                    quitter.equals(match.getPlayer1())
+                            ? match.getPlayer2()
+                            : match.getPlayer1();
+
+            // Mark quitters as unavailable
+            if (match instanceof MatchImpl impl) {
+                impl.markUnavailable(quitter);
+                impl.markEnded();
+            }
+
+            // Record result: quitter loses
+            persistence.recordMatchResult(
+                    match.getPlayer1(),
+                    match.getPlayer2(),
+                    false,
+                    opponent
+            );
+
+            sendUpdatedStats(match.getPlayer1());
+            sendUpdatedStats(match.getPlayer2());
+
+            // Notify opponent
+            sendToClient.accept(opponent, new NetPacket(
+                    PacketType.GAME_QUIT_NOTIFICATION_RESPONSE,
+                    "server",
+                    new GameQuitNotificationResponse(quitter)
+            ));
+
+            // End session for both
+            sendMatchSessionEndResponseToPlayers(
+                    match.getPlayer1(),
+                    match.getPlayer2(),
+                    false
+            );
+
+            matchManager.endMatch(match.getMatchId());
+            return true;
+
+        }).orElse(false);
+    }
+
+
     // -----------------------
     // Invites
     // -----------------------

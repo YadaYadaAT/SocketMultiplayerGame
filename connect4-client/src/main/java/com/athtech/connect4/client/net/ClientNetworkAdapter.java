@@ -7,9 +7,14 @@ import java.io.IOException;
 public interface ClientNetworkAdapter {
     void disconnect();
     void sendPacket(NetPacket packet);
-    void setListener(PacketListener listener);
 
     NetState getState();
+
+    void requestResync(String username, String relogCode);
+
+    void onResyncFinished();
+
+    void setListener(PacketListener listener);
 
     interface PacketListener {
         void onPacketReceived(NetPacket packet);

@@ -3,13 +3,18 @@ package com.athtech.connect4.client.net;
 import com.athtech.connect4.client.cli.CLIController;
 import com.athtech.connect4.protocol.messaging.NetPacket;
 import com.athtech.connect4.protocol.messaging.PacketType;
+import com.athtech.connect4.protocol.payload.ResyncRequest;
 
 import java.io.*;
 import java.net.Socket;
 
 public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
-    private CLIController reconnectListener;
+    private final Object resyncLock = new Object();
+    private volatile boolean resyncRequested = false;
+    private volatile boolean resyncInProgress = false;
+    private String pendingUsername;
+    private String pendingRelogCode;
 
     private final String host;
     private final int port;
@@ -38,9 +43,16 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
             openSocket();
             startListenThread();
             netState = NetState.CONNECTED;
+            tryExecuteResync();
         } catch (IOException e) {
             System.err.println("Initial connection failed: " + e.getMessage());
             handleConnectionLost();
+        }
+    }
+
+    public void onResyncFinished() {
+        synchronized (resyncLock) {
+            resyncInProgress = false;
         }
     }
 
@@ -100,6 +112,34 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         new Thread(this::reconnectLoop, "ClientNetworkAdapter-Reconnect").start();
     }
 
+    public void requestResync(String username, String relogCode) {
+        synchronized (resyncLock) {
+            pendingUsername = username;
+            pendingRelogCode = relogCode;
+            resyncRequested = true;
+        }
+        tryExecuteResync();
+    }
+
+    private void tryExecuteResync() {
+        synchronized (resyncLock) {
+            if (!resyncRequested) return;
+            if (resyncInProgress) return;
+            if (netState != NetState.CONNECTED) return;
+            if (out == null || socket == null || socket.isClosed()) return;
+
+            resyncRequested = false;
+            resyncInProgress = true;
+        }
+
+        sendPacket(new NetPacket(
+                PacketType.RESYNC_REQUEST,
+                pendingUsername,
+                new ResyncRequest(pendingUsername, pendingRelogCode)
+        ));
+    }
+
+
     private void reconnectLoop() {
         int attempts = 0;
         final int MAX_ATTEMPTS = 10;
@@ -120,10 +160,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
                     netState = NetState.CONNECTED;
                     System.out.println("Reconnected successfully.");
                     try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
-                    if (reconnectListener != null){
-
-                        reconnectListener.onNetworkReconnected();
-                    }
+                    tryExecuteResync();
                     ioLock.notifyAll();
                     return;
                 }
@@ -162,6 +199,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         }
     }
 
+
     @Override
     public void setListener(PacketListener listener) {
         this.listener = listener;
@@ -170,10 +208,6 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     @Override
     public NetState getState() {
         return netState;
-    }
-
-    public void setReconnectListener(CLIController controller) {
-        this.reconnectListener = controller;
     }
 
     @Override

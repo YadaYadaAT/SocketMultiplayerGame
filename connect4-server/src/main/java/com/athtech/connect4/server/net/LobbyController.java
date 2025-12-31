@@ -20,7 +20,7 @@ public class LobbyController {
 
     public void userLoggedIn(String username, String clientId) {
         loggedInClients.put(username, clientId);
-        broadcastLobby();
+
     }
 
     public boolean isUserLoggedIn(String username) {
@@ -37,10 +37,9 @@ public class LobbyController {
 
     public void userLoggedOut(String username) {
         loggedInClients.remove(username);
-        broadcastLobby();
     }
 
-    private void broadcastLobby() {
+    public void broadcastLobby() {
         String[] users = getLoggedInUsernames().toArray(new String[0]);
         broadcastToLoggedIn.accept(
                 new NetPacket(PacketType.LOBBY_PLAYERS_RESPONSE, "server", users)

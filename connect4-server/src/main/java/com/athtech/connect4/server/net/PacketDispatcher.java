@@ -34,6 +34,7 @@ public class PacketDispatcher {
             case INVITE_DECISION_REQUEST -> handleInviteDecision(client, packet);
             case REMATCH_REQUEST -> handleRematchRequest(client, packet);
             case MOVE_REQUEST -> handleMove(client, packet);
+            case GAME_QUIT_REQUEST -> handleGameQuitRequest(client,packet);
             case HANDSHAKE -> handleHandshake(client,packet);
             default -> client.sendPacket(new NetPacket(PacketType.ERROR_MESSAGE_RESPONSE, "server",
                     new ErrorMessageResponse("Unknown packet type: " + packet.type())));
@@ -43,6 +44,25 @@ public class PacketDispatcher {
     private void handleHandshake(ClientHandler client, NetPacket packet){
         client.sendPacket(new NetPacket(PacketType.HANDSHAKE, "server",
                "handshake-response"));
+    }
+
+    private void handleGameQuitRequest(ClientHandler client, NetPacket packet) {
+        if (client.getUsername() == null) {
+            client.sendPacket(new NetPacket(
+                    PacketType.GAME_QUIT_RESPONSE,
+                    "server",
+                    new GameQuitResponse(false)
+            ));
+            return;
+        }
+
+        boolean success = matchController.handleGameQuit(client.getUsername());
+
+        client.sendPacket(new NetPacket(
+                PacketType.GAME_QUIT_RESPONSE,
+                "server",
+                new GameQuitResponse(success)
+        ));
     }
 
     private void handleLogin(ClientHandler client, NetPacket packet) {
@@ -64,6 +84,8 @@ public class PacketDispatcher {
 
         client.sendPacket(new NetPacket(PacketType.LOGIN_RESPONSE, "server",
                 new LoginResponse(true, "Welcome " + client.getUsername(), relogCode, stats)));
+
+        lobbyController.broadcastLobby();
     }
 
     private void handleSignup(ClientHandler client, NetPacket packet) {
@@ -79,6 +101,7 @@ public class PacketDispatcher {
             client.sendPacket(new NetPacket(PacketType.LOGOUT_RESPONSE, "server",
                     new LogoutResponse(true, "Logged out successfully.")));
             client.setUsername(null);
+            lobbyController.broadcastLobby();
         }
     }
 

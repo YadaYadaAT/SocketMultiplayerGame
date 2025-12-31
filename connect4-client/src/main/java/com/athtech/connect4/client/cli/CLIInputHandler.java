@@ -54,6 +54,11 @@ public class CLIInputHandler {
         }
     }
 
+    // CLIInputHandler
+    public String readMoveRaw() {
+        return scanner.nextLine().trim();
+    }
+
     public String readChoice() {
         String choice = scanner.nextLine().trim();
         if ("q".equalsIgnoreCase(choice)) return "q";

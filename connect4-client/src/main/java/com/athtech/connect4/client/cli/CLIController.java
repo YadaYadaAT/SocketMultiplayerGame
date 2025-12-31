@@ -17,7 +17,7 @@ public class CLIController {
     private volatile boolean inGame = false;
     private volatile boolean rematchPhase = false; //end of game rematch
     private volatile boolean sessionClosing = false; //during logout
-    private volatile boolean resyncWhenInGame = false; //disconnection -> resync and drop game
+    private volatile boolean forceExitGame = false;
 
 
     private volatile long lastServerActivity = System.currentTimeMillis();
@@ -32,11 +32,13 @@ public class CLIController {
     private final Object loginLock = new Object();
     private final Object logoutLock = new Object();
     private final Object gameLock = new Object();
+    private final Object gameQuitLock = new Object();
     private final Object inviteLock = new Object();
     private final Object resyncLock = new Object();
     private final Object rematchLock = new Object();
 
     private volatile boolean resyncInProgress = false;
+
     private volatile boolean resyncSucceeded = false;
     private final int MAX_RESYNC_ATTEMPTS = 10;
     private final long RESYNC_INTERVAL_MS = 5_000;
@@ -72,7 +74,6 @@ public class CLIController {
         myStats = null;
         gameStartingPromptConsumsed = false;
         rematchPhase = false;
-        resyncInProgress = false;
     }
 
     private void authenticationMenu() {
@@ -123,17 +124,36 @@ public class CLIController {
         }
     }
 
+    // CLIController
     private void runGameLoop() {
         view.showGameStart();
         while (inGame && loggedIn && !sessionClosing) {
-            int[] move = input.readMove();
-            // game end consume input of loser
-            if (!inGame || move == null) {break;}
-            int row = move[0];
-            int col = move[1];
-            clientNetwork.sendPacket(new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col)));
-            waitLockAndResync(gameLock);
+            String rawInput = input.readMoveRaw();
+
+            if (rawInput.equalsIgnoreCase("q")) {
+                // user wants to quit
+                clientNetwork.sendPacket(new NetPacket(PacketType.GAME_QUIT_REQUEST, username, null));
+                waitLockAndResync(gameQuitLock);
+                break;
+            }
+
+            // attempt to parse move
+            String[] parts = rawInput.split(",");
+            if (parts.length != 2) {
+                view.showCallback("Invalid format. Enter as row,column or 'q' to leave the game.");
+                continue;
+            }
+
+            try {
+                int row = Integer.parseInt(parts[0].trim());
+                int col = Integer.parseInt(parts[1].trim());
+                clientNetwork.sendPacket(new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col)));
+                waitLockAndResync(gameLock);
+            } catch (NumberFormatException e) {
+                view.showCallback("Invalid numbers. Enter as row,column or 'q' to leave the game.");
+            }
         }
+        forceExitGame = false;
     }
 
 
@@ -210,65 +230,10 @@ public class CLIController {
         }
     }
 
-    public void onNetworkReconnected() {
-        if (username != null && relogCode != null && !resyncInProgress) {
-            view.showCallback("Network restored, attempting automatic resync...");
-            ResyncWithAuth();
-        }
+    public void requestResync() {
+        if (username == null || relogCode == null) return;
+        clientNetwork.requestResync(username, relogCode);
     }
-
-    public void ResyncWithAuth() {
-        synchronized (resyncLock) {
-            if (resyncInProgress || username == null || relogCode == null
-                    || clientNetwork.getState() != NetState.CONNECTED)
-                {
-                    return;
-                }
-            resyncInProgress = true;
-            resyncSucceeded = false;
-        }
-
-        new Thread(() -> {
-            int attempts = 0;
-
-            while (attempts < MAX_RESYNC_ATTEMPTS && resyncInProgress && !resyncSucceeded) {
-                attempts++;
-                view.showCallback("Attempting resync (" + attempts + "/" + MAX_RESYNC_ATTEMPTS + ")...");
-                clientNetwork.sendPacket(new NetPacket(PacketType.RESYNC_REQUEST, username,
-                        new ResyncRequest(username, relogCode)));
-                synchronized (resyncLock) {
-
-                    long timeout = 8000;
-                    long startTime = System.currentTimeMillis();
-                    while (!resyncSucceeded && (System.currentTimeMillis() - startTime) < timeout) {
-                        try {
-                            resyncLock.wait(timeout - (System.currentTimeMillis() - startTime));
-                        } catch (InterruptedException ignored) {
-                            Thread.currentThread().interrupt();
-                        }
-                    }
-                }
-
-                if (resyncSucceeded) {
-                    view.showLobbyMenu();
-                    break;
-                }
-
-                try { Thread.sleep(RESYNC_INTERVAL_MS); } catch (InterruptedException ignored) {}
-            }
-
-            synchronized (resyncLock) {
-                resyncInProgress = false;
-            }
-
-            if (!resyncSucceeded) {
-                view.showCallback("Resync failed. Session lost.");
-                resetSessionState();
-                notifyAllLock(gameLock);
-            }
-        }, "ReconnectThread").start();
-    }
-
 
 
     private List<String> requestLobbyPlayers() {
@@ -305,6 +270,7 @@ public class CLIController {
             case SIGNUP_RESPONSE -> onSignupResponse(packet);
             case LOGOUT_RESPONSE -> onLogoutResponse(packet);
             case LOBBY_PLAYERS_RESPONSE -> onLobbyPlayersResponse(packet);
+            case GAME_QUIT_RESPONSE -> onGameQuitResponse(packet);
             case PLAYER_STATS_RESPONSE -> onPlayerStatsResponse(packet);
             case INVITE_RESPONSE -> onInviteResponse(packet);
             case INVITE_NOTIFICATION_RESPONSE -> onInviteNotificationResponse(packet);
@@ -319,6 +285,7 @@ public class CLIController {
             case ERROR_MESSAGE_RESPONSE -> onErrorMessageResponse(packet);
             case INFO_RESPONSE -> onInfoResponse(packet);
             case HANDSHAKE -> onHandshake(packet);
+            case GAME_QUIT_NOTIFICATION_RESPONSE -> onGameQuitNotification(packet);
             default -> view.showCallback("Unhandled packet: " + packet.type());
         }
     }
@@ -462,7 +429,7 @@ public class CLIController {
                 ? "Game ended in a draw against " + end.opponent()
                 : (username.equals(end.winner()) ? "You won against " + end.opponent() : "You lost against "
                 + end.opponent() + " , press Enter and then answer if you want a rematch");
-        view.showCallback(message);
+        view.showYourTurn(message);
 
         notifyAllLock(gameLock);
     }
@@ -526,8 +493,8 @@ public class CLIController {
     private void onResyncResponse(NetPacket packet) {
         ResyncResponse resp = (ResyncResponse) packet.payload();
 
-        // If this response is negative, we handle it safely without overwriting state
-        if (!resyncInProgress) return;
+//        // If this response is negative, we handle it safely without overwriting state
+//        if (!resyncInProgress) return;
 
         if (!resp.success()) {
             view.showCallback("Resync attempt rejected: " + resp.message());
@@ -555,19 +522,39 @@ public class CLIController {
         relogCode = resp.relogCode();
 
         onLobbyPlayersFromPayload(resp.lobbyPlayers().players().toArray(new String[0]), false);
-        if (resp.currentGameState() != null && !resp.currentGameState().gameOver()){ //CLI VERSION
-            resyncWhenInGame = true;
-        }
 
         inGame = false;
         gameStartingPromptConsumsed = false;
 
-
+        clientNetwork.onResyncFinished();
         notifyAllLock(gameLock);
         notifyAllLock(loginLock);
     }
 
 
+    private void onGameQuitNotification(NetPacket packet) {
+        GameQuitNotificationResponse resp =
+                (GameQuitNotificationResponse) packet.payload();
+
+        abortGameSession("Opponent " + resp.quitter() + " quit the game.");
+
+        // Make sure any thread waiting is notified
+        notifyAllLock(gameLock);
+        notifyAllLock(gameQuitLock);
+    }
+
+    private void onGameQuitResponse(NetPacket packet) {
+        // You can show a simple confirmation
+        view.showCallback("You quit the game. Returning to lobby...");
+
+        // End local game session properly
+        inGame = false;
+        rematchPhase = false;
+        gameStartingPromptConsumsed = false;
+
+        // Wake the quit lock so runGameLoop stops waiting
+        notifyAllLock(gameQuitLock);
+    }
 
     private void onInfoResponse(NetPacket packet){
         if (!(packet.payload() instanceof String)) return;
@@ -576,30 +563,24 @@ public class CLIController {
 
     private void waitLockAndResync(Object lock){
         long sentAt = System.currentTimeMillis();
+        if (clientNetwork.getState() == NetState.CONNECTED) {
+            new Thread(() -> {
+                try {
+                    Thread.sleep(6_000);
+                } catch (InterruptedException ignored) {}
 
-        new Thread(() -> {
-            try {
-                Thread.sleep(5_000);
-            } catch (InterruptedException ignored) {}
+                if (lastServerActivity < sentAt && clientNetwork.getState() == NetState.CONNECTED) {
+                    view.showCallback("No server activity detected. Attempting resync...");
+                    requestResync();
+                }
+            }).start();
+        };
 
-            if (lastServerActivity < sentAt && clientNetwork.getState() == NetState.CONNECTED) {
-                view.showCallback("No server activity detected. Attempting resync...");
-                ResyncWithAuth();
-            }
-        }).start();
         synchronized (lock) {
             try { lock.wait(0); }
             catch (InterruptedException e) { Thread.currentThread().interrupt();}
         }
     }
-
-//    private boolean waitFor(Object lock, long timeoutMillis) {
-//        synchronized (lock) {
-//            try { lock.wait(timeoutMillis > 0 ? timeoutMillis : 0); }
-//            catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
-//            return true;
-//        }
-//    }
 
     private void notifyAllLock(Object lock) {
         synchronized (lock) { lock.notifyAll(); }
@@ -609,6 +590,18 @@ public class CLIController {
         return inGame;
     }
 
+    private void abortGameSession(String reason) {
+        view.showCallbackHighlight(reason);
+        forceExitGame = true;
+        inGame = false;
+        rematchPhase = false;
+        gameStartingPromptConsumsed = false;
 
+        // Wake all relevant locks
+        notifyAllLock(gameLock);
+        notifyAllLock(gameQuitLock);
+        notifyAllLock(rematchLock);
+        notifyAllLock(inviteLock);
+    }
 
 }
