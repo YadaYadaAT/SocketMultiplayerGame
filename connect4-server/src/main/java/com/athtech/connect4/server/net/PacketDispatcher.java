@@ -98,7 +98,7 @@ public class PacketDispatcher {
         InviteNotificationResponse[] pendingInvites = matchController.getInvitationsFor(client.getUsername());
         GameStateResponse currentGame = matchController.getCurrentGame(client.getUsername());
         client.sendPacket(new NetPacket(PacketType.RESYNC_RESPONSE, "server",
-                new ResyncResponse(true, "Reconnected successfully.",
+                new ResyncResponse(true, "Re synced successfully.",
                         new LobbyPlayersResponse(lobbyPlayers), stats, pendingInvites, currentGame, relogCode)));
     }
 
