@@ -12,14 +12,15 @@ public class CLIController {
     private final ClientNetworkAdapter clientNetwork;
     private final CLIInputHandler input;
 
-    // Session states
-    private volatile boolean loggedIn = false;
-    private volatile boolean sessionClosing = false;
+    // Session states / UI flow
+    private volatile boolean loggedIn = false; //equals to being in lobby
     private volatile boolean inGame = false;
-    private volatile boolean rematchPhase = false;
+    private volatile boolean rematchPhase = false; //end of game rematch
+    private volatile boolean sessionClosing = false; //during logout
+    private volatile boolean resyncWhenInGame = false; //disconnection -> resync and drop game
+
 
     private volatile long lastServerActivity = System.currentTimeMillis();
-
 
     private String username;
     private String relogCode;
@@ -248,7 +249,10 @@ public class CLIController {
                     }
                 }
 
-                if (resyncSucceeded) break;
+                if (resyncSucceeded) {
+                    view.showLobbyMenu();
+                    break;
+                }
 
                 try { Thread.sleep(RESYNC_INTERVAL_MS); } catch (InterruptedException ignored) {}
             }
@@ -320,7 +324,7 @@ public class CLIController {
     }
 
     private void onHandshake(NetPacket packet){
-        System.out.println(packet.payload());
+//        System.out.println(packet.payload());
     }
 
     // --- on* callbacks now use showCallback / showCallbackHighlight ---
@@ -434,9 +438,11 @@ public class CLIController {
                                  row,column :"""
                 );
             } else {
+
                 view.showYourTurn("It's your turn! Enter your move: row,column");
             }
         } else {
+
             view.showWaitTurn("Opponent's turn. Please wait for your turn.");
         }
 
@@ -482,6 +488,7 @@ public class CLIController {
     }
 
     private void onMoveRejectedResponse(NetPacket packet) {
+
         MoveRejectedResponse rej = (MoveRejectedResponse) packet.payload();
         view.showCallback("Move rejected: " + rej.reason());
         if (rej.currentPlayer() == null) {
@@ -548,12 +555,13 @@ public class CLIController {
         relogCode = resp.relogCode();
 
         onLobbyPlayersFromPayload(resp.lobbyPlayers().players().toArray(new String[0]), false);
-
-        if (resp.currentGameState() != null) {
-            inGame = !resp.currentGameState().gameOver();
-            if (inGame) gameStartingPromptConsumsed = true;
-            onGameStateFromPayload(resp.currentGameState());
+        if (resp.currentGameState() != null && !resp.currentGameState().gameOver()){ //CLI VERSION
+            resyncWhenInGame = true;
         }
+
+        inGame = false;
+        gameStartingPromptConsumsed = false;
+
 
         notifyAllLock(gameLock);
         notifyAllLock(loginLock);
@@ -571,10 +579,10 @@ public class CLIController {
 
         new Thread(() -> {
             try {
-                Thread.sleep(15_000);
+                Thread.sleep(5_000);
             } catch (InterruptedException ignored) {}
 
-            if (lastServerActivity < sentAt) {
+            if (lastServerActivity < sentAt && clientNetwork.getState() == NetState.CONNECTED) {
                 view.showCallback("No server activity detected. Attempting resync...");
                 ResyncWithAuth();
             }

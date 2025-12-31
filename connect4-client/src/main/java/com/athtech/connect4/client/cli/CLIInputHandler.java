@@ -32,7 +32,9 @@ public class CLIInputHandler {
         }
     }
 
+
     public int[] readMove() {
+
         while (true) {
             String line = scanner.nextLine().trim();
             if (!isInGame.getAsBoolean() || line.isEmpty()) return null;

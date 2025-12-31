@@ -107,7 +107,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         while (attempts < MAX_ATTEMPTS) {
             attempts++;
             try {
-                Thread.sleep(3000);
+                Thread.sleep(1_500);
 
                 synchronized (ioLock) {
                     if(netState == NetState.CONNECTED) {
@@ -119,7 +119,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
                     startListenThread();
                     netState = NetState.CONNECTED;
                     System.out.println("Reconnected successfully.");
-                    try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
+                    try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
                     if (reconnectListener != null){
 
                         reconnectListener.onNetworkReconnected();
