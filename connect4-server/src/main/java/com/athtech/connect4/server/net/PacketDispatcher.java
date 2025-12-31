@@ -34,9 +34,15 @@ public class PacketDispatcher {
             case INVITE_DECISION_REQUEST -> handleInviteDecision(client, packet);
             case REMATCH_REQUEST -> handleRematchRequest(client, packet);
             case MOVE_REQUEST -> handleMove(client, packet);
+            case HANDSHAKE -> handleHandshake(client,packet);
             default -> client.sendPacket(new NetPacket(PacketType.ERROR_MESSAGE_RESPONSE, "server",
                     new ErrorMessageResponse("Unknown packet type: " + packet.type())));
         }
+    }
+
+    private void handleHandshake(ClientHandler client, NetPacket packet){
+        client.sendPacket(new NetPacket(PacketType.HANDSHAKE, "server",
+               "handshake-response"));
     }
 
     private void handleLogin(ClientHandler client, NetPacket packet) {
@@ -78,29 +84,57 @@ public class PacketDispatcher {
 
     private void handleResyncRequest(ClientHandler client, NetPacket packet) {
         var req = (ResyncRequest) packet.payload();
+
         Optional<String> stored = persistence.getRelogCode(req.username());
-        if (stored.isEmpty() || !stored.get().equals(req.relogCode()) || lobbyController.isUserLoggedIn(req.username())) {
-            client.sendPacket(new NetPacket(PacketType.RESYNC_RESPONSE, "server",
-                    new ResyncResponse(false, "Invalid relog code. Please login again.",
-                            null, null, null, null, null)));
+        if (stored.isEmpty() || !stored.get().equals(req.relogCode())) {
+            client.sendPacket(new NetPacket(
+                    PacketType.RESYNC_RESPONSE,
+                    "server",
+                    new ResyncResponse(
+                            false,
+                            "Invalid relog code. Please login again.",
+                            null, null, null, null, null
+                    )
+            ));
             return;
         }
 
-        client.setUsername(req.username());
-        String relogCode = UUID.randomUUID().toString();
-        persistence.getPlayerByUsername(client.getUsername())
-                .ifPresent(player -> persistence.setRelogCode(player, relogCode));
+        boolean alreadyLoggedIn = lobbyController.isUserLoggedIn(req.username());
+        String relogCode;
 
-        lobbyController.userLoggedIn(client.getUsername(), client.getClientId());
+        if (!alreadyLoggedIn) {
+            client.setUsername(req.username());
+            relogCode = UUID.randomUUID().toString();
+            persistence.getPlayerByUsername(req.username())
+                    .ifPresent(player -> persistence.setRelogCode(player, relogCode));
+
+            lobbyController.userLoggedIn(req.username(), client.getClientId());
+        } else {
+            relogCode = req.relogCode();
+        }
 
         List<String> lobbyPlayers = lobbyController.getLoggedInUsernames();
-        PlayerStatsResponse stats = persistence.getPlayerStats(client.getUsername());
-        InviteNotificationResponse[] pendingInvites = matchController.getInvitationsFor(client.getUsername());
-        GameStateResponse currentGame = matchController.getCurrentGame(client.getUsername());
-        client.sendPacket(new NetPacket(PacketType.RESYNC_RESPONSE, "server",
-                new ResyncResponse(true, "Re synced successfully.",
-                        new LobbyPlayersResponse(lobbyPlayers), stats, pendingInvites, currentGame, relogCode)));
+        PlayerStatsResponse stats = persistence.getPlayerStats(req.username());
+        InviteNotificationResponse[] pendingInvites =
+                matchController.getInvitationsFor(req.username());
+        GameStateResponse currentGame =
+                matchController.getCurrentGame(req.username());
+
+        client.sendPacket(new NetPacket(
+                PacketType.RESYNC_RESPONSE,
+                "server",
+                new ResyncResponse(
+                        true,
+                        "Re synced successfully.",
+                        new LobbyPlayersResponse(lobbyPlayers),
+                        stats,
+                        pendingInvites,
+                        currentGame,
+                        relogCode
+                )
+        ));
     }
+
 
     private void handleInviteRequest(ClientHandler client, NetPacket packet) {
         InviteRequest req = (InviteRequest) packet.payload();

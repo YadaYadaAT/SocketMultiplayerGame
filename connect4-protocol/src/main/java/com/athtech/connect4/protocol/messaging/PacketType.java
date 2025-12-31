@@ -4,7 +4,7 @@ public enum PacketType {
 
 
 
-
+    HANDSHAKE,
 
 /*------------------------------------------------
 //                 REQUESTS

@@ -216,25 +216,37 @@ public class CLIController {
     }
 
     public void ResyncWithAuth() {
-        resyncSucceeded = false;
         synchronized (resyncLock) {
             if (resyncInProgress || username == null || relogCode == null) return;
             resyncInProgress = true;
+            resyncSucceeded = false;
         }
 
         new Thread(() -> {
             int attempts = 0;
-            while (attempts < MAX_RESYNC_ATTEMPTS && !resyncSucceeded) {
+
+            while (attempts < MAX_RESYNC_ATTEMPTS && resyncInProgress && !resyncSucceeded) {
                 attempts++;
-                view.showCallback("Attempting reconnect (" + attempts + "/" + MAX_RESYNC_ATTEMPTS + ")...");
-                clientNetwork.sendPacket(new NetPacket(PacketType.RESYNC_REQUEST, username,
-                        new ResyncRequest(username, relogCode)));
+                view.showCallback("Attempting resync (" + attempts + "/" + MAX_RESYNC_ATTEMPTS + ")...");
 
                 synchronized (resyncLock) {
-                        try {resyncLock.wait(8000);}catch (InterruptedException ignore) { }
+                    clientNetwork.sendPacket(new NetPacket(PacketType.RESYNC_REQUEST, username,
+                            new ResyncRequest(username, relogCode)));
+
+                    long timeout = 8000;
+                    long startTime = System.currentTimeMillis();
+                    while (!resyncSucceeded && (System.currentTimeMillis() - startTime) < timeout) {
+                        try {
+                            resyncLock.wait(timeout - (System.currentTimeMillis() - startTime));
+                        } catch (InterruptedException ignored) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
                 }
 
-                if (!resyncSucceeded) {  try { Thread.sleep(RESYNC_INTERVAL_MS); } catch (InterruptedException ignored) {}  }
+                if (resyncSucceeded) break;
+
+                try { Thread.sleep(RESYNC_INTERVAL_MS); } catch (InterruptedException ignored) {}
             }
 
             synchronized (resyncLock) {
@@ -298,8 +310,13 @@ public class CLIController {
             case RESYNC_RESPONSE -> onResyncResponse(packet);
             case ERROR_MESSAGE_RESPONSE -> onErrorMessageResponse(packet);
             case INFO_RESPONSE -> onInfoResponse(packet);
+            case HANDSHAKE -> onHandshake(packet);
             default -> view.showCallback("Unhandled packet: " + packet.type());
         }
+    }
+
+    private void onHandshake(NetPacket packet){
+        //empty just to sync ;...
     }
 
     // --- on* callbacks now use showCallback / showCallbackHighlight ---
@@ -497,36 +514,47 @@ public class CLIController {
 
     private void onResyncResponse(NetPacket packet) {
         ResyncResponse resp = (ResyncResponse) packet.payload();
+
+        // If this response is negative, we handle it safely without overwriting state
+        if (!resyncInProgress) return;
+
         if (!resp.success()) {
+            view.showCallback("Resync attempt rejected: " + resp.message());
+            // do NOT touch username, relogCode, loggedIn, etc.
+            synchronized (resyncLock) {
+                resyncLock.notifyAll(); // wake up waiting Resync thread
+            }
             return;
         }
+
         synchronized (resyncLock) {
-            resyncInProgress = false;
             resyncSucceeded = true;
+            resyncInProgress = false;
             resyncLock.notifyAll();
         }
 
         view.showCallback(resp.message());
         loggedIn = true;
         sessionClosing = false;
+
         InviteNotificationResponse[] invites = resp.pendingInvites();
         lastInvite = (invites != null && invites.length > 0) ? invites[invites.length - 1] : null;
+
         myStats = resp.myStats();
         relogCode = resp.relogCode();
-        onLobbyPlayersFromPayload(resp.lobbyPlayers().players().toArray(new String[0]),false);
+
+        onLobbyPlayersFromPayload(resp.lobbyPlayers().players().toArray(new String[0]), false);
 
         if (resp.currentGameState() != null) {
             inGame = !resp.currentGameState().gameOver();
-            if(inGame){
-                gameStartingPromptConsumsed = true;
-            }
+            if (inGame) gameStartingPromptConsumsed = true;
             onGameStateFromPayload(resp.currentGameState());
         }
-
 
         notifyAllLock(gameLock);
         notifyAllLock(loginLock);
     }
+
 
 
     private void onInfoResponse(NetPacket packet){

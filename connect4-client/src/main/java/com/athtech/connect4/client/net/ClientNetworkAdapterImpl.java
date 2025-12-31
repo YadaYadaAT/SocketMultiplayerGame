@@ -2,6 +2,7 @@ package com.athtech.connect4.client.net;
 
 import com.athtech.connect4.client.cli.CLIController;
 import com.athtech.connect4.protocol.messaging.NetPacket;
+import com.athtech.connect4.protocol.messaging.PacketType;
 
 import java.io.*;
 import java.net.Socket;
@@ -29,9 +30,6 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     private enum State {CONNECTED, RECONNECTING, DEAD}
     private volatile State state = State.DEAD;
 
-    // queue packets during reconnect
-    private final Queue<NetPacket> pendingPackets = new LinkedList<>();
-
     public ClientNetworkAdapterImpl(String host, int port) {
         this.host = host;
         this.port = port;
@@ -51,10 +49,12 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     private void openSocket() throws IOException {
         socket = new Socket(host, port);
-        // always create ObjectOutputStream first
         out = new ObjectOutputStream(socket.getOutputStream());
         out.flush();
         in = new ObjectInputStream(socket.getInputStream());
+        try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+        out.writeObject(new NetPacket(PacketType.HANDSHAKE,"user","handshake"));
+        out.flush();
     }
 
     private void startListenThread() {
@@ -68,11 +68,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         listening = false;
         Thread t = listenThread;
         if (t != null && t.isAlive() && t != Thread.currentThread()) {
-            try {
-                t.join(300);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
+            try { t.join(300); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
         }
         listenThread = null;
     }
@@ -90,6 +86,8 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
             if (!listening) return;
             System.err.println("\nConnection lost: " + e.getMessage());
             handleConnectionLost();
+        } catch (Exception e){
+            //silence weirdo objectStream syncs to port header i guess... grab them here
         }
     }
 
@@ -98,42 +96,48 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
             if (state == State.RECONNECTING) return;
             state = State.RECONNECTING;
             stopListenThread();
+            drainInputQuietly();
             disconnectInternal();
         }
+
         new Thread(this::reconnectLoop, "ClientNetworkAdapter-Reconnect").start();
+    }
+
+    private void drainInputQuietly() {
+        if (socket == null) return;
+        try {
+            socket.setSoTimeout(1);
+            InputStream is = socket.getInputStream();
+            byte[] buf = new byte[1024];
+            while (is.read(buf) != -1) {
+                // discard
+            }
+            out.reset();
+        } catch (Exception ignored) {}
     }
 
     private void reconnectLoop() {
         int attempts = 0;
         final int MAX_ATTEMPTS = 10;
+
         while (attempts < MAX_ATTEMPTS) {
             attempts++;
             try {
-                Thread.sleep(3_000); // small pause to let OS fully release socket
+                Thread.sleep(6000);
+
                 synchronized (ioLock) {
                     openSocket();
                     startListenThread();
                     state = State.CONNECTED;
-
-                    // send queued packets
-                    while (!pendingPackets.isEmpty()) {
-                        NetPacket pkt = pendingPackets.poll();
-                        try {
-                            out.writeObject(pkt);
-                            out.flush();
-                        } catch (IOException e) {
-                            System.err.println("[Network] Failed to resend packet: " + pkt.type());
-                        }
-                    }
-
                     ioLock.notifyAll();
                     System.out.println("Reconnected successfully.");
                     if (reconnectListener != null) reconnectListener.onNetworkReconnected();
                     return;
                 }
-            } catch (Exception ignored) {
-            }
+
+            } catch (Exception ignored) {}
         }
+
         synchronized (ioLock) {
             state = State.DEAD;
             ioLock.notifyAll();
@@ -145,22 +149,19 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     public void sendPacket(NetPacket packet) {
         synchronized (ioLock) {
             if (state == State.RECONNECTING) {
-                // queue packets for retry after reconnect
-                pendingPackets.add(packet);
-                System.err.println("[Network] Currently reconnecting. Packet queued: " + packet.type());
+                System.err.println("[Network] Currently reconnecting.");
                 return;
             }
             if (state != State.CONNECTED) {
-                System.err.println("[Network] Cannot send packet, network is down: " + packet.type());
+                System.err.println("[Network] Cannot send packet, network is down: ");
                 return;
             }
             try {
                 out.writeObject(packet);
                 out.flush();
             } catch (IOException e) {
-                System.err.println("[Network] Send failed, marking connection lost: " + e.getMessage());
+                System.err.println("[Network] Send failed, marking connection lost: ");
                 handleConnectionLost();
-                pendingPackets.add(packet); // retry later
             }
         }
     }
@@ -186,17 +187,16 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     private void disconnectInternal() {
         try {
-            if (in != null) in.close();
-        } catch (IOException ignored) {
-        }
-        try {
-            if (out != null) out.close();
-        } catch (IOException ignored) {
-        }
-        try {
-            if (socket != null) socket.close();
-        } catch (IOException ignored) {
-        }
+            if (socket != null) {
+                try { socket.shutdownInput(); } catch (Exception ignored) {}
+                try { socket.shutdownOutput(); } catch (Exception ignored) {}
+            }
+        } catch (Exception ignored) {}
+
+        try { if (in != null) in.close(); } catch (IOException ignored) {}
+        try { if (out != null) out.close(); } catch (IOException ignored) {}
+        try { if (socket != null) socket.close(); } catch (IOException ignored) {}
+
         in = null;
         out = null;
         socket = null;
