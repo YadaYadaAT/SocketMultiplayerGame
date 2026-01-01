@@ -26,7 +26,7 @@ public class MatchController {
 
     public MatchController(ServerNetworkAdapter server, LobbyController lobbyController, PersistenceManager persistence) {
         this.lobbyController = lobbyController;
-        this.matchManager = new MatchManagerImpl();
+        this.matchManager = new MatchManagerImpl(server);
         this.sendToClient = server::sendToClient;
         this.persistence = persistence;
     }

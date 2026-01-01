@@ -1,26 +1,31 @@
 package com.athtech.connect4.server.match;
 
+import com.athtech.connect4.protocol.messaging.NetPacket;
+import com.athtech.connect4.protocol.messaging.PacketType;
 import com.athtech.connect4.protocol.payload.GameStateResponse;
+import com.athtech.connect4.server.net.ServerNetworkAdapter;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class MatchManagerImpl implements MatchManager {
 
     private final ConcurrentMap<String, Match> matches = new ConcurrentHashMap<>();
-    private static final long INACTIVITY_TIMEOUT_MS = 120_000; // 2 minutes
+    private final BiConsumer<String, NetPacket> notifier;
     private static final long CLEANUP_INTERVAL_MS = 30_000; // 30 seconds
 
-    public MatchManagerImpl() {
+    public MatchManagerImpl(ServerNetworkAdapter server) {
+        this.notifier = server::sendToClient;
 
         // Automatic cleanup thread
         Thread cleanupThread = new Thread(() -> {
             while (true) {
                 try {
-                    cleanupInactiveMatches();
+                    cleanupInactiveMatches(notifier);
                     Thread.sleep(CLEANUP_INTERVAL_MS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -28,7 +33,7 @@ public class MatchManagerImpl implements MatchManager {
                 }
             }
         });
-        cleanupThread.setDaemon(true); // won’t block JVM shutdown
+        cleanupThread.setDaemon(true);
         cleanupThread.start();
     }
 
@@ -83,7 +88,7 @@ public class MatchManagerImpl implements MatchManager {
     }
 
 
-    public synchronized void cleanupInactiveMatches() {
+    public synchronized void cleanupInactiveMatches(BiConsumer<String, NetPacket> notifier) {
         matches.values().forEach(match -> {
             if (match instanceof MatchImpl impl) {
                 boolean removed = false;
@@ -95,12 +100,25 @@ public class MatchManagerImpl implements MatchManager {
                     removed = true;
                 }
 
-                // Remove matches inactive too long
-                if (!removed && impl.isInactive(INACTIVITY_TIMEOUT_MS)) {
+                // Soft timeout: notify players
+                if (!removed && impl.hasSoftTimeoutPassed()) {
+                    impl.markSoftTimeoutTriggered();
+                    for (String player : impl.getActivePlayers()) {
+                        notifier.accept(player, new NetPacket(
+                                PacketType.PLAYER_INACTIVITY_WARNING_RESPONSE,
+                                "server",
+                                "You have been inactive for a while, please make a move!"
+                        ));
+                    }
+                }
+
+                // Hard timeout: remove match
+                if (!removed && impl.isInactive(0)) {
                     matches.remove(match.getMatchId());
                     System.out.println("[Cleanup] Removed inactive match " + match.getMatchId());
                 }
             }
         });
     }
+
 }

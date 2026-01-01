@@ -1,5 +1,6 @@
 package com.athtech.connect4.server.match;
 
+import com.athtech.connect4.protocol.messaging.NetPacket;
 import com.athtech.connect4.protocol.payload.BoardState;
 import com.athtech.connect4.protocol.payload.GameStateResponse;
 import com.athtech.connect4.protocol.payload.MoveRequest;
@@ -19,6 +20,10 @@ public class MatchImpl implements Match {
 
     private boolean ended = false;
     private long lastActivityTime;
+    private final long creationTime = System.currentTimeMillis();
+    private final long softTimeoutMs = 10_000; // 10 minutes soft timeout
+    private final long hardTimeoutMs = 1_200_000; // 20 minutes hard timeout
+    private boolean softTimeoutTriggered = false;
 
     public MatchImpl(String player1, String player2) {
         this.matchId = UUID.randomUUID().toString();
@@ -125,11 +130,20 @@ public class MatchImpl implements Match {
     @Override
     public void touch() {
         lastActivityTime = System.currentTimeMillis();
+        softTimeoutTriggered = false; // reset soft timeout
     }
 
     @Override
-    public boolean isInactive(long timeoutMs) {
-        return System.currentTimeMillis() - lastActivityTime > timeoutMs;
+    public boolean isInactive(long unused) { // parameter ignored
+        return System.currentTimeMillis() - creationTime > hardTimeoutMs;
+    }
+
+    public boolean hasSoftTimeoutPassed() {
+        return !softTimeoutTriggered && System.currentTimeMillis() - lastActivityTime > softTimeoutMs;
+    }
+
+    public void markSoftTimeoutTriggered() {
+        softTimeoutTriggered = true;
     }
 
     @Override
@@ -198,4 +212,8 @@ public class MatchImpl implements Match {
                 .findFirst()
                 .orElse(null);
     }
+
+
+
+
 }
