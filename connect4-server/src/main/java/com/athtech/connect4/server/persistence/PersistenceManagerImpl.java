@@ -5,6 +5,7 @@ import com.athtech.connect4.protocol.payload.PlayerStatsResponse;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.*;
+import java.time.Instant;
 import java.util.*;
 import java.util.Base64;
 
@@ -25,27 +26,31 @@ public class PersistenceManagerImpl implements PersistenceManager {
     private void initDatabase() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
-                CREATE TABLE IF NOT EXISTS players (
-                    id VARCHAR(36) PRIMARY KEY,
-                    username VARCHAR(50) UNIQUE NOT NULL,
-                    password_hash VARCHAR(256) NOT NULL,
-                    wins INT DEFAULT 0,
-                    losses INT DEFAULT 0,
-                    draws INT DEFAULT 0,
-                    games_played INT DEFAULT 0,
-                    relog_code VARCHAR(36)
-                )
-            """);
+            CREATE TABLE IF NOT EXISTS players (
+                id VARCHAR(36) PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(256) NOT NULL,
+                nickname VARCHAR(50) NOT NULL,
+                wins INT DEFAULT 0,
+                losses INT DEFAULT 0,
+                draws INT DEFAULT 0,
+                games_played INT DEFAULT 0,
+                relog_code VARCHAR(36),
+                created_at TIMESTAMP NOT NULL
+            )
+        """);
         }
     }
 
     @Override
-    public boolean registerPlayer(String username, String password) {
-        String sql = "INSERT INTO players (id, username, password_hash) VALUES (?, ?, ?)";
+    public boolean registerPlayer(String username, String password , String nickname ,  Instant createdAt) {
+        String sql = "INSERT INTO players (id, username, password_hash, nickname, created_at) VALUES (?, ?, ?, ?, ?)";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, UUID.randomUUID().toString());
             ps.setString(2, username);
             ps.setString(3, hashPassword(password));
+            ps.setString(4, (nickname == null || nickname.isBlank()) ? username : nickname);
+            ps.setTimestamp(5, Timestamp.from(createdAt));
             ps.executeUpdate();
             return true;
         } catch (SQLException e) {
@@ -53,6 +58,7 @@ public class PersistenceManagerImpl implements PersistenceManager {
             return false;
         }
     }
+
 
     @Override
     public boolean authenticate(String username, String password) {
@@ -263,12 +269,16 @@ public class PersistenceManagerImpl implements PersistenceManager {
                 rs.getString("id"),
                 rs.getString("username"),
                 rs.getString("password_hash"),
+                rs.getString("nickname"),
                 rs.getInt("wins"),
                 rs.getInt("losses"),
                 rs.getInt("draws"),
-                rs.getInt("games_played")
+                rs.getInt("games_played"),
+                rs.getTimestamp("created_at").toInstant()
         );
     }
+
+
 
 
 

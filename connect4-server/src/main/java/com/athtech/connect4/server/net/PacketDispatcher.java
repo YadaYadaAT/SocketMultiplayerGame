@@ -6,6 +6,7 @@ import com.athtech.connect4.protocol.payload.*;
 import com.athtech.connect4.server.match.MatchController;
 import com.athtech.connect4.server.persistence.PersistenceManager;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -70,27 +71,67 @@ public class PacketDispatcher {
         boolean ok = persistence.authenticate(req.username(), req.password());
         if (!ok) {
             client.sendPacket(new NetPacket(PacketType.LOGIN_RESPONSE, "server",
-                    new LoginResponse(false, "Invalid credentials", null, null)));
+                    new LoginResponse(false, "Invalid credentials", null, null,
+                            null, null, null, null)));
             return;
         }
 
         client.setUsername(req.username());
         String relogCode = UUID.randomUUID().toString();
+
         persistence.getPlayerByUsername(client.getUsername())
-                .ifPresent(player -> persistence.setRelogCode(player, relogCode));
+                .ifPresent(player -> {
+                    persistence.setRelogCode(player, relogCode);
+
+                    // Fetch full state for login response
+                    PlayerStatsResponse stats = persistence.getPlayerStats(player.getUsername());
+                    InviteNotificationResponse[] pendingInvites = matchController.getInvitationsFor(player.getUsername());
+                    GameStateResponse currentGame = matchController.getCurrentGame(player.getUsername());
+
+                    client.sendPacket(new NetPacket(PacketType.LOGIN_RESPONSE, "server",
+                            new LoginResponse(
+                                    true,
+                                    "Welcome " + player.getUsername(),
+                                    relogCode,
+                                    stats,
+                                    pendingInvites,
+                                    currentGame,
+                                    player.getUsername(),
+                                    player.getNickname()
+                            )));
+                });
 
         lobbyController.userLoggedIn(client.getUsername(), client.getClientId());
-        PlayerStatsResponse stats = persistence.getPlayerStats(client.getUsername());
-
-        client.sendPacket(new NetPacket(PacketType.LOGIN_RESPONSE, "server",
-                new LoginResponse(true, "Welcome " + client.getUsername(), relogCode, stats)));
-
         lobbyController.broadcastLobby();
     }
 
+
     private void handleSignup(ClientHandler client, NetPacket packet) {
         var req = (SignupRequest) packet.payload();
-        boolean ok = persistence.registerPlayer(req.username(), req.password());
+
+        // Trim input
+        String username = req.username().trim();
+        String password = req.password().trim();
+        String nickname = req.nickname() != null ? req.nickname().trim() : "";
+
+        // Basic validation
+        if (username.isEmpty() || password.isEmpty()) {
+            client.sendPacket(new NetPacket(PacketType.SIGNUP_RESPONSE, "server",
+                    new SignupResponse(false, "Username and password cannot be empty")));
+            return;
+        }
+
+        // Only allow letters, numbers, and underscores for username and nickname
+        if (!username.matches("[A-Za-z0-9_]+") || (!nickname.isEmpty() && !nickname.matches("[A-Za-z0-9_]+"))) {
+            client.sendPacket(new NetPacket(PacketType.SIGNUP_RESPONSE, "server",
+                    new SignupResponse(false, "Username and nickname can only contain letters, numbers, and underscores")));
+            return;
+        }
+
+        // Create signup timestamp in UTC
+        Instant createdAt = Instant.now();
+
+        boolean ok = persistence.registerPlayer(username, password, nickname, createdAt);
         client.sendPacket(new NetPacket(PacketType.SIGNUP_RESPONSE, "server",
                 new SignupResponse(ok, ok ? "Sign up complete, login and start gaming!" : "Username already exists")));
     }

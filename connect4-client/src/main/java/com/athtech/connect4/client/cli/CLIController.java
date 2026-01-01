@@ -23,11 +23,12 @@ public class CLIController {
     private volatile long lastServerActivity = System.currentTimeMillis();
 
     private String username;
+    private String nickname;
     private String relogCode;
     private final List<String> lobbyPlayers = new ArrayList<>();
     private volatile PlayerStatsResponse myStats;
     private volatile InviteNotificationResponse lastInvite = null;
-
+    private volatile GameStateResponse currentGameState;
     // Locks
     private final Object loginLock = new Object();
     private final Object logoutLock = new Object();
@@ -104,7 +105,9 @@ public class CLIController {
         String desired = input.readLine();
         view.prompt("Choose password: ");
         String pwd = input.readLine();
-        clientNetwork.sendPacket(new NetPacket(PacketType.SIGNUP_REQUEST, desired, new SignupRequest(desired, pwd)));
+        view.prompt("Pick a nickname: ");
+        String nickname = input.readLine();
+        clientNetwork.sendPacket(new NetPacket(PacketType.SIGNUP_REQUEST, desired, new SignupRequest(desired, pwd,nickname)));
         waitLockAndResync(loginLock);
     }
 
@@ -251,7 +254,9 @@ public class CLIController {
 
     private void requestPlayerStats() {
         if (inGame || myStats == null) return;
-        view.showCallback("Stats → Played: " + myStats.gamesPlayed() +
+        view.showCallback(
+                "Heres your stats " + nickname +
+                        "\nPlayed: " + myStats.gamesPlayed() +
                 ", Wins: " + myStats.wins() +
                 ", Losses: " + myStats.losses() +
                 ", Draws: " + myStats.draws());
@@ -300,15 +305,25 @@ public class CLIController {
 //        System.out.println(packet.payload());
     }
 
-    // --- on* callbacks now use showCallback / showCallbackHighlight ---
     private void onLoginResponse(NetPacket packet) {
         LoginResponse resp = (LoginResponse) packet.payload();
         loggedIn = resp.success();
         view.showCallback(resp.message());
-        if (loggedIn) { relogCode = resp.relogCode(); myStats = resp.stats(); }
+
+        if (loggedIn) {
+            relogCode = resp.relogCode();
+            myStats = resp.myStats();
+            nickname = resp.nickname();
+            username = resp.username();
+            // handle invites like resync
+            InviteNotificationResponse[] invites = resp.pendingInvites();
+            lastInvite = (invites != null && invites.length > 0) ? invites[invites.length - 1] : null;
+            // optional: track current game if you want
+            currentGameState = resp.currentGameState();
+            gameStartingPromptConsumsed = false;
+        }
         notifyAllLock(loginLock);
     }
-
     private void onSignupResponse(NetPacket packet) {
         SignupResponse resp = (SignupResponse) packet.payload();
         view.showCallback(resp.message());
@@ -377,9 +392,9 @@ public class CLIController {
                             At the start of the game players need to press \
                             \u001B[38;5;208m`enter`\u001B[0m\
                              once to enter into the game mode!\
-                            \s
+                            \s ('q' for leaving the game, leaving a game counts as defeat)
                              It's also your turn so afterwards enter your move:
-                             row,column:"""
+                             row,column :"""
             );
         } else {
             view.showWaitTurn(
@@ -415,12 +430,10 @@ public class CLIController {
                                  row,column :"""
                 );
             } else {
-
-                view.showYourTurn("It's your turn! Enter your move: row,column");
+                view.showYourTurn("It's your turn!\n `q` -> quiting \n  row,column -> move");
             }
         } else {
-
-            view.showWaitTurn("Opponent's turn. Please wait for your turn.");
+            view.showWaitTurn("Opponent's turn. Please wait for your turn. ('q' -> anytime game quit");
         }
 
         inGame = !gs.gameOver();

@@ -6,5 +6,9 @@ public record LoginResponse(
         boolean success,
         String message,
         String relogCode,
-        PlayerStatsResponse stats
+        PlayerStatsResponse myStats,
+        InviteNotificationResponse[] pendingInvites,
+        GameStateResponse currentGameState,
+        String username,
+        String nickname
 ) implements Serializable {}

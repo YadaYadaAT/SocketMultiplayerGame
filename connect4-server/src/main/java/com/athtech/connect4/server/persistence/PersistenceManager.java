@@ -2,11 +2,12 @@ package com.athtech.connect4.server.persistence;
 
 import com.athtech.connect4.protocol.payload.PlayerStatsResponse;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 public interface PersistenceManager {
-    boolean registerPlayer(String username, String password);
+    boolean registerPlayer(String username, String password , String nickname ,  Instant createdAt);
     boolean authenticate(String username, String password);
     Optional<Player> getPlayerById(String id);
     Optional<Player> getPlayerByUsername(String username);
