@@ -10,10 +10,10 @@ public interface Match {
     boolean isRematchReady();
     void resetRematchRequests();
     void declineRematch(String player);
-    Set<String> getActivePlayers();
+    Set<String> getMatchPlayers();
     RematchVote getRematchOutcome();
-//    RematchOutcome evaluateRematchFor(String player);
-    void markUnavailable(String player);
+    String getOpponent(String player);
+//    void markUnavailable(String player);
     String getMatchId();
     String getPlayer1();
     String getPlayer2();
@@ -25,7 +25,7 @@ public interface Match {
     boolean makeMove(String player, MoveRequest moveRequest); // returns true if move accepted
     boolean isFinished();
     boolean markEnded();
-    void touch();
-    boolean isInactive(long timeoutMs);
+//    void touch();
+//    boolean isInactive(long timeoutMs);
     boolean isEnded();
 }

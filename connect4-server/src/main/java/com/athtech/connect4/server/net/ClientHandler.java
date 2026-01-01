@@ -15,6 +15,7 @@ public class ClientHandler implements Runnable {
     private final ServerNetworkAdapter server;
     private final PacketDispatcher dispatcher;
     private final LobbyController lobbyController;
+    private final MatchController matchController;
     private ObjectInputStream in;
     private ObjectOutputStream out;
     private final String clientId = UUID.randomUUID().toString();
@@ -25,6 +26,7 @@ public class ClientHandler implements Runnable {
                          PersistenceManager persistence,
                          LobbyController lobbyController,
                          MatchController matchController) {
+        this.matchController =matchController;
         this.clientSocket = clientSocket;
         this.server = server;
         this.lobbyController = lobbyController;
@@ -35,7 +37,7 @@ public class ClientHandler implements Runnable {
     public void run() {
         try {
             initStreams();
-            System.out.println("Handler started for client: " + clientId);
+            System.out.println("[ClientHandler] Handler started (clientId=" + clientId + ")");
             sendPacket(new NetPacket(PacketType.INFO_RESPONSE, "server", "Connected to server..."));
 
             while (true) {
@@ -45,9 +47,14 @@ public class ClientHandler implements Runnable {
             }
 
         } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Client disconnected: " + clientId);
+            System.err.println("[ClientHandler] Client disconnected unexpectedly (clientId=" + clientId + ")");
         } finally {
-            if (username != null) lobbyController.userLoggedOut(username);
+            if (username != null) {
+                matchController.disconnectPlayer(username);
+                lobbyController.userLoggedOut(username);
+                lobbyController.broadcastLobby();
+                System.out.println("[ClientHandler] User session ended: " + username);
+            }
             server.unregisterClientConnection(clientId);
             try { clientSocket.close(); } catch (IOException ignored) {}
             System.out.println(username + " has been disconnected");
@@ -63,10 +70,24 @@ public class ClientHandler implements Runnable {
             try {
                 out.writeObject(packet);
                 out.flush();
+                // Debug output
+                System.out.println("[ClientHandler] Sent packet to client " + clientId +
+                        " | Type: " + packet.type() +
+                        " | Payload: " + packet.payload());
             } catch (IOException e) {
                 System.err.println("Send failed to client " + clientId + ": " + e.getMessage());
             }
         }
+    }
+
+    public void disconnectExistingSession(String username) {
+        server.forceDisconnectUser(username);
+    }
+
+    public void close() {
+        try {
+            clientSocket.close(); // this will break readObject()
+        } catch (IOException ignored) {}
     }
 
     private void initStreams() throws IOException {

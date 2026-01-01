@@ -20,7 +20,7 @@ public class LobbyController {
 
     public void userLoggedIn(String username, String clientId) {
         loggedInClients.put(username, clientId);
-
+        System.out.println("[Lobby] User logged in: " + username + " (clientId=" + clientId + ")");
     }
 
     public boolean isUserLoggedIn(String username) {
@@ -37,10 +37,14 @@ public class LobbyController {
 
     public void userLoggedOut(String username) {
         loggedInClients.remove(username);
+        System.out.println("[Lobby] User logged out: " + username);
     }
 
     public void broadcastLobby() {
         String[] users = getLoggedInUsernames().toArray(new String[0]);
+
+        System.out.println("[Lobby] Broadcasting lobby list (" + users.length + " users)");
+
         broadcastToLoggedIn.accept(
                 new NetPacket(PacketType.LOBBY_PLAYERS_RESPONSE, "server", users)
         );

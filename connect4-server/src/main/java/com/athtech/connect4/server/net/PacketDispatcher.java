@@ -49,21 +49,10 @@ public class PacketDispatcher {
 
     private void handleGameQuitRequest(ClientHandler client, NetPacket packet) {
         if (client.getUsername() == null) {
-            client.sendPacket(new NetPacket(
-                    PacketType.GAME_QUIT_RESPONSE,
-                    "server",
-                    new GameQuitResponse(false)
-            ));
             return;
         }
-
         boolean success = matchController.handleGameQuit(client.getUsername());
-
-        client.sendPacket(new NetPacket(
-                PacketType.GAME_QUIT_RESPONSE,
-                "server",
-                new GameQuitResponse(success)
-        ));
+        client.sendPacket(new NetPacket(PacketType.GAME_QUIT_RESPONSE,"server",new GameQuitResponse(success)));
     }
 
     private void handleLogin(ClientHandler client, NetPacket packet) {
@@ -75,7 +64,7 @@ public class PacketDispatcher {
                             null, null, null, null)));
             return;
         }
-
+        client.disconnectExistingSession(req.username());
         client.setUsername(req.username());
         String relogCode = UUID.randomUUID().toString();
 

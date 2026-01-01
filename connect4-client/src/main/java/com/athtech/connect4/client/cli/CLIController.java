@@ -247,14 +247,14 @@ public class CLIController {
 
     private List<String> requestLobbyPlayers() {
         if (inGame) return List.of();
-        if (lobbyPlayers.isEmpty()) { view.showCallback("No players available."); return List.of(); }
-        for (int i = 0; i < lobbyPlayers.size(); i++) view.showCallback((i + 1) + ") " + lobbyPlayers.get(i));
+        if (lobbyPlayers.isEmpty()) { view.show("No players available."); return List.of(); }
+        for (int i = 0; i < lobbyPlayers.size(); i++) view.show((i + 1) + ") " + lobbyPlayers.get(i));
         return new ArrayList<>(lobbyPlayers);
     }
 
     private void requestPlayerStats() {
         if (inGame || myStats == null) return;
-        view.showCallback(
+        view.show(
                 "Heres your stats " + nickname +
                         "\nPlayed: " + myStats.gamesPlayed() +
                 ", Wins: " + myStats.wins() +
@@ -263,7 +263,7 @@ public class CLIController {
     }
 
     private void requestLogout() {
-        if (inGame || sessionClosing) { view.showCallback("Logout already in progress..."); return; }
+        if (inGame || sessionClosing) { view.show("Logout already in progress..."); return; }
 
         sessionClosing = true;
         clientNetwork.sendPacket(new NetPacket(PacketType.LOGOUT_REQUEST, username, new LogoutRequest()));
@@ -292,13 +292,38 @@ public class CLIController {
             case REMATCH_RESPONSE ->  onRematchResponse(packet);
             case MATCH_SESSION_ENDED_RESPONSE ->  onMatchSessionEndedResponse(packet);
             case MOVE_REJECTED_RESPONSE -> onMoveRejectedResponse(packet);
+            case PLAYER_INACTIVITY_WARNING_RESPONSE -> onPlayerInactivityWarningResponse(packet);
             case RESYNC_RESPONSE -> onResyncResponse(packet);
             case ERROR_MESSAGE_RESPONSE -> onErrorMessageResponse(packet);
             case INFO_RESPONSE -> onInfoResponse(packet);
             case HANDSHAKE -> onHandshake(packet);
             case GAME_QUIT_NOTIFICATION_RESPONSE -> onGameQuitNotification(packet);
+            case PLAYER_DISCONNECTED_NOTIFICATION_RESPONSE -> onPlayerDisconnectedNotificationResponse(packet);
+            case PLAYER_RECONNECTED_NOTIFICATION_RESPONSE ->  onPlayerReconnectedNotificationResponse(packet);
             default -> view.showCallback("Unhandled packet: " + packet.type());
         }
+    }
+
+    private void onGameQuitNotification(NetPacket packet) {
+        GameQuitNotificationResponse resp =
+                (GameQuitNotificationResponse) packet.payload();
+
+        abortGameSession("Opponent " + resp.quitter() + " quit the game.");
+        if (stateIndicator.equals(CLIstateIndicatorHelper.LOBBY_LOOP)){
+            view.showLobbyMenu();
+        }else{
+            view.showCallbackHighlight("Press enter to return to lobby...");
+        }
+    }
+
+    private void onPlayerDisconnectedNotificationResponse(NetPacket packet){
+        PlayerDisconnectedNotificationResponse msg = (PlayerDisconnectedNotificationResponse) packet.payload();
+        view.showCallback(msg.message());
+    }
+
+    private void onPlayerReconnectedNotificationResponse(NetPacket packet){
+        PlayerReconnectedNotificationResponse msg = (PlayerReconnectedNotificationResponse) packet.payload();
+        view.showCallback(msg.message());
     }
 
     private void onHandshake(NetPacket packet){
@@ -406,7 +431,6 @@ public class CLIController {
         }
 
         inGame = !gs.gameOver();
-        System.out.println("Boolean being : " + inGame);
         notifyAllLock(gameLock);
     }
 
@@ -443,19 +467,40 @@ public class CLIController {
     private void onGameEndResponse(NetPacket packet) {
         GameEndResponse end = (GameEndResponse) packet.payload();
 
-        rematchPhase = true;
+        // Update session flags
         inGame = false;
-        if (end.finalBoard() != null) view.showBoard(end.finalBoard());
+        rematchPhase = true;
 
-        boolean draw = "Draw".equals(end.reason());
-        String message = draw
-                ? "Game ended in a draw against " + end.opponent()
-                : (username.equals(end.winner()) ? "You won against " + end.opponent() : "You lost against "
-                + end.opponent() + " , press Enter and then answer if you want a rematch");
-        view.showYourTurn(message);
+        // Display final board if available
+        if (end.finalBoard() != null) {
+            view.showBoard(end.finalBoard());
+        }
 
+        // Show outcome based on MatchEndReason
+        String outcomeMsg;
+        switch (end.reason()) {
+            case WIN_NORMAL -> outcomeMsg = "You won! 🎉";
+            case WIN_QUIT -> outcomeMsg = "Opponent quit the game. You win by default!";
+            case WIN_TIMEOUT -> outcomeMsg = "Opponent was AFK. You win!";
+            case WIN_DISCONNECT -> outcomeMsg = "Opponent disconnected. You win!";
+            case LOSS_NORMAL -> outcomeMsg = "You lost. 😢";
+            case LOSS_QUIT -> outcomeMsg = "You quit the game. 😢";
+            case LOSS_TIMEOUT -> outcomeMsg = "You were AFK. You lost!";
+            case LOSS_DISCONNECT -> outcomeMsg = "You disconnected. You lost!";
+            case DRAW -> outcomeMsg = "It's a draw.";
+            case UNKNOWN -> outcomeMsg = "Game ended unexpectedly.";
+            default -> outcomeMsg = "Game ended.";
+        }
+
+        view.showCallbackHighlight(outcomeMsg);
+        if(stateIndicator == CLIstateIndicatorHelper.LOBBY_LOOP){
+            view.showLobbyMenu();
+        }
+        System.out.println("onGameEndResponseafter");
+        // Wake game loop in case it's waiting
         notifyAllLock(gameLock);
     }
+
 
     private void onRematchResponse(NetPacket packet) {
         RematchResponse resp = (RematchResponse) packet.payload();
@@ -551,19 +596,10 @@ public class CLIController {
     }
 
 
-    private void onGameQuitNotification(NetPacket packet) {
-        GameQuitNotificationResponse resp =
-                (GameQuitNotificationResponse) packet.payload();
-
-        abortGameSession("Opponent " + resp.quitter() + " quit the game.");
-        if (stateIndicator.equals(CLIstateIndicatorHelper.LOBBY_LOOP)){
-            view.showLobbyMenu();
-        }else{
-            view.showCallbackHighlight("Press enter to return to lobby...");
-        }
 
 
-
+    private void onPlayerInactivityWarningResponse(NetPacket packet){
+        view.showCallback((String) packet.payload());
     }
 
     private void onGameQuitResponse(NetPacket packet) {

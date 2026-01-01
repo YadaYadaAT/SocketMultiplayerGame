@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ServerNetworkAdapter {
 
     private ServerSocket srvSocket;
+    // client id - clientHandler
     private final Map<String, ClientHandler> connectedClients = new ConcurrentHashMap<>();
     //username -clientID
     private final Map<String, String> loggedInClients = new ConcurrentHashMap<>();
@@ -35,7 +36,7 @@ public class ServerNetworkAdapter {
     public void startServer(int port) {
         try {
             srvSocket = new ServerSocket(port);
-            System.out.println("Server started and listening on port " + port);
+            System.out.println("[Server] Started and listening on port " + port);
             new Thread(this::acceptLoop).start();
         } catch (IOException e) {
             throw new RuntimeException("Server could not start: " + e.getMessage());
@@ -46,6 +47,7 @@ public class ServerNetworkAdapter {
         while (true) {
             try {
                 Socket clientSocket = srvSocket.accept();
+                System.out.println("[Server] New client connection from " + clientSocket.getRemoteSocketAddress());
                 ClientHandler handler = new ClientHandler(
                         clientSocket,
                         this,
@@ -56,17 +58,31 @@ public class ServerNetworkAdapter {
                 new Thread(handler).start();
                 registerClientConnection(handler.getClientId(), handler);
             } catch (IOException e) {
-                System.err.println("Client connection failed: " + e.getMessage());
+                System.err.println("[Server] Client connection failed: " + e.getMessage());
             }
+        }
+    }
+
+    public void forceDisconnectUser(String username) {
+        String oldClientId = loggedInClients.get(username);
+        if (oldClientId == null) return;
+
+        ClientHandler oldHandler = connectedClients.get(oldClientId);
+        if (oldHandler != null) {
+            System.out.println("[Server] Forcing disconnect of previous session for user: " + username +
+                    " (clientId=" + oldClientId + ")");
+            oldHandler.close();
         }
     }
 
     public void registerClientConnection(String clientId, ClientHandler handler) {
         connectedClients.put(clientId, handler);
+        System.out.println("[Server] Client registered: " + clientId);
     }
 
     public void unregisterClientConnection(String clientId) {
         connectedClients.remove(clientId);
+        System.out.println("[Server] Client unregistered: " + clientId);
     }
 
     public void sendToClient(String username, NetPacket packet) {

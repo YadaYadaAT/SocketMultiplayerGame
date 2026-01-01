@@ -1,149 +1,226 @@
 package com.athtech.connect4.server.match;
 
-import com.athtech.connect4.protocol.messaging.NetPacket;
 import com.athtech.connect4.protocol.payload.BoardState;
 import com.athtech.connect4.protocol.payload.GameStateResponse;
 import com.athtech.connect4.protocol.payload.MoveRequest;
 import com.athtech.connect4.server.game.Game;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 
+/**
+ * Represents a single match between two players.
+ * Handles game state, turn tracking, AFK timers, disconnections, and rematch voting.
+ */
 public class MatchImpl implements Match {
 
-    private final String matchId;
-    private final Game game;
-    private final Set<String> activePlayers =
-            Collections.synchronizedSet(new HashSet<>());
+    // ─────────────────────────────────────────────
+    // Match state
+    // ─────────────────────────────────────────────
+    private final String matchId;          // Unique identifier for this match
+    private final Game game;               // Game logic and board state
 
-    private final Map<String, RematchVote> rematchVotes =
-            Collections.synchronizedMap(new HashMap<>());
+    private final Set<String> matchPlayers = Collections.synchronizedSet(new HashSet<>()); // Currently participating players
+    private final Map<String, RematchVote> rematchVotes = Collections.synchronizedMap(new HashMap<>()); // Tracks rematch votes
+    private boolean ended = false;         // Flag indicating if the match has ended
 
-    private boolean ended = false;
-    private long lastActivityTime;
-    private final long creationTime = System.currentTimeMillis();
-    private final long softTimeoutMs = 10_000; // 10 minutes soft timeout
-    private final long hardTimeoutMs = 1_200_000; // 20 minutes hard timeout
-    private boolean softTimeoutTriggered = false;
+    // ─────────────────────────────────────────────
+    // Timer management
+    // ─────────────────────────────────────────────
+    private final long turnSoftTimeoutMs = 10_000;   // Soft AFK warning timeout in milliseconds
+    private final long turnHardTimeoutMs = 30_000;   // Hard AFK timeout in milliseconds
 
+    private final long disconnectTimeoutMs = 20_000; // Disconnect grace period timeout
+
+    private long lastMoveTime;               // Timestamp of last move for the current player(used in combination with turn)
+    private boolean softTimeoutWarned = false; // Whether soft timeout warning has been sent
+
+    private final Map<String, Long> lastConnectionTime = new ConcurrentHashMap<>(); // Last known connection time for each player
+    private final Map<String, Boolean> isPlayerConnected = new ConcurrentHashMap<>();     // Connection status of each player
+
+    // ─────────────────────────────────────────────
+    // Constructor
+    // ─────────────────────────────────────────────
+    /**
+     * Initializes a match between two players
+     * Sets initial timers and marks both players as active and connected
+     */
     public MatchImpl(String player1, String player2) {
         this.matchId = UUID.randomUUID().toString();
         this.game = new Game(player1, player2);
-        activePlayers.add(player1);
-        activePlayers.add(player2);
+
+        matchPlayers.add(player1);
+        matchPlayers.add(player2);
+
         rematchVotes.put(player1, RematchVote.PENDING);
         rematchVotes.put(player2, RematchVote.PENDING);
 
-        touch();
+        lastMoveTime = System.currentTimeMillis();
+        lastConnectionTime.put(player1, System.currentTimeMillis());
+        lastConnectionTime.put(player2, System.currentTimeMillis());
+        isPlayerConnected.put(player1, true);
+        isPlayerConnected.put(player2, true);
     }
 
-    @Override
-    public synchronized void requestRematch(String player) {
-        if (!ended)
-            throw new IllegalStateException("Game is not over yet");
-        if (!activePlayers.contains(player))
-            throw new IllegalStateException("Player requesting the rematch doesnt exist in the match");
+    // ─────────────────────────────────────────────
+    // =================== TIMERS ===================
+    // ─────────────────────────────────────────────
 
-        String opponent = getTheOpponentFromRematchVote(player);
-        if (opponent == null){//since opponent is extracted from the rematch list which players are never deleted)
-            removePlayer(player);
-            throw new IllegalStateException("We are sorry there has been an internal error we cant offer a rematch");
-        }
-        if (rematchVotes.get(opponent) == RematchVote.DECLINED  ){
-            removePlayer(player);
-            throw new IllegalStateException("Opponent has already declined the rematch request");
-        }
-        if (rematchVotes.get(opponent) == RematchVote.UNAVAILABLE ){
-            removePlayer(player);
-            throw new IllegalStateException("Opponent left without voting for a rematch");
-        }
-        //any other case like accepted or pending the rematch vote pass
-        rematchVotes.put(player, RematchVote.ACCEPTED);
-    }
+    /**
+     * Checks if the current player has been inactive for the soft AFK period
+     * Sends a warning to the player if applicable
+     * @param notifier BiConsumer used to send warning messages to clients
+     */
+    public synchronized void checkSoftTimeout(BiConsumer<String, String> notifier) {
+        if (ended) return;
 
-    @Override
-    public synchronized void declineRematch(String player) {
-        if (!ended || !activePlayers.contains(player)) return;
+        String current = game.getCurrentPlayer();
+        if (!matchPlayers.contains(current) || !isPlayerConnected.getOrDefault(current, false)) return;
 
-        rematchVotes.put(player, RematchVote.DECLINED);
-        removePlayer(player);
-    }
-
-    @Override
-    public synchronized void markUnavailable(String player) {
-        if (ended || !activePlayers.contains(player)) return;
-
-        rematchVotes.put(player, RematchVote.UNAVAILABLE);
-        removePlayer(player);
-    }
-
-    @Override
-    public synchronized boolean isRematchReady() {
-        return rematchVotes.size() == 2 &&
-                rematchVotes.values().stream()
-                        .allMatch(d -> d == RematchVote.ACCEPTED);
-    }
-
-    @Override
-    public synchronized RematchVote getRematchOutcome() {
-        if (rematchVotes.values().contains(RematchVote.DECLINED))
-            return RematchVote.DECLINED;
-
-        if (rematchVotes.values().contains(RematchVote.UNAVAILABLE))
-            return RematchVote.UNAVAILABLE;
-
-        return null;
-    }
-
-    @Override
-    public synchronized void resetRematchRequests() {
-        rematchVotes.replaceAll((k, v) -> null);
-    }
-
-    // Player / match removal
-
-    private synchronized void removePlayer(String player) {
-        activePlayers.remove(player);
-
-        if (activePlayers.isEmpty()) {
-            ended = true;
+        long now = System.currentTimeMillis();
+        if (!softTimeoutWarned && now - lastMoveTime >= turnSoftTimeoutMs) {
+            notifier.accept(current, "You have been inactive for a while, please make your move!");
+            softTimeoutWarned = true; // Prevent sending multiple warnings per turn
         }
     }
 
-    @Override
-    public synchronized Set<String> getActivePlayers() {
-        return new HashSet<>(activePlayers);
+    /**
+     * Checks if the current player exceeded the hard AFK timeout
+     * Returns the winner if the current player loses due to inactivity
+     * @return Optional winner username if match ended, empty if still ongoing
+     */
+    public synchronized Optional<String> checkHardTimeout() {
+        if (ended) return Optional.empty();
+
+        String current = game.getCurrentPlayer();
+        if (!matchPlayers.contains(current) || !isPlayerConnected.getOrDefault(current, false)) return Optional.empty();
+
+        long now = System.currentTimeMillis();
+        if (now - lastMoveTime >= turnHardTimeoutMs) {
+            // Current player loses due to AFK
+            String winner = current.equals(game.getPlayer1()) ? game.getPlayer2() : game.getPlayer1();
+            ended = true; // Mark locally to prevent multiple triggers
+            return Optional.of(winner);
+        }
+        return Optional.empty();
     }
 
-    @Override
-    public synchronized boolean markEnded() {
+
+
+    public Optional<String> checkDisconnectTimeout() {
+        if (ended) return Optional.empty();
+
+        long now = System.currentTimeMillis();
+
+        for (String player : matchPlayers) {
+            if (!isPlayerConnected.getOrDefault(player, true)) {
+                long lastSeen = lastConnectionTime.getOrDefault(player, now);
+                if (now - lastSeen >= disconnectTimeoutMs) {
+                    ended = true;
+                    return Optional.of(
+                            game.getPlayer1().equals(player)
+                                    ? game.getPlayer2()
+                                    : game.getPlayer1()
+                    );
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
+
+
+    public boolean isDisconnectDraw() {
+        if (ended) return false;
+
+        for (String player : matchPlayers) {
+            if (isPlayerConnected.getOrDefault(player, true)) {
+                return false;
+            }
+        }
+
         ended = true;
         return true;
     }
 
+    /**
+     * Marks a player as reconnected
+     * Resets timers and updates connection status
+     */
+    public synchronized void playerReconnected(String player) {
+        if (!matchPlayers.contains(player)) return;
+
+        lastConnectionTime.put(player, System.currentTimeMillis());
+        isPlayerConnected.put(player, true);
+
+        // Reset AFK timers if it's the player's turn
+        if (player.equals(game.getCurrentPlayer())) {
+            lastMoveTime = System.currentTimeMillis();
+            softTimeoutWarned = false;
+        }
+    }
+
+    public synchronized void playerDisconnected(String player) {
+        if (!matchPlayers.contains(player)) return;
+        isPlayerConnected.put(player, false);
+        lastConnectionTime.put(player, System.currentTimeMillis());
+    }
+
+    // ─────────────────────────────────────────────
+    // =================== GAME ===================
+    // ─────────────────────────────────────────────
+
+    /**
+     * Processes a move from a player
+     * Updates game state and AFK timers if the move is valid
+     */
     @Override
-    public synchronized boolean isEnded() {
-        return ended;
+    public synchronized boolean makeMove(String player, MoveRequest moveRequest) {
+        if (!player.equals(game.getCurrentPlayer())) return false;
+
+        boolean ok = game.makeMove(moveRequest.row(), moveRequest.col());
+        if (ok) {
+            lastMoveTime = System.currentTimeMillis(); // Update last move time
+            softTimeoutWarned = false;                // Reset soft timeout warning
+        }
+        return ok;
     }
 
-    // Match / Game info
-
+    /**
+     * Returns whether the game is finished
+     */
     @Override
-    public void touch() {
-        lastActivityTime = System.currentTimeMillis();
-        softTimeoutTriggered = false; // reset soft timeout
+    public boolean isFinished() {
+        return game.isGameOver();
     }
 
+    /**
+     * Returns the winner of the game, or null if not finished or draw
+     */
     @Override
-    public boolean isInactive(long unused) { // parameter ignored
-        return System.currentTimeMillis() - creationTime > hardTimeoutMs;
+    public String getWinner() {
+        if (!game.isGameOver()) return null;
+        return game.getWinner();
     }
 
-    public boolean hasSoftTimeoutPassed() {
-        return !softTimeoutTriggered && System.currentTimeMillis() - lastActivityTime > softTimeoutMs;
+    /**
+     * Returns the loser of the game, or null if not finished or draw
+     */
+    @Override
+    public String getLoser() {
+        if (!game.isGameOver()) return null;
+        String winner = game.getWinner();
+        if (winner == null) return null;
+        return winner.equals(game.getPlayer1()) ? game.getPlayer2() : game.getPlayer1();
     }
 
-    public void markSoftTimeoutTriggered() {
-        softTimeoutTriggered = true;
+    /**
+     * Returns whether the game ended in a draw
+     */
+    @Override
+    public boolean isDraw() {
+        return game.isGameOver() && game.getWinner() == null;
     }
 
     @Override
@@ -166,6 +243,9 @@ public class MatchImpl implements Match {
         return game.getCurrentPlayer();
     }
 
+    /**
+     * Returns a snapshot of the current game state
+     */
     @Override
     public GameStateResponse getCurrentState() {
         return new GameStateResponse(
@@ -176,44 +256,117 @@ public class MatchImpl implements Match {
     }
 
     @Override
-    public boolean makeMove(String player, MoveRequest moveRequest) {
-        touch();
-        if (!player.equals(game.getCurrentPlayer())) return false;
-        return game.makeMove(moveRequest.row(), moveRequest.col());
+    public synchronized Set<String> getMatchPlayers() {
+        return new HashSet<>(matchPlayers);
     }
 
     @Override
-    public boolean isFinished() {
-        return game.isGameOver();
+    public synchronized boolean isEnded() {
+        return ended;
     }
 
+
+    /**
+     * Marks the match as ended
+     * @return always true
+     */
     @Override
-    public String getWinner() {
-        if (!game.isGameOver()) return null;
-        return game.getWinner();
+    public synchronized boolean markEnded() {
+        ended = true;
+        return true;
     }
 
+    // ─────────────────────────────────────────────
+    // =================== REMATCH ===================
+    // ─────────────────────────────────────────────
+
+    /**
+     * Records a player's rematch request
+     * Throws if the game is not over or the rematch is unavailable
+     */
     @Override
-    public String getLoser() {
-        if (!game.isGameOver()) return null;
-        String winner = game.getWinner();
-        if (winner == null) return null;
-        return winner.equals(getPlayer1()) ? getPlayer2() : getPlayer1();
-    }
+    public synchronized void requestRematch(String player) {
+        if (!ended)
+            throw new IllegalStateException("Game is not over yet");
+        if (!matchPlayers.contains(player)){
+            throw new IllegalStateException("Player not in match");
+        }
+        if (!isPlayerConnected.get(player)){
+            matchPlayers.remove(player);
+            throw new IllegalStateException("You are not connected,yet you request a rematch," +
+                    "we have been hacked! or we are simple really bad devs...and lazy..specially lazy since" +
+                    "we do not even have different type of exceptions...");
+        }
 
-    @Override
-    public boolean isDraw() {
-        return game.isGameOver() && game.getWinner() == null;
-    }
-
-    private String getTheOpponentFromRematchVote(String requester) {
-        return rematchVotes.keySet().stream()
-                .filter(p -> !p.equals(requester))
+        String opponent = rematchVotes.keySet().stream()
+                .filter(p -> !p.equals(player))
                 .findFirst()
                 .orElse(null);
+        if (!isPlayerConnected.get(opponent)){
+            matchPlayers.remove(player);
+            throw new IllegalStateException("Cannot rematch with disconnected opponent");
+        }
+
+        if (opponent == null || rematchVotes.get(opponent) == RematchVote.DECLINED
+                || rematchVotes.get(opponent) == RematchVote.UNAVAILABLE) {
+            matchPlayers.remove(player);
+            throw new IllegalStateException("Rematch unavailable or declined");
+        }
+
+        rematchVotes.put(player, RematchVote.ACCEPTED);
     }
 
+    @Override
+    public synchronized String getOpponent(String player) {
+        if (!matchPlayers.contains(player)) return null;
+        for (String p : matchPlayers) {
+            if (!p.equals(player)) return p;
+        }
+        return null; // just in case
+    }
 
+    /**
+     * Declines a rematch for a player
+     * Removes the player from active players
+     */
+    @Override
+    public synchronized void declineRematch(String player) {
+        if (!ended || !matchPlayers.contains(player)) return;
+        rematchVotes.put(player, RematchVote.DECLINED);
+        matchPlayers.remove(player);
+    }
 
+    /**
+     * Returns true if both players accepted rematch
+     */
+    @Override
+    public synchronized boolean isRematchReady() {
+        return rematchVotes.size() == 2 &&
+                rematchVotes.values().stream()
+                        .allMatch(v -> v == RematchVote.ACCEPTED);
+    }
 
+    /**
+     * Returns overall rematch outcome
+     */
+    @Override
+    public synchronized RematchVote getRematchOutcome() {
+        if (rematchVotes.values().contains(RematchVote.DECLINED))
+            return RematchVote.DECLINED;
+        if (rematchVotes.values().contains(RematchVote.UNAVAILABLE))
+            return RematchVote.UNAVAILABLE;
+        return null;
+    }
+
+    /**
+     * Resets all rematch requests to pending
+     */
+    @Override
+    public synchronized void resetRematchRequests() {
+        rematchVotes.replaceAll((k, v) -> RematchVote.PENDING);
+    }
+
+    public long getLastMoveTime() {
+        return lastMoveTime;
+    }
 }
