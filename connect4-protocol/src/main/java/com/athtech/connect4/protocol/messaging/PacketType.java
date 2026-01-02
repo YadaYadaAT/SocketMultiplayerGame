@@ -4,12 +4,12 @@ public enum PacketType {
 
 
 
-    HANDSHAKE,
 
 /*------------------------------------------------
 //                 REQUESTS
 ------------------------------------------------*/
 
+    HANDSHAKE_REQUEST,
 
 // Authentication
     LOGIN_REQUEST,
@@ -17,8 +17,11 @@ public enum PacketType {
     SIGNUP_REQUEST,
 
 //Lobby
-    //--No request, send On change by server
-
+    LOBBY_PLAYERS_REQUEST,//lobby updated is maintained by the server mostly, resync responses have it anyway
+                            //nevertheless to even cover the case the extreme case which happens only in very small lobbys
+                            // (having no broadcast = no login/logout , no get in game or get out of game from no one)
+                            // + someone login during the relog/resync phase being done, we put a lobby player request
+                            // to manually fetch after resync is done.
 //Statistics
     PLAYER_STATS_REQUEST,
 
@@ -47,7 +50,7 @@ public enum PacketType {
 
 //Generic
     INFO_RESPONSE,//so far the only one without payload record class ; simple strings will do as payload
-
+    HANDSHAKE_RESPONSE,
 //Authentication
     LOGIN_RESPONSE,
     LOGOUT_RESPONSE,

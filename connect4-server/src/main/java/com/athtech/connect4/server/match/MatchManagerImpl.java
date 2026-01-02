@@ -210,7 +210,7 @@ public class MatchManagerImpl implements MatchManager {
             if (isOpponentsTurn) {
                 msg.append("It's your turn! You may play your move, as the inactive timer still applies.\n");
             }
-            msg.append("The game will terminate in 1 minute if your opponent does not reconnect, resulting in a tie.\n");
+            msg.append("The game will terminate in 30 seconds(~was set low for reviewer testing~) if your opponent does not reconnect, resulting in a tie.\n");
             msg.append("Note: Its better to wait for the termination than quiting to not count as a loss");
 
             // Send notification

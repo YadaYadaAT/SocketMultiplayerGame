@@ -33,6 +33,10 @@ public class CLIView {
         }
     }
 
+    public void unsynchronizedCallback(String msg){
+        System.out.println("                                             " + CYAN + ">> " + msg + RESET);
+    }
+
     /** ---  --- */
     public void showGameStarted(String msg) {
         synchronized (consoleLock) {
@@ -61,12 +65,15 @@ public class CLIView {
         }
     }
 
+
+
     // Login screen with choices: Login / Signup / Exit
     public void showLoginScreen() {
         synchronized (consoleLock) {
             System.out.println("\n--- LOGIN ---");
             System.out.println("1. Login");
             System.out.println("2. Signup");
+            System.out.println("5. Test Connection to server");
             System.out.println("0. Exit");
             System.out.print("Choice: ");
         }
@@ -78,6 +85,8 @@ public class CLIView {
         }
     }
 
+
+
     // Lobby menu
     public void showLobbyMenu() {
         synchronized (consoleLock) {
@@ -86,6 +95,8 @@ public class CLIView {
             System.out.println("2. Check Last Invite");
             System.out.println("3. Refresh Lobby Players");
             System.out.println("4. View My Stats");
+            System.out.println("5. Test Connection to server");
+            System.out.println("6. Exit active game (unblocker in case of a crash)");
             System.out.println("0. Logout");
             System.out.print("Enter choice: ");
         }

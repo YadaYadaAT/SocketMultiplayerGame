@@ -2,6 +2,7 @@ package com.athtech.connect4.server.net;
 
 import com.athtech.connect4.protocol.messaging.NetPacket;
 import com.athtech.connect4.protocol.messaging.PacketType;
+import com.athtech.connect4.protocol.payload.InfoResponse;
 import com.athtech.connect4.server.match.MatchController;
 import com.athtech.connect4.server.persistence.PersistenceManager;
 import com.athtech.connect4.server.persistence.PersistenceManagerImpl;
@@ -19,7 +20,7 @@ public class ServerNetworkAdapter {
     private final Map<String, ClientHandler> connectedClients = new ConcurrentHashMap<>();
     //username -clientID
     private final Map<String, String> loggedInClients = new ConcurrentHashMap<>();
-    private final long INACTIVITY_LIMIT_MS = 1 * 20 * 1000; // 20 minutes
+    private final long INACTIVITY_LIMIT_MS = 2 * 45 * 1000; // 90 seconds (was set low for reviewer testing)
     private final PersistenceManager persistenceManager;
     private final LobbyController lobbyController;
     private final MatchController matchController;
@@ -112,7 +113,7 @@ public class ServerNetworkAdapter {
             while (true) {
                 try {
                     System.out.println("[Server] start inactivity checker started");
-                    Thread.sleep(1 * 35 * 1000); // every 5 minutes
+                    Thread.sleep(1 * 30 * 1000); // every half minute ,(was set low for reviewer testing)
                     System.out.println("[Server] start inactivity checker triggerred");
                     long now = System.currentTimeMillis();
 
@@ -124,7 +125,7 @@ public class ServerNetworkAdapter {
                             client.sendPacket(new NetPacket(
                                     PacketType.INFO_RESPONSE,
                                     "server",
-                                    "You have been disconnected due to inactivity."
+                                    new InfoResponse("You have been disconnected due to inactivity.")
                             ));
 
                             client.close(); // triggers cleanup in finally block of ClientHandler.run()

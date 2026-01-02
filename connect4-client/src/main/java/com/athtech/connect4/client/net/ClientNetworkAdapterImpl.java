@@ -55,9 +55,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
 
     public void onResyncFinished() {
-        synchronized (resyncLock) {
             resyncInProgress = false;
-        }
     }
 
     private void openSocket() throws IOException {
@@ -66,9 +64,6 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         out.flush();
         try { Thread.sleep(500); } catch (InterruptedException ignored) {}
         in = new ObjectInputStream(socket.getInputStream());
-        try { Thread.sleep(500); } catch (InterruptedException ignored) {}
-        out.writeObject(new NetPacket(PacketType.HANDSHAKE,"user","handshake"));
-        out.flush();
     }
 
 
@@ -151,7 +146,10 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
                     startListenThread();
                     netState = NetState.CONNECTED;
                     System.out.println("Reconnected successfully.");
-                    tryExecuteResync();
+                    if (pendingUsername != null && pendingRelogCode !=null){
+                        resyncRequested = true;
+                        tryExecuteResync();
+                    }
                     ioLock.notifyAll();
                     return;
                 }
@@ -184,8 +182,8 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     private void tryExecuteResync() {
         synchronized (resyncLock) {
-//            if (!resyncRequested) return;
-//            if (resyncInProgress) return;
+            if (!resyncRequested) return;
+            if (resyncInProgress) return;
             if (netState != NetState.CONNECTED) return;
             if (out == null || socket == null || socket.isClosed()) return;
 

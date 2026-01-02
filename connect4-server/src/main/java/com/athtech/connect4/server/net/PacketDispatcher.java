@@ -7,7 +7,6 @@ import com.athtech.connect4.server.match.MatchController;
 import com.athtech.connect4.server.persistence.PersistenceManager;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,23 +33,49 @@ public class PacketDispatcher {
             case RESYNC_REQUEST -> handleResyncRequest(client, packet);
             case INVITE_REQUEST -> handleInviteRequest(client, packet);
             case INVITE_DECISION_REQUEST -> handleInviteDecision(client, packet);
+            case LOBBY_PLAYERS_REQUEST -> handleLobbyPlayerRequest(client, packet);
             case REMATCH_REQUEST -> handleRematchRequest(client, packet);
             case MOVE_REQUEST -> handleMove(client, packet);
             case GAME_QUIT_REQUEST -> handleGameQuitRequest(client,packet);
-            case HANDSHAKE -> handleHandshake(client,packet);
+            case HANDSHAKE_REQUEST -> handleHandshakeRequest(client,packet);
             default -> client.sendPacket(new NetPacket(PacketType.ERROR_MESSAGE_RESPONSE, "server",
                     new ErrorMessageResponse("Unknown packet type: " + packet.type())));
         }
     }
 
-    private void handleHandshake(ClientHandler client, NetPacket packet){
-        client.sendPacket(new NetPacket(PacketType.HANDSHAKE, "server",
-               "handshake-response"));
+    private void handleLobbyPlayerRequest(ClientHandler client, NetPacket packet){
+        if(client.getUsername() == null){
+            return;
+        }
+        Map<String, Boolean> lobbyPlayers = lobbyController.getLobbySnapshot(matchController);
+        client.sendPacket(new NetPacket(PacketType.LOBBY_PLAYERS_RESPONSE,"server",new LobbyPlayersResponse(lobbyPlayers)));
+    }
+
+    private void handleHandshakeRequest(ClientHandler client, NetPacket packet){
+        if (client.getUsername() == null){
+            client.sendPacket(new NetPacket(PacketType.HANDSHAKE_RESPONSE, "server",
+                    new HandshakeResponse("Connection to server tested") ));
+        }else{
+            client.sendPacket(new NetPacket(PacketType.HANDSHAKE_RESPONSE, "server",
+                  new HandshakeResponse("Connection to server tested. User:  " + client.getUsername() + " .")  ));
+        }
+
+
     }
 
     private void handleGameQuitRequest(ClientHandler client, NetPacket packet) {
-        if (client.getUsername() == null) {
+        if (client.getUsername() == null || !(packet.payload() instanceof GameQuitRequest)) {
             return;
+        }
+        GameQuitRequest payload = (GameQuitRequest) packet.payload();
+
+        if (payload.isUnstuckProcess()){
+         GameStateResponse game = matchController.getCurrentGame(client.getUsername());
+             if (game == null){
+                 client.sendPacket(new NetPacket(PacketType.INFO_RESPONSE,"server",
+                         new InfoResponse("You are not part of any active game")));
+                 return;
+             }
         }
         boolean success = matchController.handleGameQuit(client.getUsername());
         client.sendPacket(new NetPacket(PacketType.GAME_QUIT_RESPONSE,"server",new GameQuitResponse(success)));
@@ -186,7 +211,7 @@ public class PacketDispatcher {
                 "server",
                 new ResyncResponse(
                         true,
-                        "Re synced successfully.",
+                        "Re synced : Welcome back " + req.username() + " successfully resynced with  relogcode: " + relogCode,
                         new LobbyPlayersResponse(lobbyPlayers),
                         stats,
                         pendingInvites,

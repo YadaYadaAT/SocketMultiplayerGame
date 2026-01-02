@@ -28,10 +28,10 @@ public class MatchImpl implements Match {
     // ─────────────────────────────────────────────
     // Timer management
     // ─────────────────────────────────────────────
-    private final long turnSoftTimeoutMs = 10_000;   // Soft AFK warning timeout in milliseconds
-    private final long turnHardTimeoutMs = 30_000;   // Hard AFK timeout in milliseconds
+    private final long turnSoftTimeoutMs = 8_000;   // Soft AFK warning timeout;  8seconds (was set low for reviewer testing)
+    private final long turnHardTimeoutMs = 16_000;   // Hard AFK timeout ;  8seconds (was set low for reviewer testing)
 
-    private final long disconnectTimeoutMs = 20_000; // Disconnect grace period timeout
+    private final long disconnectTimeoutMs = 30_000; // Disconnect grace period timeout
 
     private long lastMoveTime;               // Timestamp of last move for the current player(used in combination with turn)
     private boolean softTimeoutWarned = false; // Whether soft timeout warning has been sent
@@ -85,11 +85,6 @@ public class MatchImpl implements Match {
         }
     }
 
-    /**
-     * Checks if the current player exceeded the hard AFK timeout
-     * Returns the winner if the current player loses due to inactivity
-     * @return Optional winner username if match ended, empty if still ongoing
-     */
     public synchronized Optional<String> checkHardTimeout() {
         if (ended) return Optional.empty();
 
@@ -144,10 +139,7 @@ public class MatchImpl implements Match {
         return true;
     }
 
-    /**
-     * Marks a player as reconnected
-     * Resets timers and updates connection status
-     */
+
     public synchronized void playerReconnected(String player) {
         if (!matchPlayers.contains(player)) return;
 
@@ -171,10 +163,7 @@ public class MatchImpl implements Match {
     // =================== GAME ===================
     // ─────────────────────────────────────────────
 
-    /**
-     * Processes a move from a player
-     * Updates game state and AFK timers if the move is valid
-     */
+
     @Override
     public synchronized boolean makeMove(String player, MoveRequest moveRequest) {
         if (!player.equals(game.getCurrentPlayer())) return false;
@@ -187,26 +176,20 @@ public class MatchImpl implements Match {
         return ok;
     }
 
-    /**
-     * Returns whether the game is finished
-     */
+
     @Override
     public boolean isFinished() {
         return game.isGameOver();
     }
 
-    /**
-     * Returns the winner of the game, or null if not finished or draw
-     */
+
     @Override
     public String getWinner() {
         if (!game.isGameOver()) return null;
         return game.getWinner();
     }
 
-    /**
-     * Returns the loser of the game, or null if not finished or draw
-     */
+
     @Override
     public String getLoser() {
         if (!game.isGameOver()) return null;
@@ -215,9 +198,7 @@ public class MatchImpl implements Match {
         return winner.equals(game.getPlayer1()) ? game.getPlayer2() : game.getPlayer1();
     }
 
-    /**
-     * Returns whether the game ended in a draw
-     */
+
     @Override
     public boolean isDraw() {
         return game.isGameOver() && game.getWinner() == null;
@@ -243,9 +224,7 @@ public class MatchImpl implements Match {
         return game.getCurrentPlayer();
     }
 
-    /**
-     * Returns a snapshot of the current game state
-     */
+
     @Override
     public GameStateResponse getCurrentState() {
         return new GameStateResponse(
@@ -266,10 +245,7 @@ public class MatchImpl implements Match {
     }
 
 
-    /**
-     * Marks the match as ended
-     * @return always true
-     */
+
     @Override
     public synchronized boolean markEnded() {
         ended = true;
@@ -280,10 +256,7 @@ public class MatchImpl implements Match {
     // =================== REMATCH ===================
     // ─────────────────────────────────────────────
 
-    /**
-     * Records a player's rematch request
-     * Throws if the game is not over or the rematch is unavailable
-     */
+
     @Override
     public synchronized void requestRematch(String player) {
         if (!ended)
@@ -325,10 +298,6 @@ public class MatchImpl implements Match {
         return null; // just in case
     }
 
-    /**
-     * Declines a rematch for a player
-     * Removes the player from active players
-     */
     @Override
     public synchronized void declineRematch(String player) {
         if (!ended || !matchPlayers.contains(player)) return;
@@ -336,9 +305,7 @@ public class MatchImpl implements Match {
         matchPlayers.remove(player);
     }
 
-    /**
-     * Returns true if both players accepted rematch
-     */
+
     @Override
     public synchronized boolean isRematchReady() {
         return rematchVotes.size() == 2 &&
@@ -346,9 +313,7 @@ public class MatchImpl implements Match {
                         .allMatch(v -> v == RematchVote.ACCEPTED);
     }
 
-    /**
-     * Returns overall rematch outcome
-     */
+
     @Override
     public synchronized RematchVote getRematchOutcome() {
         if (rematchVotes.values().contains(RematchVote.DECLINED))
@@ -358,9 +323,7 @@ public class MatchImpl implements Match {
         return null;
     }
 
-    /**
-     * Resets all rematch requests to pending
-     */
+
     @Override
     public synchronized void resetRematchRequests() {
         rematchVotes.replaceAll((k, v) -> RematchVote.PENDING);

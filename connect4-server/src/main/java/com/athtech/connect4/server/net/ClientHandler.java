@@ -2,6 +2,7 @@ package com.athtech.connect4.server.net;
 
 import com.athtech.connect4.protocol.messaging.NetPacket;
 import com.athtech.connect4.protocol.messaging.PacketType;
+import com.athtech.connect4.protocol.payload.InfoResponse;
 import com.athtech.connect4.server.match.MatchController;
 import com.athtech.connect4.server.persistence.PersistenceManager;
 
@@ -39,7 +40,7 @@ public class ClientHandler implements Runnable {
         try {
             initStreams();
             System.out.println("[ClientHandler] Handler started (clientId=" + clientId + ")");
-            sendPacket(new NetPacket(PacketType.INFO_RESPONSE, "server", "Connected to server..."));
+            sendPacket(new NetPacket(PacketType.INFO_RESPONSE, "server",  new InfoResponse("Connected to server...")));
 
             while (true) {
                 Object obj = in.readObject();

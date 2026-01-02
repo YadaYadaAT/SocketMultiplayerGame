@@ -22,8 +22,10 @@ public class CLIController {
 
 
     private volatile long lastServerActivity = System.currentTimeMillis();
-
-    private String username;
+    //turns true after resync, altough lobby returns with "resync response" there can be a timing issue and miss someone log
+    private volatile boolean resyncWasTriggered = false;//because of broadcast triggered by users user might be out of sync
+                                                            // till anyone in lobby trigger a broadcast (login,logout,gameIn/out)
+    private String username;                                //rare case in big lobbies...
     private String nickname;
     private String relogCode;
     private final Map<String, Boolean> lobbyPlayers = new LinkedHashMap<>();
@@ -39,6 +41,7 @@ public class CLIController {
     private final Object inviteLock = new Object();
     private final Object resyncLock = new Object();
     private final Object rematchLock = new Object();
+    private final Object resyncWastriggeredLock = new Object();
 
     private volatile CLIstateIndicatorHelper stateIndicator;
     private volatile boolean gameStartingPromptConsumsed = false;
@@ -84,6 +87,7 @@ public class CLIController {
         switch (input.readChoice()) {
             case "1" -> attemptLoginFlow();
             case "2" -> attemptSignupFlow();
+            case "5" -> pingToServer();
             case "0" -> {
                 shouldAppExit = true;
                 try { clientNetwork.disconnect(); } catch (Exception ignored) {}
@@ -140,7 +144,7 @@ public class CLIController {
 
             if (rawInput.equalsIgnoreCase("q")) {
                 // user wants to quit
-                clientNetwork.sendPacket(new NetPacket(PacketType.GAME_QUIT_REQUEST, username, null));
+                clientNetwork.sendPacket(new NetPacket(PacketType.GAME_QUIT_REQUEST, username, new GameQuitRequest(false)));
                 waitLockAndResync(gameQuitLock);
                 break;
             }
@@ -175,6 +179,7 @@ public class CLIController {
             view.show("You are currently in a game or rematch phase. Lobby actions are disabled.");
             return;
         }
+
         view.showLobbyMenu();
         var choice = input.readChoice();
         if (inGame || rematchPhase) {
@@ -186,6 +191,8 @@ public class CLIController {
             case "2" -> handleReceivedInviteRequest();
             case "3" -> requestLobbyPlayers();
             case "4" -> requestPlayerStats();
+            case "5" -> pingToServer();
+            case "6" -> endPreviousMatch();
             case "0" -> requestLogout();
             default -> view.show("Invalid option.");
         }
@@ -212,7 +219,19 @@ public class CLIController {
 
     private void sendInviteRequest() {
         if (inGame) return;
+        if (resyncWasTriggered){
 
+            view.unsynchronizedCallback(
+                    "Syncing lobby state , please wait..."
+            );
+            resyncWasTriggered = false;
+            synchronized (resyncWastriggeredLock){
+                clientNetwork.sendPacket(new NetPacket(PacketType.LOBBY_PLAYERS_REQUEST,username,new LobbyPlayersRequest()));
+                    try { resyncWastriggeredLock.wait(120_000); }
+                    catch (InterruptedException e) { Thread.currentThread().interrupt();}
+            }
+
+        }
         List<String> snapshot = requestLobbyPlayers();
         if (snapshot.isEmpty()) return;
 
@@ -301,6 +320,17 @@ public class CLIController {
                 ", Draws: " + myStats.draws());
     }
 
+
+    private void pingToServer(){
+        clientNetwork.sendPacket(new NetPacket(PacketType.HANDSHAKE_REQUEST, username,new HandshakeRequest()));
+        System.out.println("You just sent a ping request to server... ,(async response is expected)");
+    }
+
+    private void endPreviousMatch(){
+        clientNetwork.sendPacket(new NetPacket(PacketType.GAME_QUIT_REQUEST,username,new GameQuitRequest(true)));
+        System.out.println("Sent a game quit response to the server");
+    }
+
     private void requestLogout() {
         if (inGame || sessionClosing) { view.show("Logout already in progress..."); return; }
         sessionClosing = true;
@@ -333,11 +363,11 @@ public class CLIController {
             case RESYNC_RESPONSE -> onResyncResponse(packet);
             case ERROR_MESSAGE_RESPONSE -> onErrorMessageResponse(packet);
             case INFO_RESPONSE -> onInfoResponse(packet);
-            case HANDSHAKE -> onHandshake(packet);
+            case HANDSHAKE_RESPONSE -> onHandshakeResponse(packet);
             case GAME_QUIT_NOTIFICATION_RESPONSE -> onGameQuitNotification(packet);
             case PLAYER_DISCONNECTED_NOTIFICATION_RESPONSE -> onPlayerDisconnectedNotificationResponse(packet);
             case PLAYER_RECONNECTED_NOTIFICATION_RESPONSE ->  onPlayerReconnectedNotificationResponse(packet);
-            default -> view.showCallback("Unhandled packet: " + packet.type());
+            default -> view.unsynchronizedCallback("Unhandled packet: " + packet.type());
         }
     }
 
@@ -363,8 +393,9 @@ public class CLIController {
         view.showCallback(msg.message());
     }
 
-    private void onHandshake(NetPacket packet){
-//        System.out.println(packet.payload());
+    private void onHandshakeResponse(NetPacket packet){
+        HandshakeResponse handshake = (HandshakeResponse)  packet.payload();
+        view.unsynchronizedCallback(handshake.msg());
     }
 
     private void onLoginResponse(NetPacket packet) {
@@ -425,6 +456,10 @@ public class CLIController {
             });
             view.showCallback(sb.toString());
         }
+
+
+        notifyAllLock(resyncWastriggeredLock);
+
     }
 
     private void onInviteNotificationResponse(NetPacket packet) {
@@ -545,7 +580,12 @@ public class CLIController {
             view.showLobbyMenu();
         }
 
-        // Wake game loop in case it's waiting
+
+        try {
+            this.wait(300);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         notifyAllLock(gameLock);
     }
 
@@ -627,7 +667,7 @@ public class CLIController {
             resyncLock.notifyAll();
         }
 
-        view.showCallback(resp.message());
+
         loggedIn = true;
         sessionClosing = false;
 
@@ -641,10 +681,19 @@ public class CLIController {
         }
         onLobbyPlayersFromPayload(resp.lobbyPlayers().players(), false);
 
-        inGame = false;
-        gameStartingPromptConsumsed = false;
+//        inGame = false;
+//        gameStartingPromptConsumsed = false;
 
         clientNetwork.onResyncFinished();
+        view.showCallback(resp.message());
+        if (stateIndicator == CLIstateIndicatorHelper.LOBBY_LOOP && !inGame){
+            view.showLobbyMenu();
+        } else if (stateIndicator == CLIstateIndicatorHelper.GAME_LOOP && inGame) {
+            view.showBoard(resp.currentGameState().board());
+//            view.show("This CLI does not support rejoining an ongoing match after reconnect.\n" +
+//                    "To continue playing, you must end your previous match from the lobby.");
+        }
+        resyncWasTriggered =true;
         notifyAllLock(gameLock);
         notifyAllLock(loginLock);
     }
@@ -658,7 +707,7 @@ public class CLIController {
 
     private void onGameQuitResponse(NetPacket packet) {
 
-        view.showCallback("You quit the game. Returning to lobby...");
+        view.showCallback("You quit the game.");
 
 
         inGame = false;
@@ -669,8 +718,10 @@ public class CLIController {
     }
 
     private void onInfoResponse(NetPacket packet){
-        if (!(packet.payload() instanceof String)) return;
-        view.showCallback((String) packet.payload());
+        if (!(packet.payload() instanceof InfoResponse(String msg))){
+            return;
+        }
+        view.showCallback(msg);
     }
 
     private void waitLockAndResync(Object lock){
