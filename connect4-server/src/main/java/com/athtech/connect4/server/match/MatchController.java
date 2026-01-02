@@ -274,4 +274,8 @@ public class MatchController {
         PlayerStatsResponse stats = persistence.getPlayerStats(username);
         sendToClient.accept(username, new NetPacket(PacketType.PLAYER_STATS_RESPONSE, "server", stats));
     }
+
+    public boolean isPlayerInGame(String username) {
+        return false;
+    }
 }

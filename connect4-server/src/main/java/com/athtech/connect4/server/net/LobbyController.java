@@ -2,6 +2,8 @@ package com.athtech.connect4.server.net;
 
 import com.athtech.connect4.protocol.messaging.NetPacket;
 import com.athtech.connect4.protocol.messaging.PacketType;
+import com.athtech.connect4.protocol.payload.LobbyPlayersResponse;
+import com.athtech.connect4.server.match.MatchController;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -35,18 +37,33 @@ public class LobbyController {
         return new ArrayList<>(loggedInClients.keySet());
     }
 
+    public Map<String, Boolean> getLobbySnapshot(MatchController matchController) {
+        Map<String, Boolean> snapshot = new LinkedHashMap<>();
+
+        for (String username : loggedInClients.keySet()) {
+            boolean inGame = matchController.isPlayerInGame(username);
+            snapshot.put(username, inGame);
+        }
+
+        return snapshot;
+    }
+
     public void userLoggedOut(String username) {
         loggedInClients.remove(username);
         System.out.println("[Lobby] User logged out: " + username);
     }
 
-    public void broadcastLobby() {
-        String[] users = getLoggedInUsernames().toArray(new String[0]);
+    public void broadcastLobby(MatchController matchController) {
+        Map<String, Boolean> lobby = getLobbySnapshot(matchController);
 
-        System.out.println("[Lobby] Broadcasting lobby list (" + users.length + " users)");
+        System.out.println("[Lobby] Broadcasting lobby (" + lobby.size() + " users)");
 
         broadcastToLoggedIn.accept(
-                new NetPacket(PacketType.LOBBY_PLAYERS_RESPONSE, "server", users)
+                new NetPacket(
+                        PacketType.LOBBY_PLAYERS_RESPONSE,
+                        "server",
+                        new LobbyPlayersResponse(lobby)
+                )
         );
     }
 }

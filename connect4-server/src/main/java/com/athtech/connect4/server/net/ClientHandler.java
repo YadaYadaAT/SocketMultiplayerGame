@@ -52,7 +52,7 @@ public class ClientHandler implements Runnable {
             if (username != null) {
                 matchController.disconnectPlayer(username);
                 lobbyController.userLoggedOut(username);
-                lobbyController.broadcastLobby();
+                lobbyController.broadcastLobby(matchController);
                 System.out.println("[ClientHandler] User session ended: " + username);
             }
             server.unregisterClientConnection(clientId);

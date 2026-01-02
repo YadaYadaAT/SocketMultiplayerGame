@@ -8,6 +8,7 @@ import com.athtech.connect4.server.persistence.PersistenceManager;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -91,7 +92,7 @@ public class PacketDispatcher {
                 });
 
         lobbyController.userLoggedIn(client.getUsername(), client.getClientId());
-        lobbyController.broadcastLobby();
+        lobbyController.broadcastLobby(matchController);
     }
 
 
@@ -131,7 +132,7 @@ public class PacketDispatcher {
             client.sendPacket(new NetPacket(PacketType.LOGOUT_RESPONSE, "server",
                     new LogoutResponse(true, "Logged out successfully.")));
             client.setUsername(null);
-            lobbyController.broadcastLobby();
+            lobbyController.broadcastLobby(matchController);
         }
     }
 
@@ -166,7 +167,7 @@ public class PacketDispatcher {
             relogCode = req.relogCode();
         }
 
-        List<String> lobbyPlayers = lobbyController.getLoggedInUsernames();
+        Map<String, Boolean> lobbyPlayers = lobbyController.getLobbySnapshot(matchController);
         PlayerStatsResponse stats = persistence.getPlayerStats(req.username());
         InviteNotificationResponse[] pendingInvites =
                 matchController.getInvitationsFor(req.username());

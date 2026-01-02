@@ -25,7 +25,8 @@ public class CLIController {
     private String username;
     private String nickname;
     private String relogCode;
-    private final List<String> lobbyPlayers = new ArrayList<>();
+    private final Map<String, Boolean> lobbyPlayers = new LinkedHashMap<>();
+
     private volatile PlayerStatsResponse myStats;
     private volatile InviteNotificationResponse lastInvite = null;
     private volatile GameStateResponse currentGameState;
@@ -209,22 +210,58 @@ public class CLIController {
 
     private void sendInviteRequest() {
         if (inGame) return;
+
         List<String> snapshot = requestLobbyPlayers();
         if (snapshot.isEmpty()) return;
 
         view.prompt("Choose a player to invite (number), press `q` to go back: ");
+
         int choice = input.readIntOrQuit();
         if (choice == -1) {
             view.show("Invite cancelled. Returning to lobby menu.");
             return;
         }
+
         if (choice < 1 || choice > snapshot.size()) {
             view.show("Invalid choice. Returning to lobby menu.");
             return;
         }
 
-        clientNetwork.sendPacket(new NetPacket(PacketType.INVITE_REQUEST, username,
-                new InviteRequest(snapshot.get(choice - 1))));
+        clientNetwork.sendPacket(
+                new NetPacket(
+                        PacketType.INVITE_REQUEST,
+                        username,
+                        new InviteRequest(snapshot.get(choice - 1))
+                )
+        );
+    }
+
+
+    private List<String> requestLobbyPlayers() {
+        if (inGame) return List.of();
+        if (lobbyPlayers.isEmpty()) {
+            view.show("No players available.");
+            return List.of();
+        }
+
+        List<String> inviteable = new ArrayList<>();
+
+        for (var entry : lobbyPlayers.entrySet()) {
+            if (!entry.getValue()) { // not in game
+                inviteable.add(entry.getKey());
+            }
+        }
+
+        if (inviteable.isEmpty()) {
+            view.show("No players available to invite.");
+            return List.of();
+        }
+
+        for (int i = 0; i < inviteable.size(); i++) {
+            view.show((i + 1) + ") " + inviteable.get(i));
+        }
+
+        return inviteable;
     }
 
     private void handleReceivedInviteRequest() {
@@ -245,12 +282,6 @@ public class CLIController {
     }
 
 
-    private List<String> requestLobbyPlayers() {
-        if (inGame) return List.of();
-        if (lobbyPlayers.isEmpty()) { view.show("No players available."); return List.of(); }
-        for (int i = 0; i < lobbyPlayers.size(); i++) view.show((i + 1) + ") " + lobbyPlayers.get(i));
-        return new ArrayList<>(lobbyPlayers);
-    }
 
     private void requestPlayerStats() {
         if (inGame || myStats == null) return;
@@ -356,23 +387,32 @@ public class CLIController {
     }
 
     private void onLobbyPlayersResponse(NetPacket packet) {
-        var lobP = (String[]) packet.payload();
-        onLobbyPlayersFromPayload(lobP, true);
+        LobbyPlayersResponse resp = (LobbyPlayersResponse) packet.payload();
+        onLobbyPlayersFromPayload(resp.players(), true);
     }
 
-    private void onLobbyPlayersFromPayload(String[] lobP, boolean printOn) {
-
+    private void onLobbyPlayersFromPayload(Map<String, Boolean> players, boolean printOn) {
         lobbyPlayers.clear();
-        lobbyPlayers.addAll(Arrays.asList(lobP));
 
-        if (username != null) {
-            lobbyPlayers.removeIf(u -> u.equals(username));
+        for (var entry : players.entrySet()) {
+            String user = entry.getKey();
+            boolean inGame = entry.getValue();
+
+            if (!user.equals(username)) {
+                lobbyPlayers.put(user, inGame);
+            }
         }
-        if(printOn){
-            view.showCallback("Lobby: " + String.join(", ", lobbyPlayers));
+
+        if (printOn) {
+            StringBuilder sb = new StringBuilder("Lobby:");
+            lobbyPlayers.forEach((user, inGame) -> {
+                sb.append(" - ")
+                        .append(user)
+                        .append(inGame ? " [IN GAME]" : " [AVAILABLE]")
+                        .append(", ");
+            });
+            view.showCallback(sb.toString());
         }
-
-
     }
 
     private void onInviteNotificationResponse(NetPacket packet) {
@@ -399,10 +439,6 @@ public class CLIController {
 
         }
         notifyAllLock(gameLock);
-    }
-
-    public boolean getForceExitGame() {
-        return forceExitGame;
     }
 
     private void onGameStartResponse(NetPacket packet) {
@@ -496,7 +532,7 @@ public class CLIController {
         if(stateIndicator == CLIstateIndicatorHelper.LOBBY_LOOP){
             view.showLobbyMenu();
         }
-        System.out.println("onGameEndResponseafter");
+
         // Wake game loop in case it's waiting
         notifyAllLock(gameLock);
     }
@@ -585,7 +621,7 @@ public class CLIController {
         myStats = resp.myStats();
         relogCode = resp.relogCode();
 
-        onLobbyPlayersFromPayload(resp.lobbyPlayers().players().toArray(new String[0]), false);
+        onLobbyPlayersFromPayload(resp.lobbyPlayers().players(), false);
 
         inGame = false;
         gameStartingPromptConsumsed = false;
