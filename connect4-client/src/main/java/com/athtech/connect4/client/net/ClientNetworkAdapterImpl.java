@@ -32,6 +32,8 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     private volatile NetState netState = NetState.DEAD;
 
+
+
     public ClientNetworkAdapterImpl(String host, int port) {
         this.host = host;
         this.port = port;
@@ -50,6 +52,8 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         }
     }
 
+
+
     public void onResyncFinished() {
         synchronized (resyncLock) {
             resyncInProgress = false;
@@ -67,21 +71,9 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         out.flush();
     }
 
-    private void startListenThread() {
-        listening = true;
-        listenThread = new Thread(this::listenLoop, "ClientNetworkAdapter-ListenThread");
-        listenThread.setDaemon(true);
-        listenThread.start();
-    }
 
-    private void stopListenThread() {
-        listening = false;
-        Thread t = listenThread;
-        if (t != null && t.isAlive() && t != Thread.currentThread()) {
-            try { t.join(300); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
-        }
-        listenThread = null;
-    }
+
+
 
     private void listenLoop() {
         try {
@@ -107,9 +99,78 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
             netState = NetState.RECONNECTING;
             stopListenThread();
             disconnectInternal();
+
         }
 
         new Thread(this::reconnectLoop, "ClientNetworkAdapter-Reconnect").start();
+    }
+
+
+    private void stopListenThread() {
+        listening = false;
+        Thread t = listenThread;
+        if (t != null && t.isAlive() && t != Thread.currentThread()) {
+            try { t.join(300); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+        }
+        listenThread = null;
+    }
+
+    private void disconnectInternal() {
+        try {
+            if (socket != null) {
+                try { socket.shutdownInput(); } catch (Exception ignored) {}
+                try { socket.shutdownOutput(); } catch (Exception ignored) {}
+            }
+        } catch (Exception ignored) {}
+
+        try { if (in != null) in.close(); } catch (IOException ignored) {}
+        try { if (out != null) out.close(); } catch (IOException ignored) {}
+        try { if (socket != null) socket.close(); } catch (IOException ignored) {}
+
+        in = null;
+        out = null;
+        socket = null;
+    }
+
+    private void reconnectLoop() {
+        int attempts = 0;
+        final int MAX_ATTEMPTS = 10;
+
+        while (attempts < MAX_ATTEMPTS) {
+            attempts++;
+            try {
+                Thread.sleep(500);
+
+                synchronized (ioLock) {
+                    if(netState == NetState.CONNECTED) {
+                        ioLock.notifyAll();
+                        return;
+                    }
+                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                    openSocket();
+                    startListenThread();
+                    netState = NetState.CONNECTED;
+                    System.out.println("Reconnected successfully.");
+                    tryExecuteResync();
+                    ioLock.notifyAll();
+                    return;
+                }
+
+            } catch (Exception ignored) {}
+        }
+
+        synchronized (ioLock) {
+            netState = NetState.DEAD;
+            ioLock.notifyAll();
+        }
+        System.err.println("Failed to reconnect after " + MAX_ATTEMPTS + " attempts.");
+    }
+
+    private void startListenThread() {
+        listening = true;
+        listenThread = new Thread(this::listenLoop, "ClientNetworkAdapter-ListenThread");
+        listenThread.setDaemon(true);
+        listenThread.start();
     }
 
     public void requestResync(String username, String relogCode) {
@@ -123,8 +184,8 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     private void tryExecuteResync() {
         synchronized (resyncLock) {
-            if (!resyncRequested) return;
-            if (resyncInProgress) return;
+//            if (!resyncRequested) return;
+//            if (resyncInProgress) return;
             if (netState != NetState.CONNECTED) return;
             if (out == null || socket == null || socket.isClosed()) return;
 
@@ -140,39 +201,14 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     }
 
 
-    private void reconnectLoop() {
-        int attempts = 0;
-        final int MAX_ATTEMPTS = 10;
 
-        while (attempts < MAX_ATTEMPTS) {
-            attempts++;
-            try {
-                Thread.sleep(1_500);
 
-                synchronized (ioLock) {
-                    if(netState == NetState.CONNECTED) {
-                        ioLock.notifyAll();
-                        return;
-                    }
-                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
-                    openSocket();
-                    startListenThread();
-                    netState = NetState.CONNECTED;
-                    System.out.println("Reconnected successfully.");
-                    try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
-                    tryExecuteResync();
-                    ioLock.notifyAll();
-                    return;
-                }
-
-            } catch (Exception ignored) {}
+    @Override
+    public void updateCredentials(String username, String relogCode) {
+        synchronized (resyncLock) {
+            this.pendingUsername = username;
+            this.pendingRelogCode = relogCode;
         }
-
-        synchronized (ioLock) {
-            netState = NetState.DEAD;
-            ioLock.notifyAll();
-        }
-        System.err.println("Failed to reconnect after " + MAX_ATTEMPTS + " attempts.");
     }
 
     @Override
@@ -220,20 +256,5 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         }
     }
 
-    private void disconnectInternal() {
-        try {
-            if (socket != null) {
-                try { socket.shutdownInput(); } catch (Exception ignored) {}
-                try { socket.shutdownOutput(); } catch (Exception ignored) {}
-            }
-        } catch (Exception ignored) {}
 
-        try { if (in != null) in.close(); } catch (IOException ignored) {}
-        try { if (out != null) out.close(); } catch (IOException ignored) {}
-        try { if (socket != null) socket.close(); } catch (IOException ignored) {}
-
-        in = null;
-        out = null;
-        socket = null;
-    }
 }

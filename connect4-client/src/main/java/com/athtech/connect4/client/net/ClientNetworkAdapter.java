@@ -1,5 +1,6 @@
 package com.athtech.connect4.client.net;
 
+import com.athtech.connect4.client.cli.CLIController;
 import com.athtech.connect4.protocol.messaging.NetPacket;
 
 import java.io.IOException;
@@ -15,6 +16,8 @@ public interface ClientNetworkAdapter {
     void onResyncFinished();
 
     void setListener(PacketListener listener);
+
+    void updateCredentials(String username, String relogCode);
 
     interface PacketListener {
         void onPacketReceived(NetPacket packet);

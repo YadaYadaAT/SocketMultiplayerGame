@@ -1,6 +1,7 @@
 package com.athtech.connect4.client.cli;
 
 import com.athtech.connect4.client.net.ClientNetworkAdapter;
+import com.athtech.connect4.client.net.ClientNetworkAdapterImpl;
 import com.athtech.connect4.client.net.NetState;
 import com.athtech.connect4.protocol.messaging.*;
 import com.athtech.connect4.protocol.payload.*;
@@ -64,11 +65,12 @@ public class CLIController {
         view.show("Hope you enjoyed our app. o/");
     }
 
-    private void resetSessionState() {
+    private synchronized void resetSessionState() {
         loggedIn = false;
         sessionClosing = false;
         inGame = false;
         lastInvite = null;
+        nickname = null;
         username = null;
         relogCode = null;
         lobbyPlayers.clear();
@@ -266,7 +268,13 @@ public class CLIController {
 
     private void handleReceivedInviteRequest() {
         synchronized (inviteLock) {
-            if (inGame || lastInvite == null) return;
+            if(lastInvite == null){
+                view.show("There are no invites");
+                return;
+            }
+            if (inGame){
+                return;
+            }
             view.show("Invite from: " + lastInvite.fromUsername());
             view.showAcceptPrompt();
             boolean accept = input.readLine().trim().equalsIgnoreCase("y");
@@ -295,13 +303,11 @@ public class CLIController {
 
     private void requestLogout() {
         if (inGame || sessionClosing) { view.show("Logout already in progress..."); return; }
-
         sessionClosing = true;
         clientNetwork.sendPacket(new NetPacket(PacketType.LOGOUT_REQUEST, username, new LogoutRequest()));
-                waitLockAndResync(logoutLock);
-        resetSessionState();
-        try { clientNetwork.disconnect(); } catch (Exception ignored) {}
+        waitLockAndResync(logoutLock);
     }
+
 
     private void handleServerPacket(NetPacket packet) {
         lastServerActivity = System.currentTimeMillis();
@@ -371,6 +377,12 @@ public class CLIController {
             myStats = resp.myStats();
             nickname = resp.nickname();
             username = resp.username();
+
+            // <-- ADD THIS
+            if (clientNetwork instanceof ClientNetworkAdapterImpl adapter) {
+                adapter.updateCredentials(username, relogCode);
+            }
+
             // handle invites like resync
             InviteNotificationResponse[] invites = resp.pendingInvites();
             lastInvite = (invites != null && invites.length > 0) ? invites[invites.length - 1] : null;
@@ -579,11 +591,15 @@ public class CLIController {
         LogoutResponse resp = (LogoutResponse) packet.payload();
         view.showCallback(resp.message());
         sessionClosing = false;
-        resetSessionState();
+
+        // notify first
         notifyAllLock(logoutLock);
         notifyAllLock(gameLock);
         notifyAllLock(loginLock);
-        try { clientNetwork.disconnect(); } catch (Exception ignored) {}
+
+        // only then reset session state
+        resetSessionState();
+
     }
 
     private void onErrorMessageResponse(NetPacket packet) {
@@ -620,7 +636,9 @@ public class CLIController {
 
         myStats = resp.myStats();
         relogCode = resp.relogCode();
-
+        if (clientNetwork instanceof ClientNetworkAdapterImpl adapter) {
+            adapter.updateCredentials(username, relogCode);
+        }
         onLobbyPlayersFromPayload(resp.lobbyPlayers().players(), false);
 
         inGame = false;

@@ -57,6 +57,13 @@ public class PacketDispatcher {
     }
 
     private void handleLogin(ClientHandler client, NetPacket packet) {
+        if (client.getUsername() != null) {
+            client.sendPacket(new NetPacket(PacketType.LOGIN_RESPONSE, "server",
+                    new LoginResponse(false,
+                            "You are already logged in on this client session",
+                            null, null, null, null, null, null)));
+            return;
+        }
         var req = (LoginRequest) packet.payload();
         boolean ok = persistence.authenticate(req.username(), req.password());
         if (!ok) {

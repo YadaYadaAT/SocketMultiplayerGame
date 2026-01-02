@@ -16,6 +16,7 @@ public class ClientHandler implements Runnable {
     private final PacketDispatcher dispatcher;
     private final LobbyController lobbyController;
     private final MatchController matchController;
+    private volatile long lastActivity = System.currentTimeMillis();
     private ObjectInputStream in;
     private ObjectOutputStream out;
     private final String clientId = UUID.randomUUID().toString();
@@ -43,6 +44,7 @@ public class ClientHandler implements Runnable {
             while (true) {
                 Object obj = in.readObject();
                 if (!(obj instanceof NetPacket packet)) continue;
+                updateActivity();
                 dispatcher.dispatch(this, packet);
             }
 
@@ -70,10 +72,10 @@ public class ClientHandler implements Runnable {
             try {
                 out.writeObject(packet);
                 out.flush();
-                // Debug output
-                System.out.println("[ClientHandler] Sent packet to client " + clientId +
-                        " | Type: " + packet.type() +
-                        " | Payload: " + packet.payload());
+//                // Debug output
+//                System.out.println("[ClientHandler] Sent packet to client " + clientId +
+//                        " | Type: " + packet.type() +
+//                        " | Payload: " + packet.payload());
             } catch (IOException e) {
                 System.err.println("Send failed to client " + clientId + ": " + e.getMessage());
             }
@@ -99,4 +101,11 @@ public class ClientHandler implements Runnable {
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
     public String getClientId() { return clientId; }
+    public void updateActivity() {
+        lastActivity = System.currentTimeMillis();
+    }
+
+    public long getLastActivity() {
+        return lastActivity;
+    }
 }

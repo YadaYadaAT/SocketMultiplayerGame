@@ -1,6 +1,7 @@
 package com.athtech.connect4.server.net;
 
 import com.athtech.connect4.protocol.messaging.NetPacket;
+import com.athtech.connect4.protocol.messaging.PacketType;
 import com.athtech.connect4.server.match.MatchController;
 import com.athtech.connect4.server.persistence.PersistenceManager;
 import com.athtech.connect4.server.persistence.PersistenceManagerImpl;
@@ -18,6 +19,7 @@ public class ServerNetworkAdapter {
     private final Map<String, ClientHandler> connectedClients = new ConcurrentHashMap<>();
     //username -clientID
     private final Map<String, String> loggedInClients = new ConcurrentHashMap<>();
+    private final long INACTIVITY_LIMIT_MS = 1 * 20 * 1000; // 20 minutes
     private final PersistenceManager persistenceManager;
     private final LobbyController lobbyController;
     private final MatchController matchController;
@@ -37,6 +39,7 @@ public class ServerNetworkAdapter {
         try {
             srvSocket = new ServerSocket(port);
             System.out.println("[Server] Started and listening on port " + port);
+            startInactivityChecker();
             new Thread(this::acceptLoop).start();
         } catch (IOException e) {
             throw new RuntimeException("Server could not start: " + e.getMessage());
@@ -47,6 +50,7 @@ public class ServerNetworkAdapter {
         while (true) {
             try {
                 Socket clientSocket = srvSocket.accept();
+                clientSocket.setKeepAlive(true);
                 System.out.println("[Server] New client connection from " + clientSocket.getRemoteSocketAddress());
                 ClientHandler handler = new ClientHandler(
                         clientSocket,
@@ -101,6 +105,34 @@ public class ServerNetworkAdapter {
 
     public void broadcast(NetPacket packet) {
         connectedClients.values().forEach(h -> h.sendPacket(packet));
+    }
+
+    private void startInactivityChecker() {
+        new Thread(() -> {
+            while (true) {
+                try {
+                    System.out.println("[Server] start inactivity checker started");
+                    Thread.sleep(1 * 35 * 1000); // every 5 minutes
+                    System.out.println("[Server] start inactivity checker triggerred");
+                    long now = System.currentTimeMillis();
+
+                    for (ClientHandler client : connectedClients.values()) {
+                        if (now - client.getLastActivity() > INACTIVITY_LIMIT_MS) {
+                            System.out.println("[Server] Disconnecting inactive client: " + client.getUsername());
+
+                            // send info packet
+                            client.sendPacket(new NetPacket(
+                                    PacketType.INFO_RESPONSE,
+                                    "server",
+                                    "You have been disconnected due to inactivity."
+                            ));
+
+                            client.close(); // triggers cleanup in finally block of ClientHandler.run()
+                        }
+                    }
+                } catch (InterruptedException ignored) {}
+            }
+        }, "InactivityChecker").start();
     }
 
     // Getters
