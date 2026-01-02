@@ -9,5 +9,7 @@ public record GameEndResponse(
         String winner,          // null if draw
         String loser,           // null if draw
         MatchEndReason reason,   // instead of String
-        String opponent         // opponent's username
+        String opponent,         // opponent's username
+        String player1,
+        String player2
 ) implements Serializable { }

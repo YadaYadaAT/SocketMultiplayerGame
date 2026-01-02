@@ -492,7 +492,7 @@ public class CLIController {
         view.showGameStarted("Ignore Lobby Menu! Game started!");
 
         GameStateResponse gs = (GameStateResponse) packet.payload();
-        view.showBoard(gs.board());
+        view.showBoard(gs.board(),username, gs.player1());
 
         if (gs.currentPlayer().equals(username)) {
             view.showYourTurn(
@@ -523,7 +523,7 @@ public class CLIController {
     }
 
     private void onGameStateFromPayload(GameStateResponse gs){
-        view.showBoard(gs.board());
+        view.showBoard(gs.board(),username, gs.player1());
 
         if (gs.currentPlayer().equals(username)) {
             if (!gameStartingPromptConsumsed) {
@@ -556,7 +556,7 @@ public class CLIController {
 
         // Display final board if available
         if (end.finalBoard() != null) {
-            view.showBoard(end.finalBoard());
+            view.showBoard(end.finalBoard(),username, end.player1());
         }
 
         // Show outcome based on MatchEndReason
@@ -689,7 +689,8 @@ public class CLIController {
         if (stateIndicator == CLIstateIndicatorHelper.LOBBY_LOOP && !inGame){
             view.showLobbyMenu();
         } else if (stateIndicator == CLIstateIndicatorHelper.GAME_LOOP && inGame) {
-            view.showBoard(resp.currentGameState().board());
+            view.showBoard(resp.currentGameState().board(),username,resp.currentGameState().player1());
+
 //            view.show("This CLI does not support rejoining an ongoing match after reconnect.\n" +
 //                    "To continue playing, you must end your previous match from the lobby.");
         }

@@ -262,10 +262,16 @@ public class MatchController {
         }
 
         sendToClient.accept(match.getPlayer1(), new NetPacket(PacketType.GAME_END_RESPONSE, "server",
-                new GameEndResponse(match.getCurrentState().board(), winner, loser, p1Reason, match.getPlayer2())));
+                new GameEndResponse(match.getCurrentState().board(), winner, loser, p1Reason, match.getPlayer2(),
+                        match.getPlayer1(),
+                        match.getPlayer2()
+                        )));
 
         sendToClient.accept(match.getPlayer2(), new NetPacket(PacketType.GAME_END_RESPONSE, "server",
-                new GameEndResponse(match.getCurrentState().board(), winner, loser, p2Reason, match.getPlayer1())));
+                new GameEndResponse(match.getCurrentState().board(), winner, loser, p2Reason, match.getPlayer1(),
+                        match.getPlayer1(),
+                        match.getPlayer2()
+                )));
     }
 
 

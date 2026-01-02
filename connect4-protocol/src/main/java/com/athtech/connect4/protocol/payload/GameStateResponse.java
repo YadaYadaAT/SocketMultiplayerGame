@@ -2,4 +2,10 @@ package com.athtech.connect4.protocol.payload;
 
 import java.io.Serializable;
 
-public record GameStateResponse(BoardState board, String currentPlayer, boolean gameOver) implements Serializable {}
+public record GameStateResponse(
+        BoardState board,
+        String currentPlayer,
+        boolean gameOver,
+        String player1,
+        String player2
+) implements Serializable {}

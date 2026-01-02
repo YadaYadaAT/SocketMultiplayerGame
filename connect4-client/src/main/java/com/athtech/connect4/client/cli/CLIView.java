@@ -120,8 +120,11 @@ public class CLIView {
         }
     }
 
-    public void showBoard(BoardState board) {
+    public void showBoard(BoardState board, String username, String player1) {
         synchronized (consoleLock) {
+            char mySymbol = username.equals(player1) ? 'X' : 'O';
+            char oppSymbol = mySymbol == 'X' ? 'O' : 'X';
+
             System.out.println();
             System.out.println("   0   1   2   3   4   5   6");
             System.out.println(" +---+---+---+---+---+---+---+");
@@ -132,11 +135,22 @@ public class CLIView {
                 System.out.print(r + "|");
                 for (int c = 0; c < cells[r].length; c++) {
                     char cell = cells[r][c];
-                    System.out.print(" " + (cell == '\0' || cell == ' ' ? '.' : cell) + " |");
+                    String display = (cell == '\0' || cell == ' ') ? "." : String.valueOf(cell);
+
+                    // Color logic
+                    if (cell == mySymbol) {
+                        display = "\u001B[34m" + display + "\u001B[0m"; // blue = yours
+                    } else if (cell == oppSymbol) {
+                        display = "\u001B[31m" + display + "\u001B[0m"; // red = opponent
+                    }
+
+                    System.out.print(" " + display + " |");
                 }
                 System.out.println();
                 System.out.println(" +---+---+---+---+---+---+---+");
             }
         }
     }
+
+
 }

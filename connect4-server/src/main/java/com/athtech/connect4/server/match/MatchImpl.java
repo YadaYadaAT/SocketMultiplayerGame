@@ -230,7 +230,9 @@ public class MatchImpl implements Match {
         return new GameStateResponse(
                 new BoardState(game.getBoardCopy()),
                 game.getCurrentPlayer(),
-                game.isGameOver()
+                game.isGameOver(),
+                game.getPlayer1(),
+                game.getPlayer2()
         );
     }
 
