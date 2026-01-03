@@ -28,10 +28,10 @@ public class MatchImpl implements Match {
     // ─────────────────────────────────────────────
     // Timer management
     // ─────────────────────────────────────────────
-    private final long turnSoftTimeoutMs = 8_000;   // Soft AFK warning timeout;  8seconds (was set low for reviewer testing)
-    private final long turnHardTimeoutMs = 16_000;   // Hard AFK timeout ;  8seconds (was set low for reviewer testing)
+    private final long turnSoftTimeoutMs = 30_000;   // Soft AFK warning timeout; (was set low for reviewer testing)
+    private final long turnHardTimeoutMs = 60_000;   // Hard AFK timeout ;  (was set low for reviewer testing)
 
-    private final long disconnectTimeoutMs = 30_000; // Disconnect grace period timeout
+    private final long disconnectTimeoutMs = 70_000; // Disconnect grace period timeout
 
     private long lastMoveTime;               // Timestamp of last move for the current player(used in combination with turn)
     private boolean softTimeoutWarned = false; // Whether soft timeout warning has been sent

@@ -83,80 +83,119 @@ public class PacketDispatcher {
 
     private void handleLogin(ClientHandler client, NetPacket packet) {
         if (client.getUsername() != null) {
-            client.sendPacket(new NetPacket(PacketType.LOGIN_RESPONSE, "server",
+            client.sendPacket(new NetPacket(
+                    PacketType.LOGIN_RESPONSE,
+                    "server",
                     new LoginResponse(false,
                             "You are already logged in on this client session",
-                            null, null, null, null, null, null)));
+                            null, null, null, null, null, null)
+            ));
             return;
         }
+
         var req = (LoginRequest) packet.payload();
-        boolean ok = persistence.authenticate(req.username(), req.password());
+        String username = req.username().trim().toLowerCase();
+        String password = req.password();
+
+        boolean ok = persistence.authenticate(username, password);
         if (!ok) {
-            client.sendPacket(new NetPacket(PacketType.LOGIN_RESPONSE, "server",
-                    new LoginResponse(false, "Invalid credentials", null, null,
-                            null, null, null, null)));
+            client.sendPacket(new NetPacket(
+                    PacketType.LOGIN_RESPONSE,
+                    "server",
+                    new LoginResponse(false, "Invalid credentials",
+                            null, null, null, null, null, null)
+            ));
             return;
         }
-        client.disconnectExistingSession(req.username());
-        client.setUsername(req.username());
+
+        client.disconnectExistingSession(username);
+        client.setUsername(username);
+
         String relogCode = UUID.randomUUID().toString();
 
-        persistence.getPlayerByUsername(client.getUsername())
-                .ifPresent(player -> {
-                    persistence.setRelogCode(player, relogCode);
+        persistence.getPlayerByUsername(username).ifPresent(player -> {
+            persistence.setRelogCode(player, relogCode);
 
-                    // Fetch full state for login response
-                    PlayerStatsResponse stats = persistence.getPlayerStats(player.getUsername());
-                    InviteNotificationResponse[] pendingInvites = matchController.getInvitationsFor(player.getUsername());
-                    GameStateResponse currentGame = matchController.getCurrentGame(player.getUsername());
+            PlayerStatsResponse stats = persistence.getPlayerStats(username);
+            InviteNotificationResponse[] pendingInvites =
+                    matchController.getInvitationsFor(username);
+            GameStateResponse currentGame =
+                    matchController.getCurrentGame(username);
 
-                    client.sendPacket(new NetPacket(PacketType.LOGIN_RESPONSE, "server",
-                            new LoginResponse(
-                                    true,
-                                    "Welcome " + player.getUsername(),
-                                    relogCode,
-                                    stats,
-                                    pendingInvites,
-                                    currentGame,
-                                    player.getUsername(),
-                                    player.getNickname()
-                            )));
-                });
+            client.sendPacket(new NetPacket(
+                    PacketType.LOGIN_RESPONSE,
+                    "server",
+                    new LoginResponse(
+                            true,
+                            "Welcome " + player.getUsername(),
+                            relogCode,
+                            stats,
+                            pendingInvites,
+                            currentGame,
+                            player.getUsername(),
+                            player.getNickname()
+                    )
+            ));
+        });
 
-        lobbyController.userLoggedIn(client.getUsername(), client.getClientId());
+        lobbyController.userLoggedIn(username, client.getClientId());
         lobbyController.broadcastLobby(matchController);
     }
+
 
 
     private void handleSignup(ClientHandler client, NetPacket packet) {
         var req = (SignupRequest) packet.payload();
 
-        // Trim input
-        String username = req.username().trim();
+        // Normalize input
+        String username = req.username().trim().toLowerCase();
         String password = req.password().trim();
         String nickname = req.nickname() != null ? req.nickname().trim() : "";
 
-        // Basic validation
         if (username.isEmpty() || password.isEmpty()) {
-            client.sendPacket(new NetPacket(PacketType.SIGNUP_RESPONSE, "server",
-                    new SignupResponse(false, "Username and password cannot be empty")));
+            client.sendPacket(new NetPacket(
+                    PacketType.SIGNUP_RESPONSE,
+                    "server",
+                    new SignupResponse(false, "Username and password cannot be empty")
+            ));
             return;
         }
 
-        // Only allow letters, numbers, and underscores for username and nickname
-        if (!username.matches("[A-Za-z0-9_]+") || (!nickname.isEmpty() && !nickname.matches("[A-Za-z0-9_]+"))) {
-            client.sendPacket(new NetPacket(PacketType.SIGNUP_RESPONSE, "server",
-                    new SignupResponse(false, "Username and nickname can only contain letters, numbers, and underscores")));
+        if (!username.matches("[a-z0-9_]+") ||
+                (!nickname.isEmpty() && !nickname.matches("[A-Za-z0-9_]+"))) {
+
+            client.sendPacket(new NetPacket(
+                    PacketType.SIGNUP_RESPONSE,
+                    "server",
+                    new SignupResponse(false,
+                            "Username may contain lowercase letters, numbers, and underscores only")
+            ));
             return;
         }
 
-        // Create signup timestamp in UTC
-        Instant createdAt = Instant.now();
+        boolean ok = persistence.registerPlayer(
+                username,
+                password,
+                nickname,
+                Instant.now()
+        );
 
-        boolean ok = persistence.registerPlayer(username, password, nickname, createdAt);
-        client.sendPacket(new NetPacket(PacketType.SIGNUP_RESPONSE, "server",
-                new SignupResponse(ok, ok ? "Sign up complete, login and start gaming!" : "Username already exists")));
+        if (!ok) {
+            client.sendPacket(new NetPacket(
+                    PacketType.SIGNUP_RESPONSE,
+                    "server",
+                    new SignupResponse(false, "Username already exists")
+            ));
+            return;
+        }
+
+        client.sendPacket(new NetPacket(
+                PacketType.SIGNUP_RESPONSE,
+                "server",
+                new SignupResponse(true, "Sign up complete, login and start gaming!")
+        ));
     }
+
 
     private void handleLogout(ClientHandler client) {
         if (client.getUsername() != null) {

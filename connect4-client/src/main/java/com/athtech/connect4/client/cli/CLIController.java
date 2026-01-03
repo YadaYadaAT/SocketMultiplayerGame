@@ -189,10 +189,9 @@ public class CLIController {
         switch (choice) {
             case "1" -> sendInviteRequest();
             case "2" -> handleReceivedInviteRequest();
-            case "3" -> requestLobbyPlayers();
-            case "4" -> requestPlayerStats();
+            case "3" -> requestPlayerStats();
+            case "4" -> endPreviousMatch();
             case "5" -> pingToServer();
-            case "6" -> endPreviousMatch();
             case "0" -> requestLogout();
             default -> view.show("Invalid option.");
         }
@@ -279,7 +278,7 @@ public class CLIController {
         }
 
         for (int i = 0; i < inviteable.size(); i++) {
-            view.show((i + 1) + ") " + inviteable.get(i));
+            view.unsynchronizedCallback((i + 1) + ") " + inviteable.get(i));
         }
 
         return inviteable;
@@ -312,7 +311,7 @@ public class CLIController {
 
     private void requestPlayerStats() {
         if (inGame || myStats == null) return;
-        view.show(
+        view.unsynchronizedCallback(
                 "Heres your stats " + nickname +
                         "\nPlayed: " + myStats.gamesPlayed() +
                 ", Wins: " + myStats.wins() +
@@ -376,11 +375,8 @@ public class CLIController {
                 (GameQuitNotificationResponse) packet.payload();
 
         abortGameSession("Opponent " + resp.quitter() + " quit the game.");
-        if (stateIndicator.equals(CLIstateIndicatorHelper.LOBBY_LOOP)){
-            view.showLobbyMenu();
-        }else{
-            view.showCallbackHighlight("Press enter to return to lobby...");
-        }
+        view.showLobbyMenu();
+
     }
 
     private void onPlayerDisconnectedNotificationResponse(NetPacket packet){
@@ -563,10 +559,10 @@ public class CLIController {
         String outcomeMsg;
         switch (end.reason()) {
             case WIN_NORMAL -> outcomeMsg = "You won! 🎉";
-            case WIN_QUIT -> outcomeMsg = "Opponent quit the game. You win by default!";
-            case WIN_TIMEOUT -> outcomeMsg = "Opponent was AFK. You win!";
-            case WIN_DISCONNECT -> outcomeMsg = "Opponent disconnected. You win!";
-            case LOSS_NORMAL -> outcomeMsg = "You lost. 😢";
+            case WIN_QUIT -> outcomeMsg = "Opponent quit the game. You win by default! (Press enter to continue)";
+            case WIN_TIMEOUT -> outcomeMsg = "Opponent was AFK. You win! (Press enter to continue)";
+            case WIN_DISCONNECT -> outcomeMsg = "Opponent disconnected. You win! (Press enter to continue)";
+            case LOSS_NORMAL -> outcomeMsg = "You lost. 😢 (Press enter to continue)";
             case LOSS_QUIT -> outcomeMsg = "You quit the game. 😢";
             case LOSS_TIMEOUT -> outcomeMsg = "You were AFK. You lost!";
             case LOSS_DISCONNECT -> outcomeMsg = "You disconnected. You lost!";
@@ -582,7 +578,7 @@ public class CLIController {
 
 
         try {
-            this.wait(300);
+            Thread.sleep(300);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

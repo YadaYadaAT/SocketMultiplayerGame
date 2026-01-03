@@ -20,7 +20,7 @@ public class ServerNetworkAdapter {
     private final Map<String, ClientHandler> connectedClients = new ConcurrentHashMap<>();
     //username -clientID
     private final Map<String, String> loggedInClients = new ConcurrentHashMap<>();
-    private final long INACTIVITY_LIMIT_MS = 2 * 45 * 1000; // 90 seconds (was set low for reviewer testing)
+    private final long INACTIVITY_LIMIT_MS = 3 * 60 * 1000; // 3 min (was set low for reviewer testing)
     private final PersistenceManager persistenceManager;
     private final LobbyController lobbyController;
     private final MatchController matchController;
