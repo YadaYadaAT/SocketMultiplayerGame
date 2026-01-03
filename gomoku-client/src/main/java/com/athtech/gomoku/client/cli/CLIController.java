@@ -164,8 +164,8 @@ public class CLIController {
             }
 
             try {
-                int row = Integer.parseInt(parts[0].trim());
-                int col = Integer.parseInt(parts[1].trim());
+                int row = Integer.parseInt(parts[0].trim()) - 1 ;
+                int col = Integer.parseInt(parts[1].trim()) - 1 ;
                 clientNetwork.sendPacket(new NetPacket(PacketType.MOVE_REQUEST, username, new MoveRequest(row, col)));
                 waitLockAndResync(gameLock);
             } catch (NumberFormatException e) {
@@ -499,7 +499,10 @@ public class CLIController {
 
         // Fake "press enter" workaround – only on first game
         if (!rematchTriggered) {
-            view.showGameStarted("Ignore lobby menu the game started!!! Good luck have fun \uD83D\uDE08");
+            view.showGameStarted("Ignore lobby menu the game has been started!!!" +
+                    "\n Connect "+ gs.winCount() +" of your symbols to win the game" +
+                    "\n Good luck and have fun \uD83D\uDE08");
+
         }else{
             view.showGameStarted("Game started!");
         }

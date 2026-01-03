@@ -7,6 +7,7 @@ import com.athtech.gomoku.protocol.payload.GameEndResponse;
 import com.athtech.gomoku.protocol.payload.GameStateResponse;
 import com.athtech.gomoku.protocol.payload.MatchSessionEndedResponse;
 import com.athtech.gomoku.protocol.payload.PlayerDisconnectedNotificationResponse;
+import com.athtech.gomoku.server.game.Game;
 import com.athtech.gomoku.server.net.ServerNetworkAdapter;
 import com.athtech.gomoku.server.persistence.PersistenceManager;
 
@@ -284,14 +285,16 @@ public class MatchManagerImpl implements MatchManager {
                 PacketType.GAME_END_RESPONSE, "server",
                 new GameEndResponse(match.getCurrentState().board(), winner, loser, p1Reason, match.getPlayer2(),
                         match.getPlayer1(),
-                        match.getPlayer2()
+                        match.getPlayer2(),
+                        Game.getWinCount()
                 )
         ));
         notifier.accept(match.getPlayer2(), new NetPacket(
                 PacketType.GAME_END_RESPONSE, "server",
                 new GameEndResponse(match.getCurrentState().board(), winner, loser, p2Reason, match.getPlayer1(),
                         match.getPlayer1(),
-                        match.getPlayer2()
+                        match.getPlayer2(),
+                        Game.getWinCount()
                         )
         ));
 

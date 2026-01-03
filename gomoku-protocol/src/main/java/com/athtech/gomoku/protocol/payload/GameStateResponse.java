@@ -7,5 +7,6 @@ public record GameStateResponse(
         String currentPlayer,
         boolean gameOver,
         String player1,
-        String player2
+        String player2,
+        int winCount
 ) implements Serializable {}

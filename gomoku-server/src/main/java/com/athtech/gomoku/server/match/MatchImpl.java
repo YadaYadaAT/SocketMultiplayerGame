@@ -232,7 +232,8 @@ public class MatchImpl implements Match {
                 game.getCurrentPlayer(),
                 game.isGameOver(),
                 game.getPlayer1(),
-                game.getPlayer2()
+                game.getPlayer2(),
+                Game.getWinCount()
         );
     }
 

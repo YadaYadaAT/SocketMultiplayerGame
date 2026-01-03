@@ -125,13 +125,25 @@ public class CLIView {
             char oppSymbol = mySymbol == 'X' ? 'O' : 'X';
 
             System.out.println();
-            System.out.println("   0   1   2   3   4   5   6");
-            System.out.println(" +---+---+---+---+---+---+---+");
+
+            // Column headers – 1-based now, padded for alignment
+            System.out.print("     "); // extra space for row numbers
+            for (int c = 0; c < board.cells()[0].length; c++) {
+                System.out.print(String.format("%-3d ", c + 1));
+            }
+            System.out.println();
+
+            System.out.print("   +");
+            for (int c = 0; c < board.cells()[0].length; c++) {
+                System.out.print("---+");
+            }
+            System.out.println();
 
             char[][] cells = board.cells();
 
             for (int r = 0; r < cells.length; r++) {
-                System.out.print(r + "|");
+                // Row numbers padded for alignment
+                System.out.print(String.format("%-2d |", r + 1));
                 for (int c = 0; c < cells[r].length; c++) {
                     char cell = cells[r][c];
                     String display = (cell == '\0' || cell == ' ') ? "." : String.valueOf(cell);
@@ -146,10 +158,16 @@ public class CLIView {
                     System.out.print(" " + display + " |");
                 }
                 System.out.println();
-                System.out.println(" +---+---+---+---+---+---+---+");
+
+                System.out.print("   +");
+                for (int c = 0; c < cells[r].length; c++) {
+                    System.out.print("---+");
+                }
+                System.out.println();
             }
         }
     }
+
 
 
 }

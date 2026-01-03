@@ -11,5 +11,6 @@ public record GameEndResponse(
         MatchEndReason reason,   // instead of String
         String opponent,         // opponent's username
         String player1,
-        String player2
+        String player2,
+        int winCount
 ) implements Serializable { }
