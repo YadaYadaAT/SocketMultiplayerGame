@@ -19,6 +19,7 @@ public interface Match {
     String getPlayer2();
     String getCurrentPlayer(); // username of player whose turn it is
     GameStateResponse getCurrentState();
+
     String getWinner();
     String getLoser();
     boolean isDraw();

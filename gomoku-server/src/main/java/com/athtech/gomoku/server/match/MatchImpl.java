@@ -8,6 +8,7 @@ import com.athtech.gomoku.server.game.Game;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Represents a single match between two players.
@@ -20,7 +21,7 @@ public class MatchImpl implements Match {
     // ─────────────────────────────────────────────
     private final String matchId;          // Unique identifier for this match
     private final Game game;               // Game logic and board state
-
+    private volatile boolean finalized = false; // once true, no reconnections allowed
     private final Set<String> matchPlayers = Collections.synchronizedSet(new HashSet<>()); // Currently participating players
     private final Map<String, RematchVote> rematchVotes = Collections.synchronizedMap(new HashMap<>()); // Tracks rematch votes
     private boolean ended = false;         // Flag indicating if the match has ended
@@ -28,30 +29,30 @@ public class MatchImpl implements Match {
     // ─────────────────────────────────────────────
     // Timer management
     // ─────────────────────────────────────────────
-    private final long turnSoftTimeoutMs = 30_000;   // Soft AFK warning timeout; (was set low for reviewer testing)
-    private final long turnHardTimeoutMs = 60_000;   // Hard AFK timeout ;  (was set low for reviewer testing)
-
-    private final long disconnectTimeoutMs = 70_000; // Disconnect grace period timeout
+    private static final long turnSoftTimeoutMs = 30_000;   // Soft AFK warning timeout; (was set low for reviewer testing)
+    private static final long turnHardTimeoutMs = 60_000;   // Hard AFK timeout ;  (was set low for reviewer testing)
+    private static final long disconnectTimeoutMs = 70_000; // Disconnect grace period timeout
 
     private long lastMoveTime;               // Timestamp of last move for the current player(used in combination with turn)
     private boolean softTimeoutWarned = false; // Whether soft timeout warning has been sent
-
+    Consumer<String> onPlayerAdded;
+    Consumer<String> onPlayerRemoved;
     private final Map<String, Long> lastConnectionTime = new ConcurrentHashMap<>(); // Last known connection time for each player
     private final Map<String, Boolean> isPlayerConnected = new ConcurrentHashMap<>();     // Connection status of each player
+
+
 
     // ─────────────────────────────────────────────
     // Constructor
     // ─────────────────────────────────────────────
-    /**
-     * Initializes a match between two players
-     * Sets initial timers and marks both players as active and connected
-     */
-    public MatchImpl(String player1, String player2) {
+    public MatchImpl(String player1, String player2 , Consumer<String> onPlayerAdded ,Consumer<String> onPlayerRemoved) {
         this.matchId = UUID.randomUUID().toString();
         this.game = new Game(player1, player2);
 
         matchPlayers.add(player1);
+        onPlayerAdded.accept(player1);
         matchPlayers.add(player2);
+        onPlayerAdded.accept(player2);
 
         rematchVotes.put(player1, RematchVote.PENDING);
         rematchVotes.put(player2, RematchVote.PENDING);
@@ -61,6 +62,9 @@ public class MatchImpl implements Match {
         lastConnectionTime.put(player2, System.currentTimeMillis());
         isPlayerConnected.put(player1, true);
         isPlayerConnected.put(player2, true);
+        // Call the callback to notify MatchManager
+        this.onPlayerAdded = onPlayerAdded;
+        this.onPlayerRemoved = onPlayerRemoved;
     }
 
     // ─────────────────────────────────────────────
@@ -79,8 +83,10 @@ public class MatchImpl implements Match {
         if (!matchPlayers.contains(current) || !isPlayerConnected.getOrDefault(current, false)) return;
 
         long now = System.currentTimeMillis();
+        long secondsLeftTillKick = (turnHardTimeoutMs - turnSoftTimeoutMs) / 1000;
         if (!softTimeoutWarned && now - lastMoveTime >= turnSoftTimeoutMs) {
-            notifier.accept(current, "You have been inactive for a while, please make your move!");
+            notifier.accept(current, "You have been inactive for a while, please make your move!" +
+                    "\n (Seconds left before inactivity kickout :" + secondsLeftTillKick);
             softTimeoutWarned = true; // Prevent sending multiple warnings per turn
         }
     }
@@ -142,6 +148,7 @@ public class MatchImpl implements Match {
 
     public synchronized void playerReconnected(String player) {
         if (!matchPlayers.contains(player)) return;
+        if (finalized) return;
 
         lastConnectionTime.put(player, System.currentTimeMillis());
         isPlayerConnected.put(player, true);
@@ -152,6 +159,15 @@ public class MatchImpl implements Match {
             softTimeoutWarned = false;
         }
     }
+
+    public synchronized void markFinalized() {
+        finalized = true;
+    }
+
+    public boolean isFinalized() {
+        return finalized;
+    }
+
 
     public synchronized void playerDisconnected(String player) {
         if (!matchPlayers.contains(player)) return;
@@ -255,6 +271,19 @@ public class MatchImpl implements Match {
         return true;
     }
 
+
+    public static long turnSoftTimeoutMs() {
+        return turnSoftTimeoutMs;
+    }
+
+    public static long turnHardTimeoutMs() {
+        return turnHardTimeoutMs;
+    }
+
+    public static long disconnectTimeoutMs() {
+        return disconnectTimeoutMs;
+    }
+
     // ─────────────────────────────────────────────
     // =================== REMATCH ===================
     // ─────────────────────────────────────────────
@@ -269,6 +298,7 @@ public class MatchImpl implements Match {
         }
         if (!isPlayerConnected.get(player)){
             matchPlayers.remove(player);
+            onPlayerRemoved.accept(player);
             throw new IllegalStateException("You are not connected,yet you request a rematch," +
                     "we have been hacked! or we are simple really bad devs...and lazy..specially lazy since" +
                     "we do not even have different type of exceptions...");
@@ -280,12 +310,14 @@ public class MatchImpl implements Match {
                 .orElse(null);
         if (!isPlayerConnected.get(opponent)){
             matchPlayers.remove(player);
+            onPlayerRemoved.accept(player);
             throw new IllegalStateException("Cannot rematch with disconnected opponent");
         }
 
         if (opponent == null || rematchVotes.get(opponent) == RematchVote.DECLINED
                 || rematchVotes.get(opponent) == RematchVote.UNAVAILABLE) {
             matchPlayers.remove(player);
+            onPlayerRemoved.accept(player);
             throw new IllegalStateException("Rematch unavailable or declined");
         }
 
@@ -306,6 +338,7 @@ public class MatchImpl implements Match {
         if (!ended || !matchPlayers.contains(player)) return;
         rematchVotes.put(player, RematchVote.DECLINED);
         matchPlayers.remove(player);
+        onPlayerRemoved.accept(player);
     }
 
 

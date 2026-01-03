@@ -110,7 +110,8 @@ public class PacketDispatcher {
 
         client.disconnectExistingSession(username);
         client.setUsername(username);
-
+        // reconnect player in match if any...
+        matchController.reconnectPlayer(username);
         String relogCode = UUID.randomUUID().toString();
 
         persistence.getPlayerByUsername(username).ifPresent(player -> {

@@ -3,16 +3,14 @@ package com.athtech.gomoku.server.match;
 import com.athtech.gomoku.protocol.messaging.MatchEndReason;
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
-import com.athtech.gomoku.protocol.payload.GameEndResponse;
-import com.athtech.gomoku.protocol.payload.GameStateResponse;
-import com.athtech.gomoku.protocol.payload.MatchSessionEndedResponse;
-import com.athtech.gomoku.protocol.payload.PlayerDisconnectedNotificationResponse;
+import com.athtech.gomoku.protocol.payload.*;
 import com.athtech.gomoku.server.game.Game;
 import com.athtech.gomoku.server.net.ServerNetworkAdapter;
 import com.athtech.gomoku.server.persistence.PersistenceManager;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
@@ -20,12 +18,12 @@ import java.util.stream.Collectors;
 
 /**
  * Manages all active matches on the server.
- * Responsible for ticking timers (AFK/disconnect), handling forced match ends,
- * cleaning up ended matches, and providing match lookup APIs.
  */
 public class MatchManagerImpl implements MatchManager {
 
     private final ConcurrentMap<String, Match> matches = new ConcurrentHashMap<>();
+    private final Set<String> activePlayers = ConcurrentHashMap.newKeySet();
+
     private final BiConsumer<String, NetPacket> notifier;
     private final PersistenceManager persistence;
 
@@ -79,8 +77,6 @@ public class MatchManagerImpl implements MatchManager {
     /* ===================== CORE LOGIC ===================== */
 
     private void tickMatches() {
-        //ConcurrentHashMap allows safe removal during iteration;
-        //cleanup may skip no-longer-relevant matches but never corrupts state.(will get them in the next iteration)
         matches.values().forEach(match -> {
             if (!(match instanceof MatchImpl impl)) return;
 
@@ -89,7 +85,7 @@ public class MatchManagerImpl implements MatchManager {
                     notifier.accept(player, new NetPacket(
                             PacketType.PLAYER_INACTIVITY_WARNING_RESPONSE,
                             "server",
-                            message
+                             new PlayerInactivityWarningResponse(message)
                     ))
             );
 
@@ -124,8 +120,8 @@ public class MatchManagerImpl implements MatchManager {
             if (impl.getMatchPlayers().isEmpty()
                     || (System.currentTimeMillis() - impl.getLastMoveTime() >= 2_400_000)) {
 
-                matches.remove(match.getMatchId());
-                System.out.println("[Cleanup] Removed match " + match.getMatchId() +
+                removeMatchAndCleanupPlayers(impl);
+                System.out.println("[Cleanup] Removed match " + impl.getMatchId() +
                         " (inactive or no players)");
             }
         });
@@ -138,12 +134,11 @@ public class MatchManagerImpl implements MatchManager {
         if (getMatchByPlayer(player1).isPresent() || getMatchByPlayer(player2).isPresent())
             throw new IllegalStateException("One of the players is already in a match");
 
-        Match match = new MatchImpl(player1, player2);
+        Match match = new MatchImpl(player1, player2 , activePlayers::add , activePlayers::remove);
         matches.put(match.getMatchId(), match);
 
         System.out.println("[Match] Created new match " + match.getMatchId() +
                 " (" + player1 + " vs " + player2 + ")");
-
         return match;
     }
 
@@ -184,8 +179,22 @@ public class MatchManagerImpl implements MatchManager {
 
     @Override
     public void endMatch(String matchId) {
-        matches.remove(matchId);
-        System.out.println("[Match] Match manually ended: " + matchId);
+        getMatch(matchId).ifPresent(match -> {
+            if (match instanceof MatchImpl impl) {
+                removeMatchAndCleanupPlayers(impl);
+            }
+        });
+    }
+
+    private void removeMatchAndCleanupPlayers(MatchImpl match) {
+        match.markFinalized(); // prevent reconnections from interfering
+
+        for (String player : match.getMatchPlayers()) {
+            activePlayers.remove(player);
+            match.onPlayerRemoved.accept(player);
+        }
+        matches.remove(match.getMatchId());
+        System.out.println("[Match] Removed match " + match.getMatchId());
     }
 
     /* ===================== CONNECTION API ===================== */
@@ -193,9 +202,7 @@ public class MatchManagerImpl implements MatchManager {
     public boolean playerDisconnected(String player) {
         Optional<Match> opt = getMatchByPlayer(player);
 
-        if (opt.isEmpty()) {
-            return false;
-        }
+        if (opt.isEmpty()) return false;
 
         Match match = opt.get();
         if (match instanceof MatchImpl impl) {
@@ -206,20 +213,19 @@ public class MatchManagerImpl implements MatchManager {
 
             // Determine opponent
             String opponent = impl.getOpponent(player);
-            if (opponent == null){
-                return true;
-            }
+            if (opponent == null) return true;
+
             boolean isOpponentsTurn = opponent.equals(impl.getCurrentPlayer());
+            long timeoutSeconds = MatchImpl.disconnectTimeoutMs() / 1000;
 
             StringBuilder msg = new StringBuilder();
             msg.append("Your opponent has disconnected.\n");
-            if (isOpponentsTurn) {
-                msg.append("It's your turn! You may play your move, as the inactive timer still applies.\n");
-            }
-            msg.append("The game will terminate in 30 seconds(~was set low for reviewer testing~) if your opponent does not reconnect, resulting in a tie.\n");
-            msg.append("Note: Its better to wait for the termination than quiting to not count as a loss");
+            if (isOpponentsTurn) msg.append("It's your turn! You may play your move, as the inactive timer still applies.\n");
+            msg.append("The game will terminate in ")
+                    .append(timeoutSeconds)
+                    .append(" seconds if your opponent does not reconnect, resulting in a tie.\n");
+            msg.append("Better to wait than quit to avoid counting as a loss.");
 
-            // Send notification
             notifier.accept(opponent, new NetPacket(
                     PacketType.PLAYER_DISCONNECTED_NOTIFICATION_RESPONSE,
                     "server",
@@ -232,12 +238,42 @@ public class MatchManagerImpl implements MatchManager {
 
     public void playerReconnected(String player) {
         getMatchByPlayer(player).ifPresent(match -> {
-            if (match instanceof MatchImpl impl) {
-                System.out.println("[Connection] Player reconnected: " + player +
-                        " | Match: " + impl.getMatchId());
-                impl.playerReconnected(player);
+            if (!(match instanceof MatchImpl impl)) return;
+
+            // Prevent reconnects if match is being removed
+            if (impl.isFinalized()) return;
+
+            System.out.println("[Connection] Player reconnected: " + player +
+                    " | Match: " + impl.getMatchId());
+
+            // Update player's connection status
+            impl.playerReconnected(player);
+
+            // Notify opponent
+            String opponent = impl.getOpponent(player);
+            if (opponent != null) {
+                String msg = player + " has reconnected to the game.";
+                notifier.accept(opponent, new NetPacket(
+                        PacketType.PLAYER_RECONNECTED_NOTIFICATION_RESPONSE,
+                        "server",
+                        new PlayerReconnectedNotificationResponse(msg)
+                ));
             }
+
+            // Notify the reconnecting player
+            String infoMsg = "You have rejoined the ongoing game.";
+            notifier.accept(player, new NetPacket(
+                    PacketType.PLAYER_RECONNECTED_RESPONSE,
+                    "server",
+                    new PlayerReconnectedResponse(infoMsg)
+            ));
         });
+    }
+
+
+    @Override
+    public boolean isPlayerInMatch(String username) {
+        return activePlayers.contains(username);
     }
 
     /* ===================== FORCED END HANDLING ===================== */
@@ -284,21 +320,15 @@ public class MatchManagerImpl implements MatchManager {
         notifier.accept(match.getPlayer1(), new NetPacket(
                 PacketType.GAME_END_RESPONSE, "server",
                 new GameEndResponse(match.getCurrentState().board(), winner, loser, p1Reason, match.getPlayer2(),
-                        match.getPlayer1(),
-                        match.getPlayer2(),
-                        Game.getWinCount()
-                )
+                        match.getPlayer1(), match.getPlayer2(), Game.getWinCount())
         ));
         notifier.accept(match.getPlayer2(), new NetPacket(
                 PacketType.GAME_END_RESPONSE, "server",
                 new GameEndResponse(match.getCurrentState().board(), winner, loser, p2Reason, match.getPlayer1(),
-                        match.getPlayer1(),
-                        match.getPlayer2(),
-                        Game.getWinCount()
-                        )
+                        match.getPlayer1(), match.getPlayer2(), Game.getWinCount())
         ));
 
-        // Forced ends (AFK / disconnect / quit) intentionally do not prompt rematch!
+        // End session notifications
         notifier.accept(match.getPlayer1(), new NetPacket(
                 PacketType.MATCH_SESSION_ENDED_RESPONSE, "server",
                 new MatchSessionEndedResponse(false)
@@ -308,6 +338,7 @@ public class MatchManagerImpl implements MatchManager {
                 new MatchSessionEndedResponse(false)
         ));
 
-        matches.remove(match.getMatchId());
+        // Clean up
+        removeMatchAndCleanupPlayers(match);
     }
 }

@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public interface MatchManager {
     Optional<GameStateResponse> getCurrentStateForPlayer(String username);
+    boolean isPlayerInMatch(String username);
     Optional<String> getMatchIdByPlayer(String username);
     Match createMatch(String player1, String player2) throws IllegalStateException;
     List<Match> getMatches();

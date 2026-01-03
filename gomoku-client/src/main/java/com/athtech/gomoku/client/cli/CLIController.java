@@ -369,8 +369,14 @@ public class CLIController {
             case GAME_QUIT_NOTIFICATION_RESPONSE -> onGameQuitNotification(packet);
             case PLAYER_DISCONNECTED_NOTIFICATION_RESPONSE -> onPlayerDisconnectedNotificationResponse(packet);
             case PLAYER_RECONNECTED_NOTIFICATION_RESPONSE ->  onPlayerReconnectedNotificationResponse(packet);
+            case PLAYER_RECONNECTED_RESPONSE -> onPlayerReconnectedResponse(packet);
             default -> view.unsynchronizedCallback("Unhandled packet: " + packet.type());
         }
+    }
+
+    private void onPlayerReconnectedResponse(NetPacket packet){
+        PlayerReconnectedResponse res = (PlayerReconnectedResponse) packet.payload();
+        view.unsynchronizedCallback(res.msg());
     }
 
     private void onGameQuitNotification(NetPacket packet) {

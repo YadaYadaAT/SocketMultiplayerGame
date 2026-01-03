@@ -37,6 +37,7 @@ public class MatchController {
         try {
             Match match = matchManager.createMatch(player1, player2);
             broadcastMatchCreate(match);
+            lobbyController.broadcastLobby(this);
         } catch (IllegalStateException e) {
             sendToClient.accept(player1, new NetPacket(PacketType.INVITE_RESPONSE, "server",
                     new InviteResponse(false, "Cannot create match, one of the players is busy")));
@@ -83,6 +84,7 @@ public class MatchController {
         sendUpdatedStats(match.getPlayer2());
 
         broadcastMatchEnd(match, reason);
+        lobbyController.broadcastLobby(this);
     }
 
     public boolean handleGameQuit(String quitter) {
@@ -107,6 +109,7 @@ public class MatchController {
                 // Use per-player enum
                 MatchEndReason winnerReason = MatchEndReason.WIN_QUIT;
                 matchManager.handleForcedEnd(impl, opponent, winnerReason);
+                lobbyController.broadcastLobby(this);
             }
             return true;
         }).orElse(false);
@@ -224,9 +227,13 @@ public class MatchController {
         return matchManager.getMatchByPlayer(username).map(Match::getCurrentState).orElse(null);
     }
 
-    public boolean disconnectPlayer(String username){
-        return matchManager.playerDisconnected(username);
+    public void disconnectPlayer(String username){
+        matchManager.playerDisconnected(username);
 
+    }
+
+    public void reconnectPlayer(String username){
+        matchManager.playerReconnected(username);
     }
 
     // -----------------------
@@ -285,6 +292,7 @@ public class MatchController {
     }
 
     public boolean isPlayerInGame(String username) {
-        return false;
+        return matchManager.isPlayerInMatch(username);
     }
+
 }
