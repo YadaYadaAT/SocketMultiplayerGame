@@ -39,7 +39,7 @@ public class ClientHandler implements Runnable {
     public void run() {
         try {
             initStreams();
-            System.out.println("[ClientHandler] Handler started (clientId=" + clientId + ")");
+            System.out.println("\uD83D\uDEF0\uFE0F [ClientHandler] Handler started (clientId=" + clientId + ")");
             sendPacket(new NetPacket(PacketType.INFO_RESPONSE, "server",  new InfoResponse("Connected to server...")));
 
             while (true) {
@@ -50,17 +50,17 @@ public class ClientHandler implements Runnable {
             }
 
         } catch (IOException | ClassNotFoundException e) {
-            System.err.println("[ClientHandler] Client disconnected unexpectedly (clientId=" + clientId + ")");
+            System.err.println("\uD83D\uDEF0\uFE0F [ClientHandler] Client disconnected unexpectedly (clientId=" + clientId + ")");
         } finally {
             if (username != null) {
                 matchController.disconnectPlayer(username);
                 lobbyController.userLoggedOut(username);
                 lobbyController.broadcastLobby(matchController);
-                System.out.println("[ClientHandler] User session ended: " + username);
+                System.out.println("\uD83D\uDEF0\uFE0F [ClientHandler] User session ended: " + username);
             }
             server.unregisterClientConnection(clientId);
             try { clientSocket.close(); } catch (IOException ignored) {}
-            System.out.println(username + " has been disconnected");
+            System.out.println("\uD83D\uDEF0\uFE0F [ClientHandler]" +username + " has been disconnected");
         }
     }
 
@@ -74,7 +74,7 @@ public class ClientHandler implements Runnable {
                 out.writeObject(packet);
                 out.flush();
 //                // Debug output
-//                System.out.println("[ClientHandler] Sent packet to client " + clientId +
+//                System.out.println(" [ClientHandler] Sent packet to client " + clientId +
 //                        " | Type: " + packet.type() +
 //                        " | Payload: " + packet.payload());
             } catch (IOException e) {

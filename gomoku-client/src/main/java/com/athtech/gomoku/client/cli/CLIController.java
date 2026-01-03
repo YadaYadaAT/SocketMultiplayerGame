@@ -3,6 +3,7 @@ package com.athtech.gomoku.client.cli;
 import com.athtech.gomoku.client.net.ClientNetworkAdapter;
 import com.athtech.gomoku.client.net.ClientNetworkAdapterImpl;
 import com.athtech.gomoku.client.net.NetState;
+import com.athtech.gomoku.client.net.NetworkLifecycleListener;
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
 import com.athtech.gomoku.protocol.payload.*;
@@ -35,7 +36,6 @@ public class CLIController {
 
     private volatile PlayerStatsResponse myStats;
     private volatile InviteNotificationResponse lastInvite = null;
-    private volatile GameStateResponse currentGameState;
     // Locks
     private final Object loginLock = new Object();
     private final Object logoutLock = new Object();
@@ -71,6 +71,8 @@ public class CLIController {
         view.show("Hope you enjoyed our app. o/");
     }
 
+
+
     private synchronized void resetSessionState() {
         loggedIn = false;
         sessionClosing = false;
@@ -83,6 +85,9 @@ public class CLIController {
         myStats = null;
         gameStartingPromptConsumsed = false;
         rematchPhase = false;
+        resyncWasTriggered = false;
+        rematchTriggered =false;
+        forceExitGame = false;
     }
 
     private void authenticationMenu() {
@@ -422,8 +427,7 @@ public class CLIController {
             // handle invites like resync
             InviteNotificationResponse[] invites = resp.pendingInvites();
             lastInvite = (invites != null && invites.length > 0) ? invites[invites.length - 1] : null;
-            // optional: track current game if you want
-            currentGameState = resp.currentGameState();
+
             gameStartingPromptConsumsed = false;
         }
         notifyAllLock(loginLock);
@@ -436,7 +440,12 @@ public class CLIController {
 
     private void onLobbyPlayersResponse(NetPacket packet) {
         LobbyPlayersResponse resp = (LobbyPlayersResponse) packet.payload();
-        onLobbyPlayersFromPayload(resp.players(), true);
+        if (inGame){
+            onLobbyPlayersFromPayload(resp.players(), false);
+        }else{
+            onLobbyPlayersFromPayload(resp.players(), true);
+        }
+
     }
 
     private void onLobbyPlayersFromPayload(Map<String, Boolean> players, boolean printOn) {
@@ -456,10 +465,10 @@ public class CLIController {
             lobbyPlayers.forEach((user, inGame) -> {
                 sb.append(" - ")
                         .append(user)
-                        .append(inGame ? " [IN GAME]" : " [AVAILABLE]")
+                        .append(inGame ? " 🎮 [IN GAME]" : " ✅ [AVAILABLE]")
                         .append(", ");
             });
-            view.showCallback(sb.toString());
+            view.showLobby(sb.toString());
         }
 
 
@@ -505,9 +514,9 @@ public class CLIController {
 
         // Fake "press enter" workaround – only on first game
         if (!rematchTriggered) {
-            view.showGameStarted("Ignore lobby menu the game has been started!!!" +
+            view.showGameStarted(
                     "\n Connect "+ gs.winCount() +" of your symbols to win the game" +
-                    "\n Good luck and have fun \uD83D\uDE08");
+                    ". Good luck and have fun \uD83D\uDE08");
 
         }else{
             view.showGameStarted("Game started!");
@@ -516,16 +525,14 @@ public class CLIController {
         if (yourTurn) {
             view.showYourTurn(
                     """
-                    It's your turn!
+                    It's your turn! ('q' to quit — quitting counts as a defeat)
                     Enter your move as: row,column
-                    ('q' to quit — quitting counts as a defeat)
                     """
             );
         } else {
             view.showWaitTurn(
                     """
-                    Waiting for opponent's move...
-                    ('q' to quit — quitting counts as a defeat)
+                    Waiting for opponent's move... ('q' to quit — quitting counts as a defeat)
                     """
             );
         }
@@ -557,12 +564,8 @@ public class CLIController {
             if (!gameStartingPromptConsumsed) {
                 view.showYourTurn(
                         """
-                                It's your turn but you haven't yet pressed \
-                                \u001B[38;5;208m`enter`\u001B[0m\
-                                 to enter into game mode!\
-                                
-                                Once you activate it you may proceed with your move afterwards:
-                                 row,column :"""
+                                It's your turn but you haven't yet pressed \u001B[38;5;208m`enter`\u001B[0m\
+                                 to enter into game mode! Activate and proceed to row,column :"""
                 );
             } else {
                 view.showYourTurn("It's your turn!\n `q` -> quiting \n  row,column -> move");
@@ -686,10 +689,8 @@ public class CLIController {
 
         if (!resp.success()) {
             view.showCallback("Resync attempt rejected: " + resp.message());
-            // do NOT touch username, relogCode, loggedIn, etc.
-            synchronized (resyncLock) {
-                resyncLock.notifyAll(); // wake up waiting Resync thread
-            }
+            resetSessionState();
+            wakeAllLocks();
             return;
         }
 
@@ -798,5 +799,18 @@ public class CLIController {
         notifyAllLock(rematchLock);
         notifyAllLock(inviteLock);
     }
+
+    private void wakeAllLocks() {
+        notifyAllLock(resyncLock);
+        notifyAllLock(loginLock);
+        notifyAllLock(logoutLock);
+        notifyAllLock(gameLock);
+        notifyAllLock(gameQuitLock);
+        notifyAllLock(inviteLock);
+        notifyAllLock(rematchLock);
+        notifyAllLock(resyncWastriggeredLock);
+    }
+
+
 
 }

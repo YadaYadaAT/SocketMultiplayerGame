@@ -14,6 +14,18 @@ public class CLIView {
     // Console lock to synchronize all outputs
     private final Object consoleLock = new Object();
 
+    // Emojis
+    private static final String EMO_SERVER = "🖥️";
+    private static final String EMO_ASYNC = "📨";     // async / server messages
+    private static final String EMO_CONFIRM = "✅";   // confirmation / success
+    private static final String EMO_WARN = "⚠️";      // warnings / highlights
+    private static final String EMO_LOBBY = "🧑‍🤝‍🧑"; // lobby / menu
+    private static final String EMO_GAME = "🎮";      // game board / moves
+    private static final String EMO_CONN = "🔌";      // connection events
+    private static final String EMO_LOGIN = "🔑";     // login/signup
+    private static final String EMO_STATS = "📊";   //stats
+
+
     public void show(String msg) {
         synchronized (consoleLock) {
             System.out.println(msg);
@@ -29,81 +41,79 @@ public class CLIView {
     /** --- For server callback messages (async, from on* methods) --- */
     public void showCallback(String msg) {
         synchronized (consoleLock) {
-            System.out.println("                                             " + CYAN + ">> " + msg + RESET);
+            System.out.println("                                             " + CYAN + EMO_SERVER + " >> " + msg + RESET);
         }
     }
 
     public void unsynchronizedCallback(String msg){
-        System.out.println("                                             " + CYAN + ">> " + msg + RESET);
+        System.out.println("                                             " + CYAN + EMO_SERVER + " >> " + msg + RESET);
     }
 
-    /** ---  --- */
+    public void showLobby(String msg){
+        synchronized (consoleLock) {
+            System.out.println("                                             " + CYAN + EMO_LOBBY + " >> " + msg + RESET);
+        }
+    }
+
     public void showGameStarted(String msg) {
         synchronized (consoleLock) {
-            System.out.println(">> " + msg + RESET);
+            System.out.println(" >> " + msg + RESET);
         }
     }
 
-    /** --- For your turn highlighting --- */
     public void showYourTurn(String msg) {
         synchronized (consoleLock) {
-            System.out.println(GREEN + ">> " + msg + RESET);
+            System.out.println(GREEN +  " >> " + msg + RESET);
         }
     }
 
-    /** --- For wait turn --- */
     public void showWaitTurn(String msg) {
         synchronized (consoleLock) {
-            System.out.println(CYAN + ">> " + msg + RESET);
+            System.out.println(CYAN +  " >> " + msg + RESET);
         }
     }
 
-    /** Optional: for high-priority or warning messages */
     public void showCallbackHighlight(String msg) {
         synchronized (consoleLock) {
-            System.out.println(YELLOW + ">> " + msg + RESET);
+            System.out.println(YELLOW + EMO_WARN + " >> " + msg + RESET);
         }
     }
 
-
-
-    // Login screen with choices: Login / Signup / Exit
+    // Login screen
     public void showLoginScreen() {
         synchronized (consoleLock) {
-            System.out.println("\n--- LOGIN ---");
-            System.out.println("1. Login");
-            System.out.println("2. Signup");
-            System.out.println("5. Test Connection to server");
-            System.out.println("0. Exit");
+            System.out.println("\n--- " + EMO_LOGIN + " LOGIN ---");
+            System.out.println("1. " + EMO_LOGIN + " Login");
+            System.out.println("2. " + EMO_LOGIN + " Signup");
+            System.out.println("5. " + EMO_CONN + " Test Connection to server");
+            System.out.println("0. ❌ Exit");
             System.out.print("Choice: ");
         }
     }
 
     public void showSignupPrompt() {
         synchronized (consoleLock) {
-            System.out.println("\n--- SIGNUP ---");
+            System.out.println("\n--- " + EMO_LOGIN + " SIGNUP ---");
         }
     }
-
-
 
     // Lobby menu
     public void showLobbyMenu() {
         synchronized (consoleLock) {
-            System.out.println("\n--- LOBBY MENU ---");
-            System.out.println("1. Invite Player");
-            System.out.println("2. Check Last Invite");
-            System.out.println("3. View My Stats");
-            System.out.println("4. Force-exit current game (CLI recovery)");
-            System.out.println("5. Test Connection to server");
-            System.out.println("0. Logout");
+            System.out.println("\n--- " + EMO_LOBBY + " LOBBY MENU ---");
+            System.out.println("1. " + EMO_LOBBY + " Invite Player");
+            System.out.println("2. " + EMO_LOBBY + " Check Last Invite");
+            System.out.println("3. " + EMO_STATS + " View My Stats");
+            System.out.println("4. " + EMO_GAME + " Force-exit current game (CLI recovery)");
+            System.out.println("5. " + EMO_CONN + " Test Connection to server");
+            System.out.println("0. ❌ Logout");
             System.out.print("Enter choice: ");
         }
     }
 
     public void showGameStart() {
         synchronized (consoleLock) {
-            System.out.println("\n (Game mode enabled)");
+            System.out.println("\n" + EMO_GAME + " (Game mode enabled)");
         }
     }
 
@@ -126,8 +136,8 @@ public class CLIView {
 
             System.out.println();
 
-            // Column headers – 1-based now, padded for alignment
-            System.out.print("     "); // extra space for row numbers
+            // Column headers
+            System.out.print("     ");
             for (int c = 0; c < board.cells()[0].length; c++) {
                 System.out.print(String.format("%-3d ", c + 1));
             }
@@ -142,13 +152,11 @@ public class CLIView {
             char[][] cells = board.cells();
 
             for (int r = 0; r < cells.length; r++) {
-                // Row numbers padded for alignment
                 System.out.print(String.format("%-2d |", r + 1));
                 for (int c = 0; c < cells[r].length; c++) {
                     char cell = cells[r][c];
                     String display = (cell == '\0' || cell == ' ') ? "." : String.valueOf(cell);
 
-                    // Color logic
                     if (cell == mySymbol) {
                         display = "\u001B[34m" + display + "\u001B[0m"; // blue = yours
                     } else if (cell == oppSymbol) {
@@ -167,7 +175,5 @@ public class CLIView {
             }
         }
     }
-
-
 
 }

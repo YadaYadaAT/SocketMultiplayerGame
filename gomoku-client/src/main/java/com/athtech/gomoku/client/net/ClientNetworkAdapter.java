@@ -13,7 +13,6 @@ public interface ClientNetworkAdapter {
     void onResyncFinished();
 
     void setListener(PacketListener listener);
-
     void updateCredentials(String username, String relogCode);
 
     interface PacketListener {

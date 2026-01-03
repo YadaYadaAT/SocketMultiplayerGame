@@ -16,14 +16,15 @@ public enum MatchEndReason {
     LOSS_QUIT,           // You quit
     LOSS_TIMEOUT,        // You AFK / inactive
     LOSS_DISCONNECT,     // You disconnected
-
+    WIN_INACTIVE_CLEANUP,  // Server removed match due to inactivity/timeout
+    LOSS_INACTIVE_CLEANUP,  // Corresponding loss for opponent
     // Others
     UNKNOWN;            // Fallback for safety
 
 
     // helper to check if this is a winning type
     public boolean isWinType() {
-        return this == WIN_NORMAL || this == WIN_QUIT || this == WIN_TIMEOUT || this == WIN_DISCONNECT;
+        return this == WIN_NORMAL || this == WIN_QUIT || this == WIN_TIMEOUT || this == WIN_DISCONNECT || this == WIN_INACTIVE_CLEANUP;
     }
 
     // helper to get the corresponding loss for the opponent
@@ -33,6 +34,7 @@ public enum MatchEndReason {
             case WIN_QUIT -> LOSS_QUIT;
             case WIN_TIMEOUT -> LOSS_TIMEOUT;
             case WIN_DISCONNECT -> LOSS_DISCONNECT;
+            case WIN_INACTIVE_CLEANUP -> LOSS_INACTIVE_CLEANUP;
             default -> UNKNOWN;
         };
     }
@@ -44,6 +46,7 @@ public enum MatchEndReason {
             case LOSS_QUIT -> WIN_QUIT;
             case LOSS_TIMEOUT -> WIN_TIMEOUT;
             case LOSS_DISCONNECT -> WIN_DISCONNECT;
+            case LOSS_INACTIVE_CLEANUP -> WIN_INACTIVE_CLEANUP;
             default -> UNKNOWN;
         };
     }

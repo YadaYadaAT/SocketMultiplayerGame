@@ -25,7 +25,7 @@ public class MatchController {
 
     public MatchController(ServerNetworkAdapter server, LobbyController lobbyController, PersistenceManager persistence) {
         this.lobbyController = lobbyController;
-        this.matchManager = new MatchManagerImpl(server,persistence);
+        this.matchManager = new MatchManagerImpl(server,persistence,() -> lobbyController.broadcastLobby(this) );
         this.sendToClient = server::sendToClient;
         this.persistence = persistence;
     }
@@ -37,7 +37,6 @@ public class MatchController {
         try {
             Match match = matchManager.createMatch(player1, player2);
             broadcastMatchCreate(match);
-            lobbyController.broadcastLobby(this);
         } catch (IllegalStateException e) {
             sendToClient.accept(player1, new NetPacket(PacketType.INVITE_RESPONSE, "server",
                     new InviteResponse(false, "Cannot create match, one of the players is busy")));
@@ -64,7 +63,7 @@ public class MatchController {
                     } else {
                         winnerReason = MatchEndReason.WIN_NORMAL;
                     }
-                   endMatch(match, winnerReason);
+                   endDaMatch(match, winnerReason);
                 }
             }
         }, () -> sendToClient.accept(username, new NetPacket(PacketType.MOVE_REJECTED_RESPONSE, "server",
@@ -75,7 +74,7 @@ public class MatchController {
     // -----------------------
     // Ending match
     // -----------------------
-    public void endMatch(Match match, MatchEndReason reason) {
+    public void endDaMatch(Match match, MatchEndReason reason) {
         if (!match.markEnded()) return;
 
         persistence.recordMatchResult(match.getPlayer1(), match.getPlayer2(), match.isDraw(), match.getWinner());
@@ -84,7 +83,6 @@ public class MatchController {
         sendUpdatedStats(match.getPlayer2());
 
         broadcastMatchEnd(match, reason);
-        lobbyController.broadcastLobby(this);
     }
 
     public boolean handleGameQuit(String quitter) {
@@ -109,7 +107,6 @@ public class MatchController {
                 // Use per-player enum
                 MatchEndReason winnerReason = MatchEndReason.WIN_QUIT;
                 matchManager.handleForcedEnd(impl, opponent, winnerReason);
-                lobbyController.broadcastLobby(this);
             }
             return true;
         }).orElse(false);
@@ -181,7 +178,9 @@ public class MatchController {
                 match.declineRematch(username);
                 sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                         new RematchResponse(false, "You declined rematch")));
+
                 sendMatchSessionEndResponseToPlayer(username, false);
+
             } else {
                 try {
                     match.requestRematch(username);
@@ -190,7 +189,9 @@ public class MatchController {
                 } catch (IllegalStateException e) {
                     sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                             new RematchResponse(false, e.getMessage())));
+
                     sendMatchSessionEndResponseToPlayer(username,false);
+
                     if (match.getMatchPlayers().isEmpty()) matchManager.endMatch(match.getMatchId());//remove match if empty of players
                     return;
                 }

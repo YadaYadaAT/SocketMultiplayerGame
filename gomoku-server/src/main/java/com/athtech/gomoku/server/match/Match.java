@@ -14,6 +14,7 @@ public interface Match {
     RematchVote getRematchOutcome();
     String getOpponent(String player);
 //    void markUnavailable(String player);
+    void playerDisconnected(String player);
     String getMatchId();
     String getPlayer1();
     String getPlayer2();

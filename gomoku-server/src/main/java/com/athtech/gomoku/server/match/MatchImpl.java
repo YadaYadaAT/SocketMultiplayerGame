@@ -71,11 +71,7 @@ public class MatchImpl implements Match {
     // =================== TIMERS ===================
     // ─────────────────────────────────────────────
 
-    /**
-     * Checks if the current player has been inactive for the soft AFK period
-     * Sends a warning to the player if applicable
-     * @param notifier BiConsumer used to send warning messages to clients
-     */
+
     public synchronized void checkSoftTimeout(BiConsumer<String, String> notifier) {
         if (ended) return;
 
@@ -168,7 +164,7 @@ public class MatchImpl implements Match {
         return finalized;
     }
 
-
+    @Override
     public synchronized void playerDisconnected(String player) {
         if (!matchPlayers.contains(player)) return;
         isPlayerConnected.put(player, false);

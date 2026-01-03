@@ -22,7 +22,7 @@ public class LobbyController {
 
     public void userLoggedIn(String username, String clientId) {
         loggedInClients.put(username, clientId);
-        System.out.println("[Lobby] User logged in: " + username + " (clientId=" + clientId + ")");
+        System.out.println("\uD83E\uDDD1\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1 [Lobby] User logged in: " + username + " (clientId=" + clientId + ")");
     }
 
     public boolean isUserLoggedIn(String username) {
@@ -50,13 +50,13 @@ public class LobbyController {
 
     public void userLoggedOut(String username) {
         loggedInClients.remove(username);
-        System.out.println("[Lobby] User logged out: " + username);
+        System.out.println("\uD83E\uDDD1\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1 [Lobby] User logged out: " + username);
     }
 
     public void broadcastLobby(MatchController matchController) {
         Map<String, Boolean> lobby = getLobbySnapshot(matchController);
 
-        System.out.println("[Lobby] Broadcasting lobby (" + lobby.size() + " users)");
+        System.out.println("\uD83E\uDDD1\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1 [Lobby] Broadcasting lobby (" + lobby.size() + " users)");
 
         broadcastToLoggedIn.accept(
                 new NetPacket(

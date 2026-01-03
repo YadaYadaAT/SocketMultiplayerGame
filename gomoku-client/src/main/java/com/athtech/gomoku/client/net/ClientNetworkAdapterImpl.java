@@ -30,8 +30,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     private volatile boolean listening = false;
 
     private volatile NetState netState = NetState.DEAD;
-
-
+    private Thread reconnectSpinner;
 
     public ClientNetworkAdapterImpl(String host, int port) {
         this.host = host;
@@ -91,11 +90,14 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         synchronized (ioLock) {
             if (netState == NetState.RECONNECTING) return;
             netState = NetState.RECONNECTING;
+
             stopListenThread();
             disconnectInternal();
 
         }
 
+
+        startReconnectSpinner();
         new Thread(this::reconnectLoop, "ClientNetworkAdapter-Reconnect").start();
     }
 
@@ -127,40 +129,31 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     }
 
     private void reconnectLoop() {
-        int attempts = 0;
-        final int MAX_ATTEMPTS = 10;
 
-        while (attempts < MAX_ATTEMPTS) {
-            attempts++;
+        while (true) {
             try {
-                Thread.sleep(500);
+                Thread.sleep(1000);
 
                 synchronized (ioLock) {
-                    if(netState == NetState.CONNECTED) {
-                        ioLock.notifyAll();
-                        return;
-                    }
-                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
                     openSocket();
                     startListenThread();
                     netState = NetState.CONNECTED;
+                    stopReconnectSpinnerSuccess();
                     System.out.println("Reconnected successfully.");
-                    if (pendingUsername != null && pendingRelogCode !=null){
+
+                    if (pendingUsername != null && pendingRelogCode != null) {
                         resyncRequested = true;
                         tryExecuteResync();
                     }
+
                     ioLock.notifyAll();
                     return;
                 }
-
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                // just keep looping
+            }
         }
 
-        synchronized (ioLock) {
-            netState = NetState.DEAD;
-            ioLock.notifyAll();
-        }
-        System.err.println("Failed to reconnect after " + MAX_ATTEMPTS + " attempts.");
     }
 
     private void startListenThread() {
@@ -251,6 +244,35 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
             netState = NetState.DEAD;
             ioLock.notifyAll();
         }
+    }
+
+
+    private void startReconnectSpinner() {
+        reconnectSpinner = new Thread(() -> {
+            char[] spinner = {'|', '/', '-', '\\'};
+            int i = 0;
+
+            System.out.print("Reconnecting 🔄 ");
+
+            while (netState == NetState.RECONNECTING) {
+                System.out.print("\rReconnecting 🔄 " + spinner[i++ % spinner.length]);
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException ignored) {
+                    return;
+                }
+            }
+        }, "Reconnect-Spinner");
+
+        reconnectSpinner.setDaemon(true);
+        reconnectSpinner.start();
+    }
+
+    private void stopReconnectSpinnerSuccess() {
+        if (reconnectSpinner != null) {
+            reconnectSpinner.interrupt();
+        }
+        System.out.print("\rReconnected ✓                     \n");
     }
 
 

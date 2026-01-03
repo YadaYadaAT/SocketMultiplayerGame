@@ -20,7 +20,7 @@ public class ServerNetworkAdapter {
     private final Map<String, ClientHandler> connectedClients = new ConcurrentHashMap<>();
     //username -clientID
     private final Map<String, String> loggedInClients = new ConcurrentHashMap<>();
-    private final long INACTIVITY_LIMIT_MS = 3 * 60 * 1000; // 3 min (was set low for reviewer testing)
+    private final long INACTIVITY_LIMIT_MS = 1 * 60 * 1000; // 3 min (was set low for reviewer testing)
     private final PersistenceManager persistenceManager;
     private final LobbyController lobbyController;
     private final MatchController matchController;
@@ -39,7 +39,7 @@ public class ServerNetworkAdapter {
     public void startServer(int port) {
         try {
             srvSocket = new ServerSocket(port);
-            System.out.println("[Server] Started and listening on port " + port);
+            System.out.println("\uD83D\uDDA5\uFE0F [Server] Started and listening on port " + port);
             startInactivityChecker();
             new Thread(this::acceptLoop).start();
         } catch (IOException e) {
@@ -52,7 +52,7 @@ public class ServerNetworkAdapter {
             try {
                 Socket clientSocket = srvSocket.accept();
                 clientSocket.setKeepAlive(true);
-                System.out.println("[Server] New client connection from " + clientSocket.getRemoteSocketAddress());
+                System.out.println("\uD83D\uDDA5\uFE0F [Server] New client connection from " + clientSocket.getRemoteSocketAddress());
                 ClientHandler handler = new ClientHandler(
                         clientSocket,
                         this,
@@ -63,7 +63,7 @@ public class ServerNetworkAdapter {
                 new Thread(handler).start();
                 registerClientConnection(handler.getClientId(), handler);
             } catch (IOException e) {
-                System.err.println("[Server] Client connection failed: " + e.getMessage());
+                System.err.println("\uD83D\uDDA5\uFE0F [Server] Client connection failed: " + e.getMessage());
             }
         }
     }
@@ -74,7 +74,7 @@ public class ServerNetworkAdapter {
 
         ClientHandler oldHandler = connectedClients.get(oldClientId);
         if (oldHandler != null) {
-            System.out.println("[Server] Forcing disconnect of previous session for user: " + username +
+            System.out.println("\uD83D\uDDA5\uFE0F [Server] Forcing disconnect of previous session for user: " + username +
                     " (clientId=" + oldClientId + ")");
             oldHandler.close();
         }
@@ -82,12 +82,12 @@ public class ServerNetworkAdapter {
 
     public void registerClientConnection(String clientId, ClientHandler handler) {
         connectedClients.put(clientId, handler);
-        System.out.println("[Server] Client registered: " + clientId);
+        System.out.println("\uD83D\uDDA5\uFE0F [Server] Client registered: " + clientId);
     }
 
     public void unregisterClientConnection(String clientId) {
         connectedClients.remove(clientId);
-        System.out.println("[Server] Client unregistered: " + clientId);
+        System.out.println("\uD83D\uDDA5\uFE0F [Server] Client unregistered: " + clientId);
     }
 
     public void sendToClient(String username, NetPacket packet) {
@@ -112,14 +112,14 @@ public class ServerNetworkAdapter {
         new Thread(() -> {
             while (true) {
                 try {
-                    System.out.println("[Server] start inactivity checker started");
-                    Thread.sleep(1 * 30 * 1000); // every half minute ,(was set low for reviewer testing)
-                    System.out.println("[Server] start inactivity checker triggerred");
+                    System.out.println("⏱\uFE0F [InactivityChecker] Inactivity checker put to sleep");
+                    Thread.sleep( 4* 60 * 1000); // (was set low for reviewer testing)
+                    System.out.println("⏱\uFE0F [InactivityChecker] Inactivity checker started scanning");
                     long now = System.currentTimeMillis();
 
                     for (ClientHandler client : connectedClients.values()) {
                         if (now - client.getLastActivity() > INACTIVITY_LIMIT_MS) {
-                            System.out.println("[Server] Disconnecting inactive client: " + client.getUsername());
+                            System.out.println("⏱\uFE0F [InactivityChecker] Disconnecting inactive client: " + client.getUsername());
 
                             // send info packet
                             client.sendPacket(new NetPacket(
@@ -131,6 +131,7 @@ public class ServerNetworkAdapter {
                             client.close(); // triggers cleanup in finally block of ClientHandler.run()
                         }
                     }
+
                 } catch (InterruptedException ignored) {}
             }
         }, "InactivityChecker").start();
