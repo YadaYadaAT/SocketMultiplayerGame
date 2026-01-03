@@ -20,12 +20,14 @@ public class CLIController {
     private volatile boolean sessionClosing = false; //during logout
     private volatile boolean forceExitGame = false;
 
-
+    private volatile boolean rematchTriggered = false;
     private volatile long lastServerActivity = System.currentTimeMillis();
     //turns true after resync, altough lobby returns with "resync response" there can be a timing issue and miss someone log
     private volatile boolean resyncWasTriggered = false;//because of broadcast triggered by users user might be out of sync
                                                             // till anyone in lobby trigger a broadcast (login,logout,gameIn/out)
-    private String username;                                //rare case in big lobbies...
+                                                            //rare case in big lobbies...
+    private String username;
+
     private String nickname;
     private String relogCode;
     private final Map<String, Boolean> lobbyPlayers = new LinkedHashMap<>();
@@ -485,29 +487,49 @@ public class CLIController {
     }
 
     private void onGameStartResponse(NetPacket packet) {
-        view.showGameStarted("Ignore Lobby Menu! Game started!");
+
 
         GameStateResponse gs = (GameStateResponse) packet.payload();
-        view.showBoard(gs.board(),username, gs.player1());
+        view.showBoard(gs.board(), username, gs.player1());
 
-        if (gs.currentPlayer().equals(username)) {
+        boolean yourTurn = gs.currentPlayer().equals(username);
+
+
+
+        // Fake "press enter" workaround – only on first game
+        if (!rematchTriggered) {
+            view.showGameStarted("Ignore lobby menu the game started!!! Good luck have fun \uD83D\uDE08");
+        }else{
+            view.showGameStarted("Game started!");
+        }
+
+        if (yourTurn) {
             view.showYourTurn(
                     """
-                            At the start of the game players need to press \
-                            \u001B[38;5;208m`enter`\u001B[0m\
-                             once to enter into the game mode!\
-                            \s ('q' for leaving the game, leaving a game counts as defeat)
-                             It's also your turn so afterwards enter your move:
-                             row,column :"""
+                    It's your turn!
+                    Enter your move as: row,column
+                    ('q' to quit — quitting counts as a defeat)
+                    """
             );
         } else {
             view.showWaitTurn(
-                    "Press "
-                            + "\u001B[38;5;208m`enter`\u001B[0m"
-                            + " once to enter into the gaming mode"
-                            + "\n \n wait since it's your opponent's turn..."
+                    """
+                    Waiting for opponent's move...
+                    ('q' to quit — quitting counts as a defeat)
+                    """
             );
         }
+
+        if (!rematchTriggered) {
+            view.show(
+                    "Press " +
+                            "\u001B[38;5;208m`enter`\u001B[0m" +
+                            " once to enter game mode"
+            );
+        }
+
+        // Rematch no longer needs the workaround
+        rematchTriggered = false;
 
         inGame = !gs.gameOver();
         notifyAllLock(gameLock);
@@ -595,8 +617,10 @@ public class CLIController {
         MatchSessionEndedResponse resp = (MatchSessionEndedResponse) packet.payload();
         if (resp !=null && resp.isRematchOn()){
             view.showCallback("Get Ready for the rematch");
+            rematchTriggered = true;
             inGame = true;
         }else{
+            rematchTriggered = false;
             inGame = false;
         }
 

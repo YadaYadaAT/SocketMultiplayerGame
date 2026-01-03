@@ -250,7 +250,7 @@ public class PacketDispatcher {
                 "server",
                 new ResyncResponse(
                         true,
-                        "Re synced : Welcome back " + req.username() + " successfully resynced with  relogcode: " + relogCode,
+                        "Re synced : Welcome back " + req.username(),
                         new LobbyPlayersResponse(lobbyPlayers),
                         stats,
                         pendingInvites,
