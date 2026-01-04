@@ -140,7 +140,6 @@ public class PacketDispatcher {
         });
 
         lobbyController.userLoggedIn(username, client.getClientId());
-        lobbyController.broadcastLobby(matchController);
     }
 
 
@@ -204,7 +203,6 @@ public class PacketDispatcher {
             client.sendPacket(new NetPacket(PacketType.LOGOUT_RESPONSE, "server",
                     new LogoutResponse(true, "Logged out successfully.")));
             client.setUsername(null);
-            lobbyController.broadcastLobby(matchController);
         }
     }
 

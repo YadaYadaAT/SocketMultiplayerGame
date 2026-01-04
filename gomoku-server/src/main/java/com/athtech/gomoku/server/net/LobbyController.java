@@ -13,11 +13,47 @@ public class LobbyController {
     // logged-in users: <username, clientId>
     private final Map<String, String> loggedInClients ;
     private final Consumer<NetPacket> broadcastToLoggedIn;
+    private MatchController matchController;
+    Map<String, Boolean> lastSnapshot;
+    private static final long TICK_MS = 1000;
 
     public LobbyController(Map<String, String> loggedInClients, Collection<ClientHandler> connectedClients,
                            Consumer<NetPacket> broadcastToLoggedIn) {
         this.loggedInClients = loggedInClients;
         this.broadcastToLoggedIn = broadcastToLoggedIn;
+        startLobbyThread();
+    }
+
+    private void startLobbyThread() {
+        Thread t = new Thread(() -> {
+            while (true) {
+                try {
+                    tick();
+                    Thread.sleep(TICK_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, "lobby-thread");
+
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void tick() {
+        Map<String, Boolean> snapshot = new LinkedHashMap<>();
+
+        synchronized (loggedInClients) {
+            for (String user : loggedInClients.keySet()) {
+                snapshot.put(user, matchController.isPlayerInGame(user));
+            }
+        }
+
+        if (!snapshot.equals(lastSnapshot)) {
+            lastSnapshot = snapshot;
+            broadcastLobby(matchController);
+        }
     }
 
     public void userLoggedIn(String username, String clientId) {
@@ -65,5 +101,9 @@ public class LobbyController {
                         new LobbyPlayersResponse(lobby)
                 )
         );
+    }
+
+    public void setMatchController (MatchController controller){
+        this.matchController = controller;
     }
 }

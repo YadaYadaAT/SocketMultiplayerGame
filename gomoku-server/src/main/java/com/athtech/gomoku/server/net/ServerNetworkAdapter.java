@@ -33,7 +33,7 @@ public class ServerNetworkAdapter {
                 this::broadcastToLobby
         );
         this.matchController = new MatchController(this, lobbyController, persistenceManager);
-
+        lobbyController.setMatchController(matchController);
     }
 
     public void startServer(int port) {
