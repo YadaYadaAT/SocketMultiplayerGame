@@ -73,14 +73,12 @@ public class PacketDispatcher {
          GameStateResponse game = matchController.getCurrentGame(client.getUsername());
              if (game == null){
                  client.sendPacket(new NetPacket(PacketType.GAME_QUIT_RESPONSE,"server",
-                         new GameQuitResponse(false)));
-                 client.sendPacket(new NetPacket(PacketType.INFO_RESPONSE,"server",
-                         new InfoResponse("You were not part of any active game")));
+                         new GameQuitResponse(false,true,"You are not participating in any game")));
                  return;
              }
         }
         boolean success = matchController.handleGameQuit(client.getUsername());
-        client.sendPacket(new NetPacket(PacketType.GAME_QUIT_RESPONSE,"server",new GameQuitResponse(success)));
+        client.sendPacket(new NetPacket(PacketType.GAME_QUIT_RESPONSE,"server",new GameQuitResponse(success,false,"")));
     }
 
     private void handleLogin(ClientHandler client, NetPacket packet) {

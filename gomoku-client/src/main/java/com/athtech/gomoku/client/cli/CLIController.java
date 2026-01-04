@@ -731,10 +731,12 @@ public class CLIController {
     }
 
     private void onGameQuitResponse(NetPacket packet) {
-
-        view.showCallback("You quit the game.");
-
-
+        GameQuitResponse gameQuitResponse = (GameQuitResponse)  packet.payload();
+        if (gameQuitResponse.wasItUnstuckProcess()){
+            view.showCallback(gameQuitResponse.msg());
+            notifyAllLock(gameQuitLock);
+            return;
+        }
         inGame = false;
         rematchPhase = false;
         gameStartingPromptConsumsed = false;
