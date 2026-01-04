@@ -24,7 +24,7 @@ public class MatchImpl implements Match {
     private volatile boolean finalized = false; // once true, no reconnections allowed
     private final Set<String> matchPlayers = Collections.synchronizedSet(new HashSet<>()); // Currently participating players
     private final Map<String, RematchVote> rematchVotes = Collections.synchronizedMap(new HashMap<>()); // Tracks rematch votes
-    private final Map<String, RematchVote> midGameAsyncRematchVotes = Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, Boolean> midGameAsyncRematchVotes = Collections.synchronizedMap(new HashMap<>());
     private boolean ended = false;         // Flag indicating if the match has ended
 
     // ─────────────────────────────────────────────
@@ -59,8 +59,8 @@ public class MatchImpl implements Match {
         rematchVotes.put(player1, RematchVote.PENDING);
         rematchVotes.put(player2, RematchVote.PENDING);
 
-        midGameAsyncRematchVotes.put(player1, RematchVote.PENDING);
-        midGameAsyncRematchVotes.put(player2, RematchVote.PENDING);
+        midGameAsyncRematchVotes.put(player1, false);
+        midGameAsyncRematchVotes.put(player2, false);
 
         lastMoveTime = System.currentTimeMillis();
         lastConnectionTime.put(player1, System.currentTimeMillis());
@@ -199,7 +199,7 @@ public class MatchImpl implements Match {
     }
 
     @Override
-    public Map<String, RematchVote> getMidGameAsyncRematchVotes() {
+    public Map<String, Boolean> getMidGameAsyncRematchVotes() {
         return midGameAsyncRematchVotes;
     }
 
@@ -313,7 +313,7 @@ public class MatchImpl implements Match {
                     "we do not even have different type of exceptions...");
         }
 
-        if (game.isGameOver()){
+        if (isEnded()){
                 String opponent = rematchVotes.keySet().stream()
                         .filter(p -> !p.equals(player))
                         .findFirst()
@@ -342,20 +342,15 @@ public class MatchImpl implements Match {
                     .orElse(null);
             if (!isPlayerConnected.get(opponent)){
                 System.out.println("");
-                matchPlayers.remove(player);
-                onPlayerRemoved.accept(player);
                 throw new IllegalStateException("Cannot rematch with disconnected opponent");
             }
 
-            if (opponent == null || midGameAsyncRematchVotes.get(opponent) == RematchVote.DECLINED
-                    || midGameAsyncRematchVotes.get(opponent) == RematchVote.UNAVAILABLE) {
+            if (opponent == null) {
                 System.out.println("");
-                matchPlayers.remove(player);
-                onPlayerRemoved.accept(player);
-                throw new IllegalStateException("Rematch unavailable or declined");
+                throw new IllegalStateException("We cant find your opponent, Rematch unavailable");
             }
 
-            midGameAsyncRematchVotes.put(player, RematchVote.ACCEPTED);
+            midGameAsyncRematchVotes.put(player, true);
         }
 
     }
@@ -369,13 +364,13 @@ public class MatchImpl implements Match {
             rematchVotes.put(player, RematchVote.DECLINED);
             matchPlayers.remove(player);
             onPlayerRemoved.accept(player);
-
-
-        }else{
-
-
+        }else{//migame...
+            if (!matchPlayers.contains(player)) {
+                throw new IllegalStateException("you declined a rematch that you are not in;" +
+                        " you break logic or our code is broken :P");
+            }
+            midGameAsyncRematchVotes.put(player,false);
         }
-
 
     }
 
@@ -389,7 +384,7 @@ public class MatchImpl implements Match {
         }else{
             return midGameAsyncRematchVotes.size() == 2 &&
                     midGameAsyncRematchVotes.values().stream()
-                            .allMatch(v -> v == RematchVote.ACCEPTED);
+                            .allMatch(v -> v);
         }
 
     }
@@ -441,12 +436,6 @@ public class MatchImpl implements Match {
         if (rematchVotes.values().contains(RematchVote.UNAVAILABLE))
             return RematchVote.UNAVAILABLE;
         return null;
-    }
-
-
-    @Override
-    public synchronized void resetRematchRequests() {
-        rematchVotes.replaceAll((k, v) -> RematchVote.PENDING);
     }
 
     public long getLastMoveTime() {

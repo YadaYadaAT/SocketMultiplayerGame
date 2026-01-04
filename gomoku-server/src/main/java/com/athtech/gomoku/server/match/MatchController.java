@@ -75,14 +75,12 @@ public class MatchController {
     // Ending match
     // -----------------------
     public void endDaMatch(Match match, MatchEndReason reason) {
-        if (!match.markEnded()) return;
-
+        match.markEnded();
         persistence.recordMatchResult(match.getPlayer1(), match.getPlayer2(), match.isDraw(), match.getWinner());
-
         sendUpdatedStats(match.getPlayer1());
         sendUpdatedStats(match.getPlayer2());
-
         broadcastMatchEnd(match, reason);
+
     }
 
     public boolean handleGameQuit(String quitter) {
@@ -175,23 +173,39 @@ public class MatchController {
     public synchronized void sendRematchRequest(String username, boolean consent) {
         matchManager.getEndedMatchByPlayer(username).ifPresent(match -> {
             if (!consent) {
-                handleRematchDecline(username,match);
+                try{
+                    handleRematchDecline(username,match);
+                }catch (IllegalStateException e){
+                    if (match.isEnded()) {
+                        //empty so far case of throw on decline at the game end rematch
+                    }else{//midgame rematch decline throw exceptions.
+                        sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                new RematchResponse(true, e.getMessage())));
+                    }
+                }
+
             } else {
                 try{
                     handleRematchAccept(username,match);
                 }catch (IllegalStateException e) {
-                    sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                            new RematchResponse(false, e.getMessage())));
+
                     if (match.isEnded()) {
+                        sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                new RematchResponse(false, e.getMessage())));
                         sendMatchSessionEndResponseToPlayer(username, false);
+                    }else{
+                        sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                new RematchResponse(true, e.getMessage())));
                     }
+
+
                     if (match.getMatchPlayers().isEmpty()) matchManager.endMatch(match.getMatchId());//remove match if empty of players
                     return;
                 }
 
             }
 
-            if (match.isRematchReady()) { //todo: we do not persist rematches for now ...
+            if (match.isRematchReady()) {
                 handleRematchReady(match);
             }
 
@@ -205,9 +219,7 @@ public class MatchController {
             sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                     new RematchResponse(false, "You declined rematch")));
             sendMatchSessionEndResponseToPlayer(username, false);
-            String opponent = match.getRematchVoteOpponent(username);
-            System.out.println(" Opponent vote(" + opponent + ") is " + match.getRematchVotes().get(opponent));
-
+            var opponent = match.getRematchVoteOpponent(username);
             if ( match.getRematchVotes().get(opponent) == RematchVote.ACCEPTED  ){
                 sendToClient.accept(opponent, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                         new RematchResponse(false, "Rematch wasn't accepted")));
@@ -215,9 +227,13 @@ public class MatchController {
                 matchManager.endMatch(match.getMatchId());
             }
 
-        }else{
+        }else{//midGame rematch toggle off
             sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                    new RematchResponse(false, "You declined midgame rematch")));
+                    new RematchResponse(true, "You have set midgame rematch request off")));
+            var opponent = match.getmidGameAsyncRematchVotesOpponent(username);
+            sendToClient.accept(opponent, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                    new RematchResponse(true, "Opponent set midgame rematch request off")));
+
         }
     }
 
@@ -225,11 +241,25 @@ public class MatchController {
             match.requestRematch(username);
             if (match.isEnded()) {
                 sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(true, "Rematch request recorded")));
+                        new RematchResponse(false, "Rematch request recorded")));
 
             }else{
-                sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(true, "Midgame rematch request recorded")));
+                // ───── mid-game intent ON ─────
+                sendToClient.accept(username, new NetPacket(
+                        PacketType.REMATCH_RESPONSE,
+                        "server",
+                        new RematchResponse( true, "Rematch intent set")
+                ));
+
+                //  notify opponent ONLY if they haven't opted in yet
+                String opponent = match.getmidGameAsyncRematchVotesOpponent(username);
+                if (opponent != null && !match.getMidGameAsyncRematchVotes().get(opponent)) {
+                    sendToClient.accept(opponent, new NetPacket(
+                            PacketType.REMATCH_RESPONSE,
+                            "server",
+                            new RematchResponse(true, "Opponent rematch is on ")
+                    ));
+                }
             }
 
 
@@ -250,7 +280,11 @@ public class MatchController {
             if (match.isEnded()){
                 sendMatchSessionEndResponseToPlayers(p1, p2, false);
             }
+
+
         }
+
+
     }
 
     private void sendMatchSessionEndResponseToPlayers(String p1 , String p2, boolean isRematchOn){
@@ -302,7 +336,11 @@ public class MatchController {
         MatchEndReason p2Reason;
 
         if (draw) {
-            p1Reason = p2Reason = MatchEndReason.DRAW;
+            if (endReason == MatchEndReason.MID_GAME_REMATCH){
+                p1Reason = p2Reason = MatchEndReason.MID_GAME_REMATCH;
+            }else{
+                p1Reason = p2Reason = MatchEndReason.DRAW;
+            }
         } else if (winner.equals(match.getPlayer1())) {
             p1Reason = endReason.isWinType() ? endReason : MatchEndReason.WIN_NORMAL;
             p2Reason = endReason.correspondingLoss();

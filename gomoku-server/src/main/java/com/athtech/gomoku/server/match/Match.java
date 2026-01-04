@@ -9,9 +9,8 @@ import java.util.Set;
 public interface Match {
     void requestRematch(String player);
     Map<String, RematchVote> getRematchVotes();
-    Map<String, RematchVote> getMidGameAsyncRematchVotes();
+    Map<String, Boolean> getMidGameAsyncRematchVotes();
     boolean isRematchReady();
-    void resetRematchRequests();
     void declineRematch(String player);
     Set<String> getMatchPlayers();
     RematchVote getRematchOutcome();

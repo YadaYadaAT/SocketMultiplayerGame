@@ -4,6 +4,7 @@ import com.athtech.gomoku.client.net.ClientNetworkAdapter;
 import com.athtech.gomoku.client.net.ClientNetworkAdapterImpl;
 import com.athtech.gomoku.client.net.NetState;
 import com.athtech.gomoku.client.net.NetworkLifecycleListener;
+import com.athtech.gomoku.protocol.messaging.MatchEndReason;
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
 import com.athtech.gomoku.protocol.payload.*;
@@ -573,19 +574,25 @@ public class CLIController {
 
     private void onGameEndResponse(NetPacket packet) {
         GameEndResponse end = (GameEndResponse) packet.payload();
+        if (end.reason() == MatchEndReason.MID_GAME_REMATCH){
 
-        // Update session flags
-        inGame = false;
-        rematchPhase = true;
+        }else{
+            //Not interuppted by midgame rematch :
+            // Update session flags
+            inGame = false;
+            rematchPhase = true;
 
-        // Display final board if available
-        if (end.finalBoard() != null) {
-            view.showBoard(end.finalBoard(),username, end.player1());
+            // Display final board if available
+            if (end.finalBoard() != null) {
+                view.showBoard(end.finalBoard(),username, end.player1());
+            }
         }
+
 
         // Show outcome based on MatchEndReason
         String outcomeMsg;
         switch (end.reason()) {
+            case MID_GAME_REMATCH -> outcomeMsg = "Good luck at your rematch!";
             case WIN_NORMAL -> outcomeMsg = "You won! 🎉";
             case WIN_QUIT -> outcomeMsg = "Opponent quit the game. You win by default! (Press enter to continue)";
             case WIN_TIMEOUT -> outcomeMsg = "Opponent was AFK. You win! (Press enter to continue)";
@@ -598,18 +605,21 @@ public class CLIController {
             case UNKNOWN -> outcomeMsg = "Game ended unexpectedly.";
             default -> outcomeMsg = "Game ended.";
         }
-
         view.showCallbackHighlight(outcomeMsg);
-        if(stateIndicator == CLIstateIndicatorHelper.LOBBY_LOOP){
-            view.showLobbyMenu();
-        }
 
+
+        if (!(end.reason() == MatchEndReason.MID_GAME_REMATCH)) {
+            if (stateIndicator == CLIstateIndicatorHelper.LOBBY_LOOP) {
+                view.showLobbyMenu();
+            }
+        }
 
         try {
             Thread.sleep(300);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+
         notifyAllLock(gameLock);
     }
 
