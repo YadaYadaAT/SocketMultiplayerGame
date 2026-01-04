@@ -503,15 +503,9 @@ public class CLIController {
     }
 
     private void onGameStartResponse(NetPacket packet) {
-
-
         GameStateResponse gs = (GameStateResponse) packet.payload();
         view.showBoard(gs.board(), username, gs.player1());
-
         boolean yourTurn = gs.currentPlayer().equals(username);
-
-
-
         // Fake "press enter" workaround – only on first game
         if (!rematchTriggered) {
             view.showGameStarted(
@@ -521,7 +515,6 @@ public class CLIController {
         }else{
             view.showGameStarted("Game started!");
         }
-
         if (yourTurn) {
             view.showYourTurn(
                     """
@@ -536,7 +529,6 @@ public class CLIController {
                     """
             );
         }
-
         if (!rematchTriggered) {
             view.show(
                     "Press " +

@@ -172,44 +172,76 @@ public class MatchController {
         return invites.stream().map(InviteNotificationResponse::new).toArray(InviteNotificationResponse[]::new);
     }
 
-    public void sendRematchRequest(String username, boolean consent) {
+    public synchronized void sendRematchRequest(String username, boolean consent) {
         matchManager.getEndedMatchByPlayer(username).ifPresent(match -> {
-            if (!consent) {
-                match.declineRematch(username);
-                sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(false, "You declined rematch")));
 
-                sendMatchSessionEndResponseToPlayer(username, false);
 
-            } else {
-                try {
-                    match.requestRematch(username);
-                    sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                            new RematchResponse(true, "Rematch request recorded")));
-                } catch (IllegalStateException e) {
-                    sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                            new RematchResponse(false, e.getMessage())));
+                    if (!consent) {
+                        match.declineRematch(username);
 
-                    sendMatchSessionEndResponseToPlayer(username,false);
+                            if (match.isEnded()) {
+                            sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                    new RematchResponse(false, "You declined rematch")));
 
-                    if (match.getMatchPlayers().isEmpty()) matchManager.endMatch(match.getMatchId());//remove match if empty of players
-                    return;
-                }
-            }
+                                sendMatchSessionEndResponseToPlayer(username, false);
+                            }else{
+                                sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                        new RematchResponse(false, "You declined midgame rematch")));
+                            }
 
-            if (match.isRematchReady()) {
+                    } else {
+                        try {
+                            match.requestRematch(username);
+
+                                if (match.isEnded()) {
+                                    sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                            new RematchResponse(true, "Rematch request recorded")));
+                                }else{
+                                    sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                            new RematchResponse(true, "Midgame rematch request recorded")));
+                                }
+
+                        } catch (IllegalStateException e) {
+
+
+                            sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                    new RematchResponse(false, e.getMessage())));
+                                if (match.isEnded()) {
+                                sendMatchSessionEndResponseToPlayer(username, false);
+                                }
+                            if (match.getMatchPlayers().isEmpty()) matchManager.endMatch(match.getMatchId());//remove match if empty of players
+                            return;
+                        }
+                    }
+
+
+            if (match.isRematchReady()) { //todo: we do not persist rematches for now ...
                 String p1 = match.getPlayer1();
                 String p2 = match.getPlayer2();
+
                 try {
                     matchManager.endMatch(match.getMatchId());
                     Match newMatch = matchManager.createMatch(p1, p2);
-                    sendMatchSessionEndResponseToPlayers(p1, p2, true);
+                    if (match.isEnded()){
+                        sendMatchSessionEndResponseToPlayers(p1, p2, true);
+                    }
+
                     broadcastMatchCreate(newMatch);
                 } catch (IllegalStateException e) {
+                    if (match.isEnded()){
                     sendMatchSessionEndResponseToPlayers(p1, p2, false);
+                    }
                 }
+
+
             }
+
+
+
         });
+
+
+
     }
 
     private void sendMatchSessionEndResponseToPlayers(String p1 , String p2, boolean isRematchOn){
