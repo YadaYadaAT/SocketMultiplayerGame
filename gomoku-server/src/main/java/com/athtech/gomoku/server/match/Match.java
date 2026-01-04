@@ -3,10 +3,13 @@ package com.athtech.gomoku.server.match;
 import com.athtech.gomoku.protocol.payload.GameStateResponse;
 import com.athtech.gomoku.protocol.payload.MoveRequest;
 
+import java.util.Map;
 import java.util.Set;
 
 public interface Match {
     void requestRematch(String player);
+    Map<String, RematchVote> getRematchVotes();
+    Map<String, RematchVote> getMidGameAsyncRematchVotes();
     boolean isRematchReady();
     void resetRematchRequests();
     void declineRematch(String player);
@@ -30,4 +33,6 @@ public interface Match {
 //    void touch();
 //    boolean isInactive(long timeoutMs);
     boolean isEnded();
+    String getmidGameAsyncRematchVotesOpponent(String player);
+    String getRematchVoteOpponent(String player);
 }

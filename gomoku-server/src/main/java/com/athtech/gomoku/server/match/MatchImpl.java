@@ -43,6 +43,7 @@ public class MatchImpl implements Match {
 
 
 
+
     // ─────────────────────────────────────────────
     // Constructor
     // ─────────────────────────────────────────────
@@ -192,6 +193,15 @@ public class MatchImpl implements Match {
         return ok;
     }
 
+    @Override
+    public Map<String, RematchVote> getRematchVotes() {
+        return rematchVotes;
+    }
+
+    @Override
+    public Map<String, RematchVote> getMidGameAsyncRematchVotes() {
+        return midGameAsyncRematchVotes;
+    }
 
     @Override
     public boolean isFinished() {
@@ -308,6 +318,7 @@ public class MatchImpl implements Match {
                         .filter(p -> !p.equals(player))
                         .findFirst()
                         .orElse(null);
+
                 if (!isPlayerConnected.get(opponent)){
                     matchPlayers.remove(player);
                     onPlayerRemoved.accept(player);
@@ -322,6 +333,7 @@ public class MatchImpl implements Match {
                 }
 
                 rematchVotes.put(player, RematchVote.ACCEPTED);
+            System.out.println( player + "  vote is "  + rematchVotes.get(player));
 
         }else{
             var opponent = midGameAsyncRematchVotes.keySet().stream()
@@ -357,6 +369,8 @@ public class MatchImpl implements Match {
             rematchVotes.put(player, RematchVote.DECLINED);
             matchPlayers.remove(player);
             onPlayerRemoved.accept(player);
+
+
         }else{
 
 
@@ -383,10 +397,41 @@ public class MatchImpl implements Match {
     @Override
     public synchronized String getOpponent(String player) {
         if (!matchPlayers.contains(player)) return null;
-        for (String p : matchPlayers) {
-            if (!p.equals(player)) return p;
+        synchronized (matchPlayers) {
+            for (String p : matchPlayers) {
+                if (!p.equals(player)) return p;
+            }
         }
         return null; // just in case
+    }
+
+    @Override
+    public String getRematchVoteOpponent(String player){
+
+        if (rematchVotes.isEmpty() || !rematchVotes.keySet().contains(player)){
+            System.out.println(" rematch vote of " +  player + "could not be found since it  was empty");
+            return null;
+        }
+
+        synchronized (rematchVotes) {
+            for (String p : rematchVotes.keySet()) {
+                System.out.println("rematchVote Key while on getRematchVoteOpponent for " +player +  ": " + p);
+                if (!p.equals(player)) return p;
+            }
+        }
+        System.out.println(" rematch vote of " +  player + "could not be found end result");
+        return null;
+    }
+
+    @Override
+    public String getmidGameAsyncRematchVotesOpponent(String player){
+        if (midGameAsyncRematchVotes.isEmpty() || !midGameAsyncRematchVotes.keySet().contains(player)) return null;
+        synchronized (midGameAsyncRematchVotes) {
+            for (String p : midGameAsyncRematchVotes.keySet()) {
+                if (!p.equals(player)) return p;
+            }
+        }
+        return null;
     }
 
     @Override

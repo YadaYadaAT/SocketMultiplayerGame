@@ -184,6 +184,17 @@ public class MatchController {
                                     new RematchResponse(false, "You declined rematch")));
 
                                 sendMatchSessionEndResponseToPlayer(username, false);
+
+                                String opponent = match.getRematchVoteOpponent(username);
+                                System.out.println(" Opponent vote(" + opponent + ") is " + match.getRematchVotes().get(opponent));
+
+                                if ( match.getRematchVotes().get(opponent) == RematchVote.ACCEPTED  ){
+                                    sendToClient.accept(opponent, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                                            new RematchResponse(false, "Rematch wasn't accepted")));
+                                    sendMatchSessionEndResponseToPlayer(opponent, false);
+                                    matchManager.endMatch(match.getMatchId());
+                                }
+
                             }else{
                                 sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                                         new RematchResponse(false, "You declined midgame rematch")));
@@ -196,6 +207,7 @@ public class MatchController {
                                 if (match.isEnded()) {
                                     sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                                             new RematchResponse(true, "Rematch request recorded")));
+
                                 }else{
                                     sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                                             new RematchResponse(true, "Midgame rematch request recorded")));

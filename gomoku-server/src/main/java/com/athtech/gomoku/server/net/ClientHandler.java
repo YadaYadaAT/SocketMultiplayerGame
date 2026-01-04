@@ -45,6 +45,10 @@ public class ClientHandler implements Runnable {
             while (true) {
                 Object obj = in.readObject();
                 if (!(obj instanceof NetPacket packet)) continue;
+                System.out.println(" [ClientHandler] Received packet from client " + clientId +
+                        " | Type: " + packet.type() +
+                        " | Payload: " + packet.payload());
+
                 updateActivity();
                 dispatcher.dispatch(this, packet);
             }
@@ -73,10 +77,10 @@ public class ClientHandler implements Runnable {
             try {
                 out.writeObject(packet);
                 out.flush();
-//                // Debug output
-//                System.out.println(" [ClientHandler] Sent packet to client " + clientId +
-//                        " | Type: " + packet.type() +
-//                        " | Payload: " + packet.payload());
+                // Debug output
+                System.out.println(" [ClientHandler] Sent packet to client " + clientId +
+                        " | Type: " + packet.type() +
+                        " | Payload: " + packet.payload());
             } catch (IOException e) {
                 System.err.println("Send failed to client " + clientId + ": " + e.getMessage());
             }

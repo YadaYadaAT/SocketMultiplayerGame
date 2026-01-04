@@ -72,8 +72,10 @@ public class PacketDispatcher {
         if (payload.isUnstuckProcess()){
          GameStateResponse game = matchController.getCurrentGame(client.getUsername());
              if (game == null){
+                 client.sendPacket(new NetPacket(PacketType.GAME_QUIT_RESPONSE,"server",
+                         new GameQuitResponse(false)));
                  client.sendPacket(new NetPacket(PacketType.INFO_RESPONSE,"server",
-                         new InfoResponse("You are not part of any active game")));
+                         new InfoResponse("You were not part of any active game")));
                  return;
              }
         }

@@ -226,19 +226,19 @@ public class CLIController {
 
     private void sendInviteRequest() {
         if (inGame) return;
-        if (resyncWasTriggered){
+//        if (resyncWasTriggered){
 
-            view.unsynchronizedCallback(
-                    "Syncing lobby state , please wait..."
-            );
-            resyncWasTriggered = false;
-            synchronized (resyncWastriggeredLock){
+//            view.unsynchronizedCallback(
+//                    "Syncing lobby , please wait..."
+//            );
+//            resyncWasTriggered = false;
+            synchronized (resyncWastriggeredLock){// we could have only at the latest but its safer this way...
                 clientNetwork.sendPacket(new NetPacket(PacketType.LOBBY_PLAYERS_REQUEST,username,new LobbyPlayersRequest()));
                     try { resyncWastriggeredLock.wait(120_000); }
                     catch (InterruptedException e) { Thread.currentThread().interrupt();}
             }
 
-        }
+//        }
         List<String> snapshot = requestLobbyPlayers();
         if (snapshot.isEmpty()) return;
 
@@ -513,6 +513,7 @@ public class CLIController {
                     ". Good luck and have fun \uD83D\uDE08");
 
         }else{
+            gameStartingPromptConsumsed = true;
             view.showGameStarted("Game started!");
         }
         if (yourTurn) {

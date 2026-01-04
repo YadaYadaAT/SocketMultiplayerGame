@@ -10,7 +10,7 @@ public class CLIView {
     private static final String CYAN = "\u001B[36m";    // async messages from server
     private static final String GREEN = "\u001B[32m";   // send / local confirmations
     private static final String YELLOW = "\u001B[33m";  // highlights / warnings
-
+    private static final String RED = "\u001B[31m";
     // Console lock to synchronize all outputs
     private final Object consoleLock = new Object();
 
@@ -132,7 +132,8 @@ public class CLIView {
     public void showBoard(BoardState board, String username, String player1) {
         synchronized (consoleLock) {
             char mySymbol = username.equals(player1) ? 'X' : 'O';
-            char oppSymbol = mySymbol == 'X' ? 'O' : 'X';
+           char oppSymbol = mySymbol == 'X' ? 'O' : 'X';
+
 
             System.out.println();
 
@@ -158,9 +159,9 @@ public class CLIView {
                     String display = (cell == '\0' || cell == ' ') ? "." : String.valueOf(cell);
 
                     if (cell == mySymbol) {
-                        display = "\u001B[34m" + display + "\u001B[0m"; // blue = yours
+                        display = GREEN + display + RESET; // blue = yours
                     } else if (cell == oppSymbol) {
-                        display = "\u001B[31m" + display + "\u001B[0m"; // red = opponent
+                        display = RED + display + RESET; // red = opponent
                     }
 
                     System.out.print(" " + display + " |");
