@@ -158,6 +158,18 @@ public class CLIController {
                 break;
             }
 
+            if (rawInput.equalsIgnoreCase("r")) {
+                clientNetwork.sendPacket(
+                        new NetPacket(
+                                PacketType.REMATCH_REQUEST,
+                                username,
+                                new RematchRequest(true)
+                        )
+                );
+                view.showCallback("Rematch intent sent. Game continues...");
+                continue;
+            }
+
 
             if ( forceExitGame || !inGame ) {
                 break;
@@ -575,7 +587,9 @@ public class CLIController {
     private void onGameEndResponse(NetPacket packet) {
         GameEndResponse end = (GameEndResponse) packet.payload();
         if (end.reason() == MatchEndReason.MID_GAME_REMATCH){
-
+            //code here wont be ever triggered since midgame rematch never
+            // sends onGameEndResponse ;...was meant to do initially and might change later.
+            // since the development ends here we let it be...
         }else{
             //Not interuppted by midgame rematch :
             // Update session flags
@@ -737,7 +751,8 @@ public class CLIController {
 
 
     private void onPlayerInactivityWarningResponse(NetPacket packet){
-        view.showCallback((String) packet.payload());
+        PlayerInactivityWarningResponse pck = (PlayerInactivityWarningResponse) packet.payload();
+        view.showCallback(pck.message());
     }
 
     private void onGameQuitResponse(NetPacket packet) {

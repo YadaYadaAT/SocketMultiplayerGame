@@ -79,7 +79,7 @@ public class MatchController {
         persistence.recordMatchResult(match.getPlayer1(), match.getPlayer2(), match.isDraw(), match.getWinner());
         sendUpdatedStats(match.getPlayer1());
         sendUpdatedStats(match.getPlayer2());
-        broadcastMatchEnd(match, reason);
+        broadcastRegularMatchEnd(match, reason);
 
     }
 
@@ -88,12 +88,6 @@ public class MatchController {
             if (match instanceof MatchImpl impl) {
                 impl.playerDisconnected(quitter);
                 String opponent = quitter.equals(match.getPlayer1()) ? match.getPlayer2() : match.getPlayer1();
-
-                // Persist result (winner is opponent)
-                persistence.recordMatchResult(match.getPlayer1(), match.getPlayer2(), false, opponent);
-
-                sendUpdatedStats(match.getPlayer1());
-                sendUpdatedStats(match.getPlayer2());
 
                 // Notify opponent
                 sendToClient.accept(opponent, new NetPacket(
@@ -110,10 +104,7 @@ public class MatchController {
         }).orElse(false);
     }
 
-
-    // -----------------------
     // Invites
-    // -----------------------
     public void sendInvite(String fromUsername, String targetUsername) {
         if (fromUsername.equals(targetUsername)) {
             sendToClient.accept(fromUsername, new NetPacket(PacketType.INVITE_RESPONSE, "server",
@@ -171,7 +162,7 @@ public class MatchController {
     }
 
     public synchronized void sendRematchRequest(String username, boolean consent) {
-        matchManager.getEndedMatchByPlayer(username).ifPresent(match -> {
+        matchManager.getMatchByPlayer(username).ifPresent(match -> {
             if (!consent) {
                 try{
                     handleRematchDecline(username,match);
@@ -210,6 +201,25 @@ public class MatchController {
             }
 
         });
+
+    }
+
+    private void handleRematchReady(Match match){
+        String p1 = match.getPlayer1();
+        String p2 = match.getPlayer2();
+        try {
+            matchManager.endMatch(match.getMatchId());
+            Match newMatch = matchManager.createMatch(p1, p2);
+            if (match.isEnded()){
+                sendMatchSessionEndResponseToPlayers(p1, p2, true);
+            }
+            broadcastMatchCreate(newMatch);
+        } catch (IllegalStateException e) {
+            if (match.isEnded()){
+                sendMatchSessionEndResponseToPlayers(p1, p2, false);
+            }
+
+        }
 
     }
 
@@ -261,31 +271,9 @@ public class MatchController {
                     ));
                 }
             }
-
-
     }
 
-    private void handleRematchReady(Match match){
-        String p1 = match.getPlayer1();
-        String p2 = match.getPlayer2();
-        try {
-            matchManager.endMatch(match.getMatchId());
-            Match newMatch = matchManager.createMatch(p1, p2);
-            if (match.isEnded()){
-                sendMatchSessionEndResponseToPlayers(p1, p2, true);
-            }
 
-            broadcastMatchCreate(newMatch);
-        } catch (IllegalStateException e) {
-            if (match.isEnded()){
-                sendMatchSessionEndResponseToPlayers(p1, p2, false);
-            }
-
-
-        }
-
-
-    }
 
     private void sendMatchSessionEndResponseToPlayers(String p1 , String p2, boolean isRematchOn){
         sendToClient.accept(p1, new NetPacket(PacketType.MATCH_SESSION_ENDED_RESPONSE, "server",
@@ -312,9 +300,7 @@ public class MatchController {
         matchManager.playerReconnected(username);
     }
 
-    // -----------------------
     // Broadcasting helpers
-    // -----------------------
     private void broadcastMatchCreate(Match match) {
         NetPacket packet = new NetPacket(PacketType.GAME_START_RESPONSE, "server", match.getCurrentState());
         sendToClient.accept(match.getPlayer1(), packet);
@@ -327,7 +313,7 @@ public class MatchController {
         sendToClient.accept(match.getPlayer2(), packet);
     }
 
-    private void broadcastMatchEnd(Match match, MatchEndReason endReason) {
+    private void broadcastRegularMatchEnd(Match match, MatchEndReason endReason) {
         boolean draw = match.isDraw();
         String winner = draw ? null : match.getWinner();
         String loser  = draw ? null : match.getLoser();
@@ -336,7 +322,7 @@ public class MatchController {
         MatchEndReason p2Reason;
 
         if (draw) {
-            if (endReason == MatchEndReason.MID_GAME_REMATCH){
+            if (endReason == MatchEndReason.MID_GAME_REMATCH){//safety code in case we change the midgame rematch later
                 p1Reason = p2Reason = MatchEndReason.MID_GAME_REMATCH;
             }else{
                 p1Reason = p2Reason = MatchEndReason.DRAW;
