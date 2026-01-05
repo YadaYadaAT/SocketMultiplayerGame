@@ -1,7 +1,5 @@
-package com.athtech.gomoku.client;
+package com.athtech.gomoku.client.cli;
 
-import com.athtech.gomoku.client.cli.CLIController;
-import com.athtech.gomoku.client.cli.CLIView;
 import com.athtech.gomoku.client.net.ClientNetworkAdapterImpl;
 
 public class GomokuCliGameClient {

@@ -3,7 +3,6 @@ package com.athtech.gomoku.client.cli;
 import com.athtech.gomoku.client.net.ClientNetworkAdapter;
 import com.athtech.gomoku.client.net.ClientNetworkAdapterImpl;
 import com.athtech.gomoku.client.net.NetState;
-import com.athtech.gomoku.client.net.NetworkLifecycleListener;
 import com.athtech.gomoku.protocol.messaging.MatchEndReason;
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
