@@ -37,12 +37,10 @@ public class LoginController extends BaseController{
         Platform.runLater(() -> serverLoginResponseMessage.setText(resp.message()));
         if (data.isLoggedIn()) {
             data.setRelogCode(resp.relogCode());
-            data.setMyStats(resp.myStats());
             data.setNickname(resp.nickname());
             data.setUsername(resp.username());
-            clientNetwork.updateCredentials(data.getUsername(), data.getRelogCode());
             data.setInvites(resp.pendingInvites());
-
+            clientNetwork.updateCredentials(data.getUsername(), data.getRelogCode());
         }
 
     }

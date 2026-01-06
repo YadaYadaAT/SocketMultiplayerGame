@@ -236,7 +236,7 @@ public class PacketDispatcher {
         } else {
             relogCode = req.relogCode();
         }
-
+        matchController.reconnectPlayer(req.username());//TODO: <- this line requires testing
         Map<String, Boolean> lobbyPlayers = lobbyController.getLobbySnapshot(matchController);
         PlayerStatsResponse stats = persistence.getPlayerStats(req.username());
         InviteNotificationResponse[] pendingInvites =

@@ -104,7 +104,12 @@ public class ClientHandler implements Runnable {
     }
 
     public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    public void setUsername(String username) {
+        if (username == null){
+            matchController.disconnectPlayer(this.username);
+        }
+        this.username = username;
+    }
     public String getClientId() { return clientId; }
     public void updateActivity() {
         lastActivity = System.currentTimeMillis();

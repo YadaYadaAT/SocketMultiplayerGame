@@ -9,8 +9,9 @@
 
     <!-- Persistent header -->
     <HBox fx:id="headerBar" spacing="10">
-        <Label fx:id="lblUsername" text="here"/>
-        <Label fx:id="lblConnection" text="and this"/>
+        <Label fx:id="lblError" text=""/>
+        <Label fx:id="lblUsername" text="🔑 LoggedInAs: "/>
+        <Label fx:id="lblConnection" text="🔌"/>
     </HBox>
 
     <!-- This container swaps the actual content -->

@@ -12,20 +12,10 @@ import java.util.Map;
 
 public class GomokuFXViewNavigator {
 
-    private final Stage stage;
     private final Map<View, Parent> roots = new EnumMap<>(View.class);
     private final Map<View, BaseController> controllers = new EnumMap<>(View.class);
     private View currentView;
-
-    private Parent wrapperRoot;
-    private BaseController wrapperController;
     private StackPane contentPane;
-
-
-
-    public GomokuFXViewNavigator(Stage stage) {
-        this.stage = stage;
-    }
 
     public void preload(View view) {
         try {
@@ -53,7 +43,7 @@ public class GomokuFXViewNavigator {
     }
 
     public void goTo(View view) {
-
+        if(view == View.SCENEWRAPPER) return;//safety from inception...
         Parent root = roots.get(view);
 
         if (root == null) {
@@ -87,17 +77,17 @@ public class GomokuFXViewNavigator {
         return roots.get(view);
     }
 
-    public void setWrapperRoot(Parent wrapper) {
-        this.wrapperRoot = wrapper;
-        this.contentPane = (StackPane) wrapper.lookup("#contentPane");
+    public Parent getWrapper(){
+        return roots.get(View.SCENEWRAPPER);
     }
 
-    public Parent getWrapperRoot() {
-        return wrapperRoot;
+    public StackPane getContentPane() {
+        return contentPane;
     }
 
-    public void setWrapperController(BaseController wrapperController) {
-        this.wrapperController = wrapperController;
+    public void setTheContentPane() {
+        this.contentPane = (StackPane) getRoot(View.SCENEWRAPPER).lookup("#contentPane");
     }
+
 
 }

@@ -9,7 +9,6 @@ public class GomokuFXCommonToAllControllersData {
     private volatile String username;
     private volatile String nickname;
     private volatile String relogCode;
-    private volatile PlayerStatsResponse myStats;
     private volatile List<InviteNotificationResponse> invites = Collections.emptyList();
 
     public boolean isLoggedIn() {
@@ -55,14 +54,6 @@ public class GomokuFXCommonToAllControllersData {
         this.relogCode = relogCode;
     }
 
-    public PlayerStatsResponse getMyStats() {
-        return myStats;
-    }
-
-    public void setMyStats(PlayerStatsResponse myStats) {
-        this.myStats = myStats;
-    }
-
 
     public List<InviteNotificationResponse> getInvites() {
         return invites;
@@ -75,6 +66,15 @@ public class GomokuFXCommonToAllControllersData {
         } else {
             this.invites = Collections.unmodifiableList(Arrays.asList(invitesArray.clone()));
         }
+    }
+
+    public void reset() {
+        lastServerActivity = System.currentTimeMillis();
+        username = null;
+        nickname = null;
+        relogCode = null;
+        invites = Collections.emptyList();
+        loggedIn = false;
     }
 
 }

@@ -1,5 +1,6 @@
 package com.athtech.gomoku.client.gui;
 
+import com.athtech.gomoku.client.gui.controllers.LobbyController;
 import com.athtech.gomoku.client.gui.controllers.LoginController;
 import com.athtech.gomoku.client.gui.controllers.SignupController;
 import com.athtech.gomoku.client.gui.controllers.WrapperController;
@@ -17,16 +18,14 @@ public class GomokuFXApp extends Application {
     public void start(Stage stage) throws Exception {
 
         // Creates the view navigator which will manage scene switching between different FXML views.
-        // The Stage is passed so the navigator can directly change the root of the scene when switching views.
-        var viewNavigator = new GomokuFXViewNavigator(stage);
-
-
+        var viewNavigator = new GomokuFXViewNavigator();
 
         // Preload the LOGIN view FXML and its associated controller.//TODO: will change into an intro scene
         // This ensures the root node and controller are created now, so switching to it later is instant.
-
+        viewNavigator.preload(View.SCENEWRAPPER);
         viewNavigator.preload(View.LOGIN);
         viewNavigator.preload(View.SIGNUP);
+        viewNavigator.preload(View.LOBBY);
 
         // Create a shared data object that all controllers will reference.
         // Holds things like username, nickname, relogCode, player stats, pending invites, and login state.
@@ -51,8 +50,10 @@ public class GomokuFXApp extends Application {
         // The controller was preloaded by the navigator, so we fetch it from the navigator's controller map.
         // (Currently we are about to have like 4-5 maximum controllers with 1:1 fxml, if it scales we
         // might swap to a map or something... currently we set one by one.
+        networkHandler.setWrapperCtrl((WrapperController) viewNavigator.getController(View.SCENEWRAPPER));
         networkHandler.setLoginCtrl((LoginController) viewNavigator.getController(View.LOGIN));
         networkHandler.setSignupCtrl((SignupController) viewNavigator.getController(View.SIGNUP));
+        networkHandler.setLobbyCtrl((LobbyController) viewNavigator.getController(View.LOBBY));
 
         // Initialize all controllers with references to:
         // - The view navigator (so they can switch views)
@@ -69,21 +70,19 @@ public class GomokuFXApp extends Application {
         // (currently only the info_response packet goes to more than 1 controller, due to being generic)
         networkHandler.initCallbackHandler();
 
-        // Load the wrapper scene that contains the persistent header and a contentPane where all other views will appear
-        FXMLLoader wrapperLoader = new FXMLLoader(getClass().getResource(View.SCENEWRAPPER.fxmlPath()));
-        Parent wrapper = wrapperLoader.load();
-        WrapperController wrapperController = wrapperLoader.getController();
+        //get wrapper (i take it from roots; been included like the rest for harmony)
+        //Although a bit abnormal in the sense that its the wrapper, we will exclude it from swapping at the goTo
+        Parent wrapper = viewNavigator.getWrapper();
 
-        // Tell the navigator about the wrapper root so it can access contentPane later
-        viewNavigator.setWrapperRoot(wrapper);
-        viewNavigator.setWrapperController(wrapperController);
+        // setTheContentPane after having the wrapper preload
+        viewNavigator.setTheContentPane();
 
         // Create the JavaFX Scene and attach the wrapper root.
         // The wrapper stays constant; only its contentPane will be swapped when switching views.
         stage.setScene(new Scene(wrapper));
 
         // Set the initial view in the contentPane (LOGIN)
-        wrapperController.getContentPane().getChildren().setAll(viewNavigator.getRoot(View.LOGIN));
+        viewNavigator.getContentPane().getChildren().setAll(viewNavigator.getRoot(View.LOGIN));
 
         // Set the window title. ~YadaYada~ <-You  put this title; => bounds to be good...
         stage.setTitle("YadaYada Gomoku 2026");
