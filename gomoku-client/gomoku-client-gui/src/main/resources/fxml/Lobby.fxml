@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
@@ -9,42 +8,61 @@
       fx:controller="com.athtech.gomoku.client.gui.controllers.LobbyController"
       spacing="10"
       alignment="CENTER"
-      prefWidth="600"
-      prefHeight="400">
+      prefWidth="700"
+      prefHeight="500">
 
     <padding>
-        <Insets top="15" right="15" bottom="15" left="15"/>
+        <Insets top="10" right="10" bottom="10" left="10"/>
     </padding>
 
     <!-- Header -->
     <HBox spacing="10" alignment="CENTER_RIGHT">
         <Label text="Lobby || "/>
         <Label text="Played: "/>
-        <Label fx:id="played" text=""/>
+        <Label fx:id="played"/>
         <Label text="Wins: "/>
-        <Label fx:id="wins" text=""/>
+        <Label fx:id="wins"/>
         <Label text="Loses: "/>
-        <Label fx:id="loses" text=""/>
+        <Label fx:id="loses"/>
         <Label text="Draws: "/>
-        <Label fx:id="draws" text=""/>
+        <Label fx:id="draws"/>
         <Region HBox.hgrow="ALWAYS"/>
         <Button text="Logout" onAction="#handleLogout"/>
     </HBox>
 
     <Separator/>
 
-    <!-- Lobby players -->
-    <Label text="Available Players"/>
-    <ListView fx:id="lobbyPlayersList" prefHeight="200"/>
-    <Button text="Invite Selected Player" onAction="#handleInvite"/>
+    <!-- Players + Invites -->
+    <HBox spacing="10">
+        <VBox spacing="5" HBox.hgrow="ALWAYS">
+            <Label text="Available Players"/>
+            <ListView fx:id="lobbyPlayersList" prefHeight="200"/>
+            <Button text="Invite Selected Player" onAction="#handleInvite"/>
+        </VBox>
 
-    <!-- Incoming Invites -->
-    <VBox spacing="5">
-        <Label text="Incoming Invites:"/>
-        <ListView fx:id="inviteListView" prefHeight="100"/>
-        <HBox spacing="10">
-            <Button text="Accept" onAction="#handleAcceptSelectedInvite"/>
-            <Button text="Decline" onAction="#handleDeclineSelectedInvite"/>
+        <VBox spacing="5" HBox.hgrow="ALWAYS">
+            <Label text="Incoming Invites"/>
+            <ListView fx:id="inviteListView" prefHeight="200"/>
+            <HBox spacing="5">
+                <Button text="Accept" onAction="#handleAcceptSelectedInvite"/>
+                <Button text="Decline" onAction="#handleDeclineSelectedInvite"/>
+            </HBox>
+        </VBox>
+    </HBox>
+
+    <Separator/>
+
+    <!-- Chat Section (THIS is the growing area) -->
+    <VBox spacing="5" VBox.vgrow="ALWAYS">
+        <Label text="Lobby Chat"/>
+        <ListView fx:id="chatListView"
+                  VBox.vgrow="ALWAYS"
+                  maxHeight="Infinity"/>
+        <HBox spacing="5">
+            <TextField fx:id="chatInput"
+                       HBox.hgrow="ALWAYS"
+                       promptText="Type message..."/>
+            <Button text="Send" onAction="#sendChatMessage"/>
         </HBox>
     </VBox>
 
@@ -52,5 +70,8 @@
 
     <!-- Status -->
     <Label fx:id="lobbyStatusLabel"/>
+
+    <!-- Outgoing invite feedback -->
+    <Label fx:id="outgoingInviteLabel"/>
 
 </VBox>
