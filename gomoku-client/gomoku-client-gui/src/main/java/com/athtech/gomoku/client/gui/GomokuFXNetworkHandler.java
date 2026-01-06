@@ -86,6 +86,7 @@ public class GomokuFXNetworkHandler {
             case INVITE_RESPONSE -> lobbyCtrl.onInviteResponse(packet);
             case INVITE_NOTIFICATION_RESPONSE -> lobbyCtrl.onInviteNotificationResponse(packet);
             case INVITE_DECISION_RESPONSE -> onInviteDecisionResponse(packet);
+            case LOBBY_CHAT_MESSAGE_RESPONSE -> lobbyCtrl.onLobbyChatMessageResponse(packet);
 //            case GAME_START_RESPONSE -> onGameStartResponse(packet);
 //            case GAME_STATE_RESPONSE -> onGameStateResponse(packet);
 //            case GAME_END_RESPONSE ->  onGameEndResponse(packet);

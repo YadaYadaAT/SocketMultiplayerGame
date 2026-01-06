@@ -28,7 +28,7 @@
         <Label text="Draws: "/>
         <Label fx:id="draws" text=""/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button  text="Logout" onAction="#handleLogout"/>
+        <Button text="Logout" onAction="#handleLogout"/>
     </HBox>
 
     <Separator/>
@@ -36,15 +36,17 @@
     <!-- Lobby players -->
     <Label text="Available Players"/>
     <ListView fx:id="lobbyPlayersList" prefHeight="200"/>
-
     <Button text="Invite Selected Player" onAction="#handleInvite"/>
 
-    <!-- Invite section -->
-    <HBox spacing="10" alignment="CENTER">
-        <Label fx:id="inviteLabel"/>
-        <Button text="Accept" onAction="#handleAcceptInvite"/>
-        <Button text="Decline" onAction="#handleDeclineInvite"/>
-    </HBox>
+    <!-- Incoming Invites -->
+    <VBox spacing="5">
+        <Label text="Incoming Invites:"/>
+        <ListView fx:id="inviteListView" prefHeight="100"/>
+        <HBox spacing="10">
+            <Button text="Accept" onAction="#handleAcceptSelectedInvite"/>
+            <Button text="Decline" onAction="#handleDeclineSelectedInvite"/>
+        </HBox>
+    </VBox>
 
     <Separator/>
 

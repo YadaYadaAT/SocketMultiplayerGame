@@ -5,9 +5,12 @@ import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
 import com.athtech.gomoku.protocol.payload.*;
 
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.util.Duration;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,7 +19,10 @@ public class LobbyController extends BaseController {
 
     @FXML private ListView<String> lobbyPlayersList;
     @FXML private Label lobbyStatusLabel;
-    @FXML private Label inviteLabel;
+    @FXML private ListView<String> inviteListView;
+    @FXML private Label outgoingInviteLabel;
+    private Timeline clearInviteTimeline;
+    private Map<String, InviteNotificationResponse> incomingInvites = new HashMap<>();
 
     @FXML private Label played;
     @FXML private Label wins;
@@ -58,38 +64,48 @@ public class LobbyController extends BaseController {
     }
 
     @FXML
-    private void handleAcceptInvite() {
-        if (lastInvite == null) return;
+    private void handleAcceptSelectedInvite() {
+        String selected = inviteListView.getSelectionModel().getSelectedItem();
+        if (selected == null) return;
+
+        InviteNotificationResponse invite = incomingInvites.remove(selected);
+        inviteListView.getItems().remove(selected);
 
         clientNetwork.sendPacket(
                 new NetPacket(
                         PacketType.INVITE_DECISION_REQUEST,
                         data.getUsername(),
-                        new InviteDecisionRequest(lastInvite.fromUsername(), true)
+                        new InviteDecisionRequest(invite.fromUsername(), true)
                 )
         );
-
-        inviteLabel.setText("");
-        lastInvite = null;
     }
 
     @FXML
-    private void handleDeclineInvite() {
-        if (lastInvite == null) return;
+    private void handleDeclineSelectedInvite() {
+        String selected = inviteListView.getSelectionModel().getSelectedItem();
+        if (selected == null) return;
+
+        InviteNotificationResponse invite = incomingInvites.remove(selected);
+        inviteListView.getItems().remove(selected);
 
         clientNetwork.sendPacket(
                 new NetPacket(
                         PacketType.INVITE_DECISION_REQUEST,
                         data.getUsername(),
-                        new InviteDecisionRequest(lastInvite.fromUsername(), false)
+                        new InviteDecisionRequest(invite.fromUsername(), false)
                 )
         );
-
-        inviteLabel.setText("");
-        lastInvite = null;
     }
 
     /* ---------------- Network → UI ---------------- */
+
+
+   public void  onLobbyChatMessageResponse(NetPacket packet){
+       LobbyChatMessageResponse resp = (LobbyChatMessageResponse) packet.payload();
+
+
+   }
+
 
     public void onLobbyPlayersResponse(NetPacket packet) {
         LobbyPlayersResponse resp = (LobbyPlayersResponse) packet.payload();
@@ -123,17 +139,35 @@ public class LobbyController extends BaseController {
 
 
     public void onInviteResponse(NetPacket packet) {
-        var resp = (InviteResponse) packet.payload();
+        InviteResponse resp = (InviteResponse) packet.payload();
         String msg = resp.delivered() ? "Invite delivered." : "Invite failed: " + resp.reason();
-        Platform.runLater(() ->  inviteLabel.setText(msg) );
+
+        Platform.runLater(() -> {
+            outgoingInviteLabel.setText(msg);
+
+            // cancel previous clearing if exists
+            if (clearInviteTimeline != null) {
+                clearInviteTimeline.stop();
+            }
+
+            // schedule new clear
+            clearInviteTimeline = new Timeline(new KeyFrame(Duration.seconds(3), e -> {
+                outgoingInviteLabel.setText("");
+            }));
+            clearInviteTimeline.play();
+        });
     }
 
     public void onInviteNotificationResponse(NetPacket packet) {
-        lastInvite = (InviteNotificationResponse) packet.payload();
+        InviteNotificationResponse invite = (InviteNotificationResponse) packet.payload();
+        String from = invite.fromUsername();
 
-        Platform.runLater(() ->
-                inviteLabel.setText("Invite from " + lastInvite.fromUsername())
-        );
+        Platform.runLater(() -> {
+            if (!incomingInvites.containsKey(from)) {
+                incomingInvites.put(from, invite);
+                inviteListView.getItems().add(from);
+            }
+        });
     }
 
     public void onInviteDecisionResponse(NetPacket packet) {

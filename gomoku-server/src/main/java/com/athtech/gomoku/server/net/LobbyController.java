@@ -2,6 +2,7 @@ package com.athtech.gomoku.server.net;
 
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
+import com.athtech.gomoku.protocol.payload.LobbyChatMessageResponse;
 import com.athtech.gomoku.protocol.payload.LobbyPlayersResponse;
 import com.athtech.gomoku.server.match.MatchController;
 
@@ -101,6 +102,18 @@ public class LobbyController {
                         new LobbyPlayersResponse(lobby)
                 )
         );
+    }
+
+    public void broadcastMessageLobbyChat(LobbyChatMessageResponse lcmr){
+        System.out.println("\uD83E\uDDD1\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1 [Lobby] Broadcasting message to lobby chat :"
+                + lcmr.timestamp() +" "+lcmr.username() +" : " +lcmr.message()
+        );
+        broadcastToLoggedIn.accept(
+                new NetPacket(
+                        PacketType.LOBBY_CHAT_MESSAGE_RESPONSE,
+                        "server",
+                        lcmr
+                ));
     }
 
     public void setMatchController (MatchController controller){

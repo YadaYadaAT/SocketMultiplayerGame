@@ -16,6 +16,7 @@ public class PacketDispatcher {
     private final PersistenceManager persistence;
     private final LobbyController lobbyController;
     private final MatchController matchController;
+    private static final int MAX_LOBBY_MESSAGE_LENGTH = 250;
 
     public PacketDispatcher(PersistenceManager persistence,
                             LobbyController lobbyController,
@@ -38,9 +39,52 @@ public class PacketDispatcher {
             case MOVE_REQUEST -> handleMove(client, packet);
             case GAME_QUIT_REQUEST -> handleGameQuitRequest(client,packet);
             case HANDSHAKE_REQUEST -> handleHandshakeRequest(client,packet);
+            case LOBBY_CHAT_MESSAGE_REQUEST -> onLobbyChatMessageRequest(client,packet);
             default -> client.sendPacket(new NetPacket(PacketType.ERROR_MESSAGE_RESPONSE, "server",
                     new ErrorMessageResponse("Unknown packet type: " + packet.type())));
         }
+    }
+
+
+    private void onLobbyChatMessageRequest(ClientHandler client, NetPacket packet) {
+        if (client.getUsername() == null || !(packet.payload() instanceof LobbyChatMessageRequest req)) {
+            return;
+        }
+        String message = req.message().trim();
+
+        // Length check
+        if (message.isEmpty()) return; // ignore empty
+
+        if (message.length() > MAX_LOBBY_MESSAGE_LENGTH) {
+            client.sendPacket(new NetPacket(
+                    PacketType.INFO_RESPONSE,
+                    "server",
+                    new InfoResponse("Message too long! Max " + MAX_LOBBY_MESSAGE_LENGTH + " characters.")
+            ));
+            return;
+        }
+
+        // Check rate limiting: allow max 5 messages per 10 seconds
+        long now = System.currentTimeMillis();
+        if (!client.canSendLobbyMessage()) {
+
+            client.sendPacket(new NetPacket(
+                    PacketType.INFO_RESPONSE,
+                    "server",
+                    new InfoResponse("Slow down, speedy! You're sending messages too fast.")
+            ));
+            return;
+        }
+
+        // Build the broadcast message
+        LobbyChatMessageResponse chatResp = new LobbyChatMessageResponse(
+                now,
+                client.getUsername(),
+                req.message()
+        );
+
+        // Broadcast to everyone (including sender, for client-side counter / sync)
+        lobbyController.broadcastMessageLobbyChat(chatResp);
     }
 
     private void handleLobbyPlayerRequest(ClientHandler client, NetPacket packet){
