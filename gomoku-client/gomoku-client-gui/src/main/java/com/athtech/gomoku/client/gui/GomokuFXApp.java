@@ -88,10 +88,11 @@ public class GomokuFXApp extends Application {
         stage.setTitle("YadaYada Gomoku 2026");
 
         // Set the window width.
-        stage.setWidth(800);
+        stage.setWidth(1200);
 
         // Set the window height .
-        stage.setHeight(600);
+        stage.setHeight(800);
+        stage.setResizable(false);
 
         // Show the window on the screen.
         // At this point, the FX thread takes control and renders the scene.

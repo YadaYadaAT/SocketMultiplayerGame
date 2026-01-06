@@ -3,12 +3,14 @@ package com.athtech.gomoku.client.gui.controllers;
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
 import com.athtech.gomoku.protocol.payload.*;
+import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
+import javafx.scene.paint.Color;
 import javafx.util.Duration;
 
 import java.util.*;
@@ -40,6 +42,8 @@ public class LobbyController extends BaseController {
 
     @FXML
     private void initialize() {
+        setupListGradientAnimation();
+
         chatInput.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
                 sendChatMessage();
@@ -281,4 +285,53 @@ public class LobbyController extends BaseController {
                 )
         );
     }
+
+    private void setupListGradientAnimation() {
+        // List of colors to cycle
+        Color[] colors = new Color[] {
+                Color.web("#00fffc"), Color.web("#ff00e1"), Color.web("#00ff00"), Color.web("#ffdd00")
+        };
+
+        // For lobbyPlayersList
+        Timeline lobbyTimeline = new Timeline(new KeyFrame(Duration.millis(1000), event -> {
+            // shift colors
+            Color first = colors[0];
+            System.arraycopy(colors, 1, colors, 0, colors.length - 1);
+            colors[colors.length - 1] = first;
+
+            // build gradient
+            String gradient = String.format(
+                    "-fx-border-color: linear-gradient(to right, %s, %s, %s, %s); " +
+                            "-fx-border-width: 3; -fx-border-radius: 8;",
+                    toHex(colors[0]), toHex(colors[1]), toHex(colors[2]), toHex(colors[3])
+            );
+            lobbyPlayersList.setStyle(gradient);
+        }));
+        lobbyTimeline.setCycleCount(Animation.INDEFINITE);
+        lobbyTimeline.play();
+
+        // Duplicate for inviteListView (can even use same Timeline if you want synced)
+        Timeline inviteTimeline = new Timeline(new KeyFrame(Duration.millis(2000), event -> {
+            Color first = colors[0];
+            System.arraycopy(colors, 1, colors, 0, colors.length - 1);
+            colors[colors.length - 1] = first;
+            String gradient = String.format(
+                    "-fx-border-color: linear-gradient(to right, %s, %s, %s, %s); " +
+                            "-fx-border-width: 3; -fx-border-radius: 8;",
+                    toHex(colors[0]), toHex(colors[1]), toHex(colors[2]), toHex(colors[3])
+            );
+            inviteListView.setStyle(gradient);
+        }));
+        inviteTimeline.setCycleCount(Animation.INDEFINITE);
+        inviteTimeline.play();
+    }
+
+    // helper to convert Color to #RRGGBB
+    private String toHex(Color color) {
+        int r = (int) (color.getRed() * 255);
+        int g = (int) (color.getGreen() * 255);
+        int b = (int) (color.getBlue() * 255);
+        return String.format("#%02X%02X%02X", r, g, b);
+    }
+
 }
