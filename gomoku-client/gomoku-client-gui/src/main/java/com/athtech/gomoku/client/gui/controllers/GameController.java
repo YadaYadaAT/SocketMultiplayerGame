@@ -17,37 +17,63 @@ public class GameController extends BaseController {
 
     /* ---------------- UI ---------------- */
     @FXML private Label lblGameStatus;
+
     @FXML private Label lblTurnInfo;
 
-    @FXML private ToggleButton btnMidgameRematch;
-    @FXML private Button btnQuitGame;
-    @FXML private Button btnBackToLobby; // fail-safe button
-
     @FXML private VBox boardContainer;
-    @FXML private VBox midgameBox;   // holds midgame buttons
+
+    @FXML private ToggleButton btnMidgameRematch; //in action -> onMidGameRematchToggle
+    @FXML private Button btnQuitGame; //in action -> quitGame
     @FXML private VBox endgameBox;   // holds endgame rematch buttons
+    @FXML private Button btnBackToLobby; // -> in action backToLobby   fail-safe button
 
     /* ---------------- State ---------------- */
     private static final int CELL_SIZE = 48;
 
-    private boolean myTurn = false;
     private boolean inGame = false;
     private boolean rematchPhase = false;
-    private boolean midgameRematchRequested = false;
-
     private BoardView boardView;
 
-    /* ---------------- Init ---------------- */
-    @FXML
-    private void initialize() {
-        hideEndgameBox();
-        if (btnBackToLobby != null) btnBackToLobby.setVisible(false); // hidden at start
+
+    @Override
+    public void onLeave() {
+        inGame = false;
+        rematchPhase = false;
+        Platform.runLater( () -> {
+            lblGameStatus.setText("");
+            lblTurnInfo.setText("");
+            boardContainer.getChildren().clear();
+
+            //MID REMATCH states
+            btnMidgameRematch.setSelected(false);
+            btnMidgameRematch.setVisible(true);
+            btnMidgameRematch.setDisable(false);
+
+            //Quit btn
+            btnQuitGame.setVisible(true);
+            btnQuitGame.setDisable(false);
+
+            //End game rematch states
+            endgameBox.setVisible(false);
+            endgameBox.setDisable(true);
+
+            //back to lobbySafety
+            btnBackToLobby.setVisible(false);
+            btnBackToLobby.setDisable(true);
+
+        });
+
     }
+
+
 
     /* ---------------- Actions ---------------- */
     private void sendMove(int row, int col) {
-        if (!myTurn || !inGame) return;
-        myTurn = false;
+
+        if ( !inGame){
+            return;
+        }
+
         clientNetwork.sendPacket(new NetPacket(
                 PacketType.MOVE_REQUEST,
                 data.getUsername(),
@@ -58,14 +84,13 @@ public class GameController extends BaseController {
     @FXML
     private void onMidgameRematchToggle() {
         if (!inGame) return;
-
-        midgameRematchRequested = btnMidgameRematch.isSelected();
+        btnMidgameRematch.isSelected();
         clientNetwork.sendPacket(new NetPacket(
                 PacketType.REMATCH_REQUEST,
                 data.getUsername(),
-                new RematchRequest(midgameRematchRequested)
+                new RematchRequest(btnMidgameRematch.isSelected())
         ));
-        lblGameStatus.setText(midgameRematchRequested ? "Rematch requested" : "Rematch request cancelled");
+        lblGameStatus.setText(btnMidgameRematch.isSelected() ? "Rematch requested" : "Rematch request cancelled");
     }
 
     @FXML
@@ -76,59 +101,47 @@ public class GameController extends BaseController {
                     data.getUsername(),
                     new GameQuitRequest(false)
             ));
-        } else {
-            navigator.goTo(View.LOBBY);
         }
     }
 
-    @FXML
-    private void onEndGameRematchYes() {
-        sendEndGameRematch(true);
-    }
 
-    @FXML
-    private void onEndGameRematchNo() {
-        sendEndGameRematch(false);
-        navigator.goTo(View.LOBBY);
-    }
 
-    private void sendEndGameRematch(boolean want) {
-        if (!rematchPhase) return;
 
-        endgameBox.setDisable(true);
-        lblGameStatus.setText("Rematch decision sent...");
-        clientNetwork.sendPacket(new NetPacket(
-                PacketType.REMATCH_REQUEST,
-                data.getUsername(),
-                new RematchRequest(want)
-        ));
-    }
 
     /* ---------------- Server → UI ---------------- */
+
     public void onGameStartResponse(NetPacket packet) {
         GameStateResponse gs = (GameStateResponse) packet.payload();
+
         Platform.runLater(() -> {
             inGame = true;
             rematchPhase = false;
-            midgameRematchRequested = false;
 
-            // reset midgame rematch toggle
-            if (btnMidgameRematch != null) {
-                btnMidgameRematch.setSelected(false);
-                btnMidgameRematch.setDisable(false);
-                btnMidgameRematch.setVisible(true);
-            }
-            if (btnQuitGame != null) {
-                btnQuitGame.setDisable(false);
-                btnQuitGame.setVisible(true);
-            }
-            if (btnBackToLobby != null) btnBackToLobby.setVisible(false); // hide fail-safe
+    //----------------------------------------------------------
+            //Ui states
 
-            hideEndgameBox();
+            //MID REMATCH states
+            btnMidgameRematch.setSelected(false);
+            btnMidgameRematch.setVisible(true);
+            btnMidgameRematch.setDisable(false);
 
-            // Board setup
+            //Quit btn
+            btnQuitGame.setVisible(true);
+            btnQuitGame.setDisable(false);
+
+            //End game rematch states
+            endgameBox.setVisible(false);
+            endgameBox.setDisable(true);
+
+            //back to lobbySafety
+            btnBackToLobby.setVisible(false);
+            btnBackToLobby.setDisable(true);
+
+//----------------------------------------------------------
+
             int rows = gs.board().cells().length;
             int cols = gs.board().cells()[0].length;
+
             boardView = new BoardView(rows, cols, CELL_SIZE);
             boardView.setCellClickListener(this::sendMove);
             boardContainer.getChildren().setAll(boardView);
@@ -144,14 +157,15 @@ public class GameController extends BaseController {
             char mySymbol = data.getUsername().equals(gs.player1()) ? 'X' : 'O';
             boardView.updateBoard(strBoard, mySymbol);
 
-            myTurn = gs.currentPlayer().equals(data.getUsername());
-            lblTurnInfo.setText(myTurn ? "Your turn" : "Opponent's turn");
-            lblGameStatus.setText("Connect " + gs.winCount() + " to win");
+            boolean myTurn = gs.currentPlayer().equals(data.getUsername());
+            lblTurnInfo.setText(myTurn ? "Its Your turn" : "Opponent's turn");
+            lblGameStatus.setText("Connect " + gs.winCount() + " to win the game");
         });
     }
 
     public void onGameStateResponse(NetPacket packet) {
         GameStateResponse gs = (GameStateResponse) packet.payload();
+
         Platform.runLater(() -> {
             char[][] charBoard = gs.board().cells();
             String[][] strBoard = new String[charBoard.length][charBoard[0].length];
@@ -162,8 +176,133 @@ public class GameController extends BaseController {
             char mySymbol = data.getUsername().equals(gs.player1()) ? 'X' : 'O';
             boardView.updateBoard(strBoard, mySymbol);
 
-            myTurn = gs.currentPlayer().equals(data.getUsername());
+            boolean myTurn = gs.currentPlayer().equals(data.getUsername());
             lblTurnInfo.setText(myTurn ? "Your turn" : "Opponent's turn");
+        });
+    }
+
+    public void onGameEndResponse(NetPacket packet) {
+        GameEndResponse end = (GameEndResponse) packet.payload();
+
+        Platform.runLater(() -> {
+            inGame = false;
+            rematchPhase = true;
+
+            //Ui states
+
+                //MID REMATCH states
+                btnMidgameRematch.setSelected(false);
+                btnMidgameRematch.setVisible(false);
+                btnMidgameRematch.setDisable(true);
+
+                //Quit btn
+                btnQuitGame.setVisible(false);
+                btnQuitGame.setDisable(true);
+
+                //End game rematch states
+                endgameBox.setVisible(true);
+                endgameBox.setDisable(false);
+
+//                //back to lobbySafety
+//                btnBackToLobby.setVisible(false);
+//                btnBackToLobby.setDisable(true);
+
+
+
+            char[][] charBoard = end.finalBoard().cells();
+            String[][] strBoard = new String[charBoard.length][charBoard[0].length];
+            for (int r = 0; r < charBoard.length; r++)
+                for (int c = 0; c < charBoard[0].length; c++)
+                    strBoard[r][c] = (charBoard[r][c] == '\0' || charBoard[r][c] == ' ') ? null : String.valueOf(charBoard[r][c]);
+
+            char mySymbol = data.getUsername().equals(end.player1()) ? 'X' : 'O';
+            if (end.finalBoard() != null) boardView.updateBoard(strBoard, mySymbol);
+
+            lblGameStatus.setText(getEndMessage(end.reason()));
+
+
+        });
+    }
+
+    @FXML
+    private void onEndGameRematchYes() {
+        sendEndGameRematch(true);
+    }
+
+    @FXML
+    private void onEndGameRematchNo() {
+        sendEndGameRematch(false);
+        navigator.goTo(View.LOBBY);
+    }
+
+    private void sendEndGameRematch(boolean want) {
+        if (!rematchPhase) return;
+        clientNetwork.sendPacket(new NetPacket(
+                PacketType.REMATCH_REQUEST,
+                data.getUsername(),
+                new RematchRequest(want)
+        ));
+        lblGameStatus.setText("Rematch decision sent...");
+    }
+
+    public void onMatchSessionEndedResponse(NetPacket packet) {
+        MatchSessionEndedResponse match = (MatchSessionEndedResponse) packet.payload();
+        Platform.runLater(() -> {
+            rematchPhase = false;
+            if(!match.isRematchOn()) {
+
+                navigator.goTo(View.LOBBY);
+                //Ui states
+
+//                //MID REMATCH states
+//                btnMidgameRematch.setSelected(false);
+//                btnMidgameRematch.setVisible(false);
+//                btnMidgameRematch.setDisable(true);
+//
+//                //Quit btn
+//                btnQuitGame.setVisible(false);
+//                btnQuitGame.setDisable(true);
+//
+//                //End game rematch states
+//                endgameBox.setVisible(false);
+//                endgameBox.setDisable(true);
+//
+                //back to lobbySafety
+                btnBackToLobby.setVisible(true);
+                btnBackToLobby.setDisable(false);
+
+
+            }else{// rematch on
+
+                //MID REMATCH states
+                btnMidgameRematch.setSelected(false);
+                btnMidgameRematch.setVisible(true);
+                btnMidgameRematch.setDisable(false);
+
+                //Quit btn
+                btnQuitGame.setVisible(true);
+                btnQuitGame.setDisable(false);
+
+                //End game rematch states
+                endgameBox.setVisible(false);
+                endgameBox.setDisable(true);
+
+
+            }
+
+        });
+    }
+
+
+    public void onGameQuitResponse(NetPacket packet) {
+        GameQuitResponse gameQuitResponse = (GameQuitResponse) packet.payload();
+        if (gameQuitResponse.wasItUnstuckProcess()) return;
+        Platform.runLater(() -> {
+            inGame = false;
+            rematchPhase = false;
+            //check if reset
+            navigator.goTo(View.LOBBY);
+
         });
     }
 
@@ -178,51 +317,12 @@ public class GameController extends BaseController {
         });
     }
 
-    public void onGameEndResponse(NetPacket packet) {
-        GameEndResponse end = (GameEndResponse) packet.payload();
-        Platform.runLater(() -> {
-            inGame = false;
-            rematchPhase = true;
-
-            // hide midgame UI
-            if (midgameBox != null) {
-                midgameBox.setVisible(false);
-                midgameBox.setManaged(false);
-            }
-
-            // show only endgame rematch UI
-            showEndgameBox();
-
-            char[][] charBoard = end.finalBoard().cells();
-            String[][] strBoard = new String[charBoard.length][charBoard[0].length];
-            for (int r = 0; r < charBoard.length; r++)
-                for (int c = 0; c < charBoard[0].length; c++)
-                    strBoard[r][c] = (charBoard[r][c] == '\0' || charBoard[r][c] == ' ') ? null : String.valueOf(charBoard[r][c]);
-
-            char mySymbol = data.getUsername().equals(end.player1()) ? 'X' : 'O';
-            if (end.finalBoard() != null) boardView.updateBoard(strBoard, mySymbol);
-
-            lblGameStatus.setText(getEndMessage(end.reason()));
-
-            // show fail-safe back to lobby
-            if (btnBackToLobby != null) btnBackToLobby.setVisible(true);
-        });
-    }
-
-    public void onMatchSessionEndedResponse(NetPacket packet) {
-        MatchSessionEndedResponse resp = (MatchSessionEndedResponse) packet.payload();
-        Platform.runLater(() -> {
-            rematchPhase = false;
-            hideEndgameBox();
-            if (btnBackToLobby != null) btnBackToLobby.setVisible(true); // ensure lobby button is visible
-            navigator.goTo(View.LOBBY);
-        });
-    }
 
     public void onRematchResponse(NetPacket packet) {
         RematchResponse resp = (RematchResponse) packet.payload();
         Platform.runLater(() -> lblGameStatus.setText(resp.message()));
     }
+
 
     public void onPlayerInactivityWarningResponse(NetPacket packet) {
         PlayerInactivityWarningResponse pck = (PlayerInactivityWarningResponse) packet.payload();
@@ -230,12 +330,17 @@ public class GameController extends BaseController {
     }
 
     public void onPlayerDisconnectedNotificationResponse(NetPacket packet) {
-        PlayerDisconnectedNotificationResponse msg = (PlayerDisconnectedNotificationResponse) packet.payload();
-        Platform.runLater(() -> lblGameStatus.setText(msg.message()));
+        PlayerDisconnectedNotificationResponse msg =
+                (PlayerDisconnectedNotificationResponse) packet.payload();
+
+        Platform.runLater(() -> {
+            lblGameStatus.setText(msg.message());
+        });
     }
 
     public void onPlayerReconnectedNotificationResponse(NetPacket packet) {
-        PlayerReconnectedNotificationResponse msg = (PlayerReconnectedNotificationResponse) packet.payload();
+        PlayerReconnectedNotificationResponse msg =
+                (PlayerReconnectedNotificationResponse) packet.payload();
         Platform.runLater(() -> lblGameStatus.setText(msg.message()));
     }
 
@@ -250,51 +355,26 @@ public class GameController extends BaseController {
             lblGameStatus.setText("Opponent " + resp.quitter() + " quit the game.");
             inGame = false;
             rematchPhase = false;
-            hideEndgameBox();
-            if (btnBackToLobby != null) btnBackToLobby.setVisible(true);
         });
     }
 
-    public void onGameQuitResponse(NetPacket packet) {
-        GameQuitResponse gameQuitResponse = (GameQuitResponse) packet.payload();
-        if (gameQuitResponse.wasItUnstuckProcess()) return;
-        Platform.runLater(() -> {
-            inGame = false;
-            rematchPhase = false;
-            navigator.goTo(View.LOBBY);
-        });
-    }
 
-    /* ---------------- Helpers ---------------- */
-    private void showEndgameBox() {
-        if (endgameBox != null) {
-            endgameBox.setVisible(true);
-            endgameBox.setManaged(true);
-            endgameBox.setDisable(false);
-        }
-    }
 
-    private void hideEndgameBox() {
-        if (endgameBox != null) {
-            endgameBox.setVisible(false);
-            endgameBox.setManaged(false);
-        }
-    }
+
 
     private String getEndMessage(MatchEndReason reason) {
         return switch (reason) {
-            case MID_GAME_REMATCH ->  "Good luck at your rematch!";
+            case MID_GAME_REMATCH -> "Good luck at your rematch!";
             case WIN_NORMAL -> "You won! 🎉";
-            case WIN_QUIT -> "Opponent quit the game. You win by default!";
-            case WIN_TIMEOUT -> "Opponent was AFK. You win!";
+            case WIN_QUIT -> "Opponent quit. You win!";
+            case WIN_TIMEOUT -> "Opponent AFK. You win!";
             case WIN_DISCONNECT -> "Opponent disconnected. You win!";
-            case LOSS_NORMAL -> "You lost. 😢";
-            case LOSS_QUIT -> "You quit the game. 😢";
-            case LOSS_TIMEOUT -> "You were AFK. You lost!";
-            case LOSS_DISCONNECT -> "You disconnected. You lost!";
+            case LOSS_NORMAL -> "You lost 😢";
+            case LOSS_QUIT -> "You quit 😢";
+            case LOSS_TIMEOUT -> "You were AFK 😢";
+            case LOSS_DISCONNECT -> "You disconnected 😢";
             case DRAW -> "It's a draw.";
-            case UNKNOWN -> "Game ended unexpectedly.";
-            default -> "Game ended";
+            default -> "Game ended.";
         };
     }
 
