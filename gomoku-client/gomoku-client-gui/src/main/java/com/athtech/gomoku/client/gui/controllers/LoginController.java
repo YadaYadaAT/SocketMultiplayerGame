@@ -42,6 +42,7 @@ public class LoginController extends BaseController{
             data.setUsername(resp.username());
             clientNetwork.updateCredentials(data.getUsername(), data.getRelogCode());
             data.setInvites(resp.pendingInvites());
+
         }
 
     }

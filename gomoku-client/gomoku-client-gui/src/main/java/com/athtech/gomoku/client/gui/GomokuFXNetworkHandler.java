@@ -2,8 +2,7 @@ package com.athtech.gomoku.client.gui;
 
 import com.athtech.gomoku.client.gui.controllers.LoginController;
 import com.athtech.gomoku.client.net.ClientNetworkAdapter;
-import com.athtech.gomoku.client.net.ClientNetworkAdapterImpl;
-import com.athtech.gomoku.protocol.messaging.MatchEndReason;
+
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.payload.*;
 
