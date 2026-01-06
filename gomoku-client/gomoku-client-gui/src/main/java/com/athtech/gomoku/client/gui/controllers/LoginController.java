@@ -30,6 +30,11 @@ public class LoginController extends BaseController{
         navigator.goTo(View.SIGNUP);
     }
 
+    @Override
+    public void onEnter() {
+        Platform.runLater(() -> serverLoginResponseMessage.setText(""));
+    }
+
 
     public void onLoginResponse(NetPacket packet) {
        LoginResponse resp = (LoginResponse) packet.payload();

@@ -387,7 +387,8 @@ public class CLIController {
             case PLAYER_DISCONNECTED_NOTIFICATION_RESPONSE -> onPlayerDisconnectedNotificationResponse(packet);
             case PLAYER_RECONNECTED_NOTIFICATION_RESPONSE ->  onPlayerReconnectedNotificationResponse(packet);
             case PLAYER_RECONNECTED_RESPONSE -> onPlayerReconnectedResponse(packet);
-            default -> view.unsynchronizedCallback("Unhandled packet: " + packet.type());
+//            default -> view.unsynchronizedCallback("Unhandled packet: " + packet.type());
+            default -> view.unsynchronizedCallback("");//GUI will introduce more unhandled and it would spam the cli user
         }
     }
 

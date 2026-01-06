@@ -61,11 +61,15 @@ public class WrapperController extends BaseController{
 
     public void onLogoutResponse(NetPacket packet) {
         LogoutResponse resp = (LogoutResponse) packet.payload();
-        if (resp.success()){
-            setUsername("");
-            data.reset();
-            navigator.goTo(View.LOGIN);
-        }
+
+            if (resp.success()){
+                Platform.runLater(() -> {
+                    setUsername("");
+                    data.reset();
+                    navigator.goTo(View.LOGIN);
+                });
+            }
+
     }
 
     @Override

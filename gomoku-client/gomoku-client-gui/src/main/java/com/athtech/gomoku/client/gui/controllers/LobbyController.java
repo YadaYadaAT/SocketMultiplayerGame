@@ -143,6 +143,7 @@ public class LobbyController extends BaseController {
 
             if (resp.accepted()) {
                 //navigations triggered by callbacks are allowed only on wrapperController to avoid duplicates...
+                // Here is the spot where we clear the invites !!!
             }else{
                 if (resp.targetUsername().equals(data.getUsername())){
                     lobbyStatusLabel.setText("You declined invitation to " + resp.inviterUsername());

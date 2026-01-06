@@ -22,6 +22,7 @@ public class MatchController {
     private final PersistenceManager persistence;
     // pending invites <targetUsername, list of fromUsername>
     private final Map<String, CopyOnWriteArrayList<String>> pendingInvites = new ConcurrentHashMap<>();
+    private final Object invitesLock = new Object();
 
     public MatchController(ServerNetworkAdapter server, LobbyController lobbyController, PersistenceManager persistence) {
         this.lobbyController = lobbyController;
@@ -36,6 +37,7 @@ public class MatchController {
     public void createMatch(String player1, String player2) {
         try {
             Match match = matchManager.createMatch(player1, player2);
+            clearInvitesForMatchPlayers(player1,player2);
             broadcastMatchCreate(match);
         } catch (IllegalStateException e) {
             sendToClient.accept(player1, new NetPacket(PacketType.INVITE_RESPONSE, "server",
@@ -359,6 +361,26 @@ public class MatchController {
 
     public boolean isPlayerInGame(String username) {
         return matchManager.isPlayerInMatch(username);
+    }
+
+
+    /**
+     * Clears all pending invites involving either player (as sender or target)
+     */
+    public void clearInvitesForMatchPlayers(String player1, String player2) {
+        synchronized (invitesLock) {
+            // Remove any invites received by either player
+            pendingInvites.remove(player1);
+            pendingInvites.remove(player2);
+
+            // Remove both players as senders from all other lists
+            pendingInvites.forEach((target, inviteList) ->
+                    inviteList.removeIf(inviter -> inviter.equals(player1) || inviter.equals(player2))
+            );
+
+            // Clean up empty lists
+            pendingInvites.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        }
     }
 
 }
