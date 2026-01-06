@@ -1,9 +1,6 @@
 package com.athtech.gomoku.client.gui;
 
-import com.athtech.gomoku.client.gui.controllers.LobbyController;
-import com.athtech.gomoku.client.gui.controllers.LoginController;
-import com.athtech.gomoku.client.gui.controllers.SignupController;
-import com.athtech.gomoku.client.gui.controllers.WrapperController;
+import com.athtech.gomoku.client.gui.controllers.*;
 import com.athtech.gomoku.client.gui.enums.View;
 import com.athtech.gomoku.client.net.ClientNetworkAdapterImpl;
 import javafx.application.Application;
@@ -26,6 +23,7 @@ public class GomokuFXApp extends Application {
         viewNavigator.preload(View.LOGIN);
         viewNavigator.preload(View.SIGNUP);
         viewNavigator.preload(View.LOBBY);
+        viewNavigator.preload(View.GAME);
 
         // Create a shared data object that all controllers will reference.
         // Holds things like username, nickname, relogCode, player stats, pending invites, and login state.
@@ -54,6 +52,7 @@ public class GomokuFXApp extends Application {
         networkHandler.setLoginCtrl((LoginController) viewNavigator.getController(View.LOGIN));
         networkHandler.setSignupCtrl((SignupController) viewNavigator.getController(View.SIGNUP));
         networkHandler.setLobbyCtrl((LobbyController) viewNavigator.getController(View.LOBBY));
+        networkHandler.setGameCtrl((GameController) viewNavigator.getController(View.GAME));
 
         // Initialize all controllers with references to:
         // - The view navigator (so they can switch views)
@@ -69,7 +68,9 @@ public class GomokuFXApp extends Application {
         // the correct corresponding callback methods inside of each controller.
         // (currently only the info_response packet goes to more than 1 controller, due to being generic)
         networkHandler.initCallbackHandler();
-
+        // Test connection (well a bit of a lie ^^ we just want to trigger the callback to update
+        // the header ui )
+        networkHandler.sendHandshake();
         //get wrapper (i take it from roots; been included like the rest for harmony)
         //Although a bit abnormal in the sense that its the wrapper, we will exclude it from swapping at the goTo
         Parent wrapper = viewNavigator.getWrapper();

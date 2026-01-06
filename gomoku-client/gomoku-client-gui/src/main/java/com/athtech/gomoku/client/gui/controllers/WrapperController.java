@@ -29,6 +29,7 @@ public class WrapperController extends BaseController{
     @FXML
     public void initialize() {
         startClock();
+
     }
 
     public void setUsername(String name) {
@@ -87,6 +88,14 @@ public class WrapperController extends BaseController{
 
     }
 
+    public void onHandshakeResponse(NetPacket packet){
+        HandshakeResponse resp = (HandshakeResponse) packet.payload();
+        Platform.runLater(() -> {
+            lblConnection.setText(resp.msg());
+        });
+    }
+
+
     @Override
     public void showInfo(InfoResponse infoResponse) {
 
@@ -99,11 +108,6 @@ public class WrapperController extends BaseController{
         }));
         clockTimeline.setCycleCount(Animation.INDEFINITE);
         clockTimeline.play();
-    }
-
-    private void updateClock() {
-
-        lblClock.setText(LocalTime.now().format(timeFormatter));
     }
 
 

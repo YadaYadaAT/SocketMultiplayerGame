@@ -51,7 +51,7 @@ public class LoginController extends BaseController{
     }
 
     public void showInfo(InfoResponse info) {
-        Platform.runLater(() -> {serverLoginResponseMessage.setText(info.msg());});
+//        Platform.runLater(() -> {serverLoginResponseMessage.setText(info.msg());});
     }
 
 }

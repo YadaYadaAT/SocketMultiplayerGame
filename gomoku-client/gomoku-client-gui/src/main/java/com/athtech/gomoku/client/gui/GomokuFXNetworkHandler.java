@@ -1,14 +1,12 @@
 package com.athtech.gomoku.client.gui;
 
-import com.athtech.gomoku.client.gui.controllers.LobbyController;
-import com.athtech.gomoku.client.gui.controllers.LoginController;
-import com.athtech.gomoku.client.gui.controllers.SignupController;
-import com.athtech.gomoku.client.gui.controllers.WrapperController;
+import com.athtech.gomoku.client.gui.controllers.*;
 import com.athtech.gomoku.client.gui.enums.View;
 import com.athtech.gomoku.client.net.ClientNetworkAdapter;
 
 import com.athtech.gomoku.client.net.NetState;
 import com.athtech.gomoku.protocol.messaging.NetPacket;
+import com.athtech.gomoku.protocol.messaging.PacketType;
 import com.athtech.gomoku.protocol.payload.*;
 import javafx.application.Platform;
 
@@ -21,6 +19,12 @@ public class GomokuFXNetworkHandler {
     private LoginController loginCtrl;
     private SignupController signupCtrl;
     private LobbyController lobbyCtrl;
+    private GameController gameCtrl;
+
+
+    public void setGameCtrl(GameController gameCtrl) {
+        this.gameCtrl = gameCtrl;
+    }
 
     public void setLobbyCtrl(LobbyController lobbyCtrl) {
         this.lobbyCtrl = lobbyCtrl;
@@ -71,6 +75,10 @@ public class GomokuFXNetworkHandler {
         cna.updateCredentials(username,relogcode);
     }
 
+    public synchronized void sendHandshake(){
+        cna.sendPacket(new NetPacket(PacketType.HANDSHAKE_REQUEST,"", new HandshakeRequest()));
+    }
+
 
 
     private void handleServerPacket(NetPacket packet) {
@@ -81,27 +89,27 @@ public class GomokuFXNetworkHandler {
             case SIGNUP_RESPONSE -> signupCtrl.onSignupResponse(packet);
             case LOGOUT_RESPONSE -> onLogoutResponse(packet);
             case LOBBY_PLAYERS_RESPONSE -> lobbyCtrl.onLobbyPlayersResponse(packet);
-//            case GAME_QUIT_RESPONSE -> onGameQuitResponse(packet);
+            case GAME_QUIT_RESPONSE -> gameCtrl.onGameQuitResponse(packet);
             case PLAYER_STATS_RESPONSE -> lobbyCtrl.onPlayerStatsResponse(packet);
             case INVITE_RESPONSE -> lobbyCtrl.onInviteResponse(packet);
             case INVITE_NOTIFICATION_RESPONSE -> lobbyCtrl.onInviteNotificationResponse(packet);
             case INVITE_DECISION_RESPONSE -> onInviteDecisionResponse(packet);
             case LOBBY_CHAT_MESSAGE_RESPONSE -> lobbyCtrl.onLobbyChatMessageResponse(packet);
-//            case GAME_START_RESPONSE -> onGameStartResponse(packet);
-//            case GAME_STATE_RESPONSE -> onGameStateResponse(packet);
-//            case GAME_END_RESPONSE ->  onGameEndResponse(packet);
-//            case REMATCH_RESPONSE ->  onRematchResponse(packet);
-//            case MATCH_SESSION_ENDED_RESPONSE ->  onMatchSessionEndedResponse(packet);
-//            case MOVE_REJECTED_RESPONSE -> onMoveRejectedResponse(packet);
-//            case PLAYER_INACTIVITY_WARNING_RESPONSE -> onPlayerInactivityWarningResponse(packet);
+            case HANDSHAKE_RESPONSE ->  wrapperCtrl.onHandshakeResponse(packet);
+            case GAME_START_RESPONSE -> gameCtrl.onGameStartResponse(packet);
+            case GAME_STATE_RESPONSE -> gameCtrl.onGameStateResponse(packet);
+            case GAME_END_RESPONSE ->  gameCtrl.onGameEndResponse(packet);
+            case REMATCH_RESPONSE ->  gameCtrl.onRematchResponse(packet);
+            case MATCH_SESSION_ENDED_RESPONSE ->  gameCtrl.onMatchSessionEndedResponse(packet);
+            case MOVE_REJECTED_RESPONSE -> gameCtrl.onMoveRejectedResponse(packet);
+            case PLAYER_INACTIVITY_WARNING_RESPONSE -> gameCtrl.onPlayerInactivityWarningResponse(packet);
 //            case RESYNC_RESPONSE -> onResyncResponse(packet);
             case ERROR_MESSAGE_RESPONSE -> wrapperCtrl.onErrorMessageResponse(packet);
             case INFO_RESPONSE -> onInfoResponse(packet);
-            case HANDSHAKE_RESPONSE -> System.out.println(((HandshakeResponse)  packet.payload()).msg());
-//            case GAME_QUIT_NOTIFICATION_RESPONSE -> onGameQuitNotification(packet);
-//            case PLAYER_DISCONNECTED_NOTIFICATION_RESPONSE -> onPlayerDisconnectedNotificationResponse(packet);
-//            case PLAYER_RECONNECTED_NOTIFICATION_RESPONSE ->  onPlayerReconnectedNotificationResponse(packet);
-//            case PLAYER_RECONNECTED_RESPONSE -> onPlayerReconnectedResponse(packet);
+            case GAME_QUIT_NOTIFICATION_RESPONSE -> gameCtrl.onGameQuitNotification(packet);
+            case PLAYER_DISCONNECTED_NOTIFICATION_RESPONSE -> gameCtrl.onPlayerDisconnectedNotificationResponse(packet);
+            case PLAYER_RECONNECTED_NOTIFICATION_RESPONSE ->  gameCtrl.onPlayerReconnectedNotificationResponse(packet);
+            case PLAYER_RECONNECTED_RESPONSE -> gameCtrl.onPlayerReconnectedResponse(packet);
             default -> System.out.println("Debugging only ; Unhandled packet: " + packet.type());
         }
     }
@@ -134,241 +142,7 @@ public class GomokuFXNetworkHandler {
     }
 
 
-//    private void onPlayerReconnectedResponse(NetPacket packet){
-//        PlayerReconnectedResponse res = (PlayerReconnectedResponse) packet.payload();
-//        view.unsynchronizedCallback(res.msg());
-//    }
-//
-//    private void onGameQuitNotification(NetPacket packet) {
-//        GameQuitNotificationResponse resp =
-//                (GameQuitNotificationResponse) packet.payload();
-//
-//        abortGameSession("Opponent " + resp.quitter() + " quit the game.");
-//        view.showLobbyMenu();
-//
-//    }
-//
-//    private void onPlayerDisconnectedNotificationResponse(NetPacket packet){
-//        PlayerDisconnectedNotificationResponse msg = (PlayerDisconnectedNotificationResponse) packet.payload();
-//        view.showCallback(msg.message());
-//    }
-//
-//    private void onPlayerReconnectedNotificationResponse(NetPacket packet){
-//        PlayerReconnectedNotificationResponse msg = (PlayerReconnectedNotificationResponse) packet.payload();
-//        view.showCallback(msg.message());
-//    }
-//
 
-
-//
-//    private void onLobbyPlayersResponse(NetPacket packet) {
-//        LobbyPlayersResponse resp = (LobbyPlayersResponse) packet.payload();
-//        if (inGame){
-//            onLobbyPlayersFromPayload(resp.players(), false);
-//        }else{
-//            onLobbyPlayersFromPayload(resp.players(), true);
-//        }
-//
-//    }
-//
-//    private void onLobbyPlayersFromPayload(Map<String, Boolean> players, boolean printOn) {
-//        lobbyPlayers.clear();
-//
-//        for (var entry : players.entrySet()) {
-//            String user = entry.getKey();
-//            boolean inGame = entry.getValue();
-//
-//            if (!user.equals(username)) {
-//                lobbyPlayers.put(user, inGame);
-//            }
-//        }
-//
-//        if (printOn) {
-//            StringBuilder sb = new StringBuilder("Lobby:");
-//            lobbyPlayers.forEach((user, inGame) -> {
-//                sb.append(" - ")
-//                        .append(user)
-//                        .append(inGame ? " 🎮 [IN GAME]" : " ✅ [AVAILABLE]")
-//                        .append(", ");
-//            });
-//            view.showLobby(sb.toString());
-//        }
-//
-//
-//        notifyAllLock(resyncWastriggeredLock);
-//
-//    }
-//
-
-
-
-
-
-
-
-//
-//    private void onGameStartResponse(NetPacket packet) {
-//        GameStateResponse gs = (GameStateResponse) packet.payload();
-//        view.showBoard(gs.board(), username, gs.player1());
-//        boolean yourTurn = gs.currentPlayer().equals(username);
-//        // Fake "press enter" workaround – only on first game
-//        if (!rematchTriggered) {
-//            view.showGameStarted(
-//                    "\n Connect "+ gs.winCount() +" of your symbols to win the game" +
-//                            ". Good luck and have fun \uD83D\uDE08");
-//
-//        }else{
-//            gameStartingPromptConsumsed = true;
-//            view.showGameStarted("Game started!");
-//        }
-//        if (yourTurn) {
-//            view.showYourTurn(
-//                    """
-//                    It's your turn! ('q' to quit — quitting counts as a defeat)
-//                    Enter your move as: row,column
-//                    """
-//            );
-//        } else {
-//            view.showWaitTurn(
-//                    """
-//                    Waiting for opponent's move... ('q' to quit — quitting counts as a defeat)
-//                    """
-//            );
-//        }
-//        if (!rematchTriggered) {
-//            view.show(
-//                    "Press " +
-//                            "\u001B[38;5;208m`enter`\u001B[0m" +
-//                            " once to enter game mode"
-//            );
-//        }
-//
-//        // Rematch no longer needs the workaround
-//        rematchTriggered = false;
-//
-//        inGame = !gs.gameOver();
-//        notifyAllLock(gameLock);
-//    }
-//
-//    private void onGameStateResponse(NetPacket packet) {
-//        GameStateResponse gs = (GameStateResponse) packet.payload();
-//        onGameStateFromPayload(gs);
-//    }
-//
-//    private void onGameStateFromPayload(GameStateResponse gs){
-//        view.showBoard(gs.board(),username, gs.player1());
-//
-//        if (gs.currentPlayer().equals(username)) {
-//            if (!gameStartingPromptConsumsed) {
-//                view.showYourTurn(
-//                        """
-//                                It's your turn but you haven't yet pressed \u001B[38;5;208m`enter`\u001B[0m\
-//                                 to enter into game mode! Activate and proceed to row,column :"""
-//                );
-//            } else {
-//                view.showYourTurn("It's your turn!\n `q` -> quiting \n  row,column -> move");
-//            }
-//        } else {
-//            view.showWaitTurn("Opponent's turn. Please wait for your turn. ('q' -> anytime game quit");
-//        }
-//
-//        inGame = !gs.gameOver();
-//        notifyAllLock(gameLock);
-//    }
-//
-//    private void onGameEndResponse(NetPacket packet) {
-//        GameEndResponse end = (GameEndResponse) packet.payload();
-//        if (end.reason() == MatchEndReason.MID_GAME_REMATCH){
-//            //code here wont be ever triggered since midgame rematch never
-//            // sends onGameEndResponse ;...was meant to do initially and might change later.
-//            // since the development ends here we let it be...
-//        }else{
-//            //Not interuppted by midgame rematch :
-//            // Update session flags
-//            inGame = false;
-//            rematchPhase = true;
-//
-//            // Display final board if available
-//            if (end.finalBoard() != null) {
-//                view.showBoard(end.finalBoard(),username, end.player1());
-//            }
-//        }
-//
-//
-//        // Show outcome based on MatchEndReason
-//        String outcomeMsg;
-//        switch (end.reason()) {
-//            case MID_GAME_REMATCH -> outcomeMsg = "Good luck at your rematch!";
-//            case WIN_NORMAL -> outcomeMsg = "You won! 🎉";
-//            case WIN_QUIT -> outcomeMsg = "Opponent quit the game. You win by default! (Press enter to continue)";
-//            case WIN_TIMEOUT -> outcomeMsg = "Opponent was AFK. You win! (Press enter to continue)";
-//            case WIN_DISCONNECT -> outcomeMsg = "Opponent disconnected. You win! (Press enter to continue)";
-//            case LOSS_NORMAL -> outcomeMsg = "You lost. 😢 (Press enter to continue)";
-//            case LOSS_QUIT -> outcomeMsg = "You quit the game. 😢";
-//            case LOSS_TIMEOUT -> outcomeMsg = "You were AFK. You lost!";
-//            case LOSS_DISCONNECT -> outcomeMsg = "You disconnected. You lost!";
-//            case DRAW -> outcomeMsg = "It's a draw.";
-//            case UNKNOWN -> outcomeMsg = "Game ended unexpectedly.";
-//            default -> outcomeMsg = "Game ended.";
-//        }
-//        view.showCallbackHighlight(outcomeMsg);
-//
-//
-//        if (!(end.reason() == MatchEndReason.MID_GAME_REMATCH)) {
-//            if (stateIndicator == CLIstateIndicatorHelper.LOBBY_LOOP) {
-//                view.showLobbyMenu();
-//            }
-//        }
-//
-//        try {
-//            Thread.sleep(300);
-//        } catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//        }
-//
-//        notifyAllLock(gameLock);
-//    }
-//
-//
-//    private void onRematchResponse(NetPacket packet) {
-//        RematchResponse resp = (RematchResponse) packet.payload();
-//        view.showCallback(resp.message());
-//    }
-//
-//    private void onMatchSessionEndedResponse(NetPacket packet) {
-//        MatchSessionEndedResponse resp = (MatchSessionEndedResponse) packet.payload();
-//        if (resp !=null && resp.isRematchOn()){
-//            view.showCallback("Get Ready for the rematch");
-//            rematchTriggered = true;
-//            inGame = true;
-//        }else{
-//            rematchTriggered = false;
-//            inGame = false;
-//        }
-//
-//        rematchPhase = false;
-//
-//        notifyAllLock(rematchLock);
-//    }
-//
-//    private void onMoveRejectedResponse(NetPacket packet) {
-//
-//        MoveRejectedResponse rej = (MoveRejectedResponse) packet.payload();
-//        view.showCallback("Move rejected: " + rej.reason());
-//        if (rej.currentPlayer() == null) {
-//            inGame = false;
-//            view.showCallback("Game session lost. Returning to lobby...");
-//            notifyAllLock(gameLock);
-//        }else{
-//            notifyAllLock(gameLock);
-//        }
-//
-//    }
-//
-
-//
-
-//
 //    private void onResyncResponse(NetPacket packet) {
 //        ResyncResponse resp = (ResyncResponse) packet.payload();
 //
@@ -420,25 +194,7 @@ public class GomokuFXNetworkHandler {
 //
 //
 //
-//    private void onPlayerInactivityWarningResponse(NetPacket packet){
-//        PlayerInactivityWarningResponse pck = (PlayerInactivityWarningResponse) packet.payload();
-//        view.showCallback(pck.message());
-//    }
-//
-//    private void onGameQuitResponse(NetPacket packet) {
-//        GameQuitResponse gameQuitResponse = (GameQuitResponse)  packet.payload();
-//        if (gameQuitResponse.wasItUnstuckProcess()){
-//            view.showCallback(gameQuitResponse.msg());
-//            notifyAllLock(gameQuitLock);
-//            return;
-//        }
-//        inGame = false;
-//        rematchPhase = false;
-//        gameStartingPromptConsumsed = false;
-//
-//        notifyAllLock(gameQuitLock);
-//    }
-//
+
 
 
 
