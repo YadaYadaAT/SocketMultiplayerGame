@@ -1,17 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+
 <VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.athtech.gomoku.client.gui.controllers.WrapperController"
-      spacing="0">
+      spacing="0" stylesheets="@../css/Gomoku.css">
 
     <!-- Persistent header -->
     <HBox fx:id="headerBar" spacing="10">
         <Label fx:id="lblError" text=""/>
         <Label fx:id="lblUsername" text="🔑 LoggedInAs: "/>
         <Label fx:id="lblConnection" text="🔌"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <!-- Clock on the right -->
+        <Label fx:id="lblClock" text="⏰ 00:00:00"/>
     </HBox>
 
     <!-- This container swaps the actual content -->

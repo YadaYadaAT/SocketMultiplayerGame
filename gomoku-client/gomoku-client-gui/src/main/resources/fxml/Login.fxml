@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.HBox?>
 <?import javafx.scene.control.*?>
 <?import javafx.geometry.Insets?>
 
@@ -7,15 +8,30 @@
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.athtech.gomoku.client.gui.controllers.LoginController"
       fx:id="loginRoot"
-      spacing="10" alignment="CENTER" prefWidth="400" prefHeight="300">
+      spacing="20"
+      prefWidth="1200"
+      prefHeight="800"
+      alignment="CENTER"
+      stylesheets="@../css/Login.css"
+      VBox.vgrow="ALWAYS">
 
     <padding>
-        <Insets top="20" right="20" bottom="20" left="20"/>
+        <Insets top="30" right="30" bottom="30" left="30"/>
     </padding>
 
-    <TextField fx:id="txtLoginUser" promptText="Username"/>
-    <PasswordField fx:id="txtLoginPwd" promptText="Password"/>
-    <Label fx:id="serverLoginResponseMessage"/>
-    <Button fx:id="btnLogin" text="Login" onAction="#handleLogin"/>
-    <Button fx:id="btnSwitchSignup" text="Signup" onAction="#handleSwitchSignup"/>
+    <!-- Title -->
+    <Label text="Welcome to Gomoku 2026" styleClass="login-title"/>
+
+    <!-- Username + Password -->
+    <TextField fx:id="txtLoginUser" promptText="Username" styleClass="login-input"/>
+    <PasswordField fx:id="txtLoginPwd" promptText="Password" styleClass="login-input"/>
+
+    <!-- Server messages -->
+    <Label fx:id="serverLoginResponseMessage" styleClass="server-msg"/>
+
+    <!-- Buttons side by side -->
+    <HBox spacing="15" alignment="CENTER">
+        <Button fx:id="btnLogin" text="Login" onAction="#handleLogin" styleClass="action-btn"/>
+        <Button fx:id="btnSwitchSignup" text="Signup" onAction="#handleSwitchSignup" styleClass="action-btn-secondary"/>
+    </HBox>
 </VBox>

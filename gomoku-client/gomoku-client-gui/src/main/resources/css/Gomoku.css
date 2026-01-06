@@ -1,5 +1,20 @@
 
 
+/* ----- Header Bar ----- */
+#headerBar {
+    -fx-background-color: #1b1b2b;
+    -fx-padding: 8 12;
+    -fx-spacing: 15;
+    -fx-alignment: center-left;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 4, 0.2, 0, 2);
+}
 
-
+/* ----- Header Labels ----- */
+#headerBar .label {
+    -fx-text-fill: #f0f0f0;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-padding: 2 6;
+    -fx-transition: all 0.2s ease;
+}
 

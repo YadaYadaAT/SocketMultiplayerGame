@@ -92,7 +92,7 @@ public class GomokuFXApp extends Application {
 
         // Set the window height .
         stage.setHeight(800);
-        stage.setResizable(false);
+        stage.setResizable(true);
 
         // Show the window on the screen.
         // At this point, the FX thread takes control and renders the scene.

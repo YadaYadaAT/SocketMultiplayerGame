@@ -13,7 +13,11 @@
 <?import javafx.scene.shape.Line?>
 <?import javafx.scene.text.Font?>
 
-<VBox alignment="CENTER" maxWidth="1.7976931348623157E308" prefWidth="720" spacing="12" styleClass="root" stylesheets="@../css/lobbychat.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.LobbyController">
+<VBox alignment="CENTER" maxWidth="1.7976931348623157E308"
+      prefWidth="1200" prefHeight="800" spacing="12" styleClass="root"
+      stylesheets="@../css/lobbychat.css" xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.athtech.gomoku.client.gui.controllers.LobbyController">
 
     <padding>
         <Insets bottom="20" left="25" right="25" top="20" />
