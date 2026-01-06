@@ -21,6 +21,7 @@ public class GameController extends BaseController {
 
     @FXML private ToggleButton btnMidgameRematch;
     @FXML private Button btnQuitGame;
+    @FXML private Button btnBackToLobby; // fail-safe button
 
     @FXML private VBox boardContainer;
     @FXML private VBox midgameBox;   // holds midgame buttons
@@ -39,11 +40,8 @@ public class GameController extends BaseController {
     /* ---------------- Init ---------------- */
     @FXML
     private void initialize() {
-        // start hidden
-        if (endgameBox != null) {
-            endgameBox.setVisible(false);
-            endgameBox.setManaged(false);
-        }
+        hideEndgameBox();
+        if (btnBackToLobby != null) btnBackToLobby.setVisible(false); // hidden at start
     }
 
     /* ---------------- Actions ---------------- */
@@ -114,11 +112,17 @@ public class GameController extends BaseController {
             rematchPhase = false;
             midgameRematchRequested = false;
 
-            // show midgame buttons
-            if (btnMidgameRematch != null) btnMidgameRematch.setDisable(false);
-            if (btnQuitGame != null) btnQuitGame.setDisable(false);
-            if (btnMidgameRematch != null) btnMidgameRematch.setVisible(true);
-            if (btnQuitGame != null) btnQuitGame.setVisible(true);
+            // reset midgame rematch toggle
+            if (btnMidgameRematch != null) {
+                btnMidgameRematch.setSelected(false);
+                btnMidgameRematch.setDisable(false);
+                btnMidgameRematch.setVisible(true);
+            }
+            if (btnQuitGame != null) {
+                btnQuitGame.setDisable(false);
+                btnQuitGame.setVisible(true);
+            }
+            if (btnBackToLobby != null) btnBackToLobby.setVisible(false); // hide fail-safe
 
             hideEndgameBox();
 
@@ -181,10 +185,12 @@ public class GameController extends BaseController {
             rematchPhase = true;
 
             // hide midgame UI
-            if (midgameBox != null) midgameBox.setVisible(false);
-            if (midgameBox != null) midgameBox.setManaged(false);
+            if (midgameBox != null) {
+                midgameBox.setVisible(false);
+                midgameBox.setManaged(false);
+            }
 
-            // show endgame rematch UI
+            // show only endgame rematch UI
             showEndgameBox();
 
             char[][] charBoard = end.finalBoard().cells();
@@ -197,12 +203,10 @@ public class GameController extends BaseController {
             if (end.finalBoard() != null) boardView.updateBoard(strBoard, mySymbol);
 
             lblGameStatus.setText(getEndMessage(end.reason()));
-        });
-    }
 
-    @FXML
-    private void backToLobby() {
-        navigator.goTo(View.LOBBY);
+            // show fail-safe back to lobby
+            if (btnBackToLobby != null) btnBackToLobby.setVisible(true);
+        });
     }
 
     public void onMatchSessionEndedResponse(NetPacket packet) {
@@ -210,7 +214,8 @@ public class GameController extends BaseController {
         Platform.runLater(() -> {
             rematchPhase = false;
             hideEndgameBox();
-            if (resp.isRematchOn()) lblGameStatus.setText("Rematch starting...");
+            if (btnBackToLobby != null) btnBackToLobby.setVisible(true); // ensure lobby button is visible
+            navigator.goTo(View.LOBBY);
         });
     }
 
@@ -245,13 +250,14 @@ public class GameController extends BaseController {
             lblGameStatus.setText("Opponent " + resp.quitter() + " quit the game.");
             inGame = false;
             rematchPhase = false;
+            hideEndgameBox();
+            if (btnBackToLobby != null) btnBackToLobby.setVisible(true);
         });
     }
 
     public void onGameQuitResponse(NetPacket packet) {
         GameQuitResponse gameQuitResponse = (GameQuitResponse) packet.payload();
         if (gameQuitResponse.wasItUnstuckProcess()) return;
-
         Platform.runLater(() -> {
             inGame = false;
             rematchPhase = false;
@@ -290,6 +296,11 @@ public class GameController extends BaseController {
             case UNKNOWN -> "Game ended unexpectedly.";
             default -> "Game ended";
         };
+    }
+
+    @FXML
+    private void backToLobby() {
+        navigator.goTo(View.LOBBY);
     }
 
     @Override
