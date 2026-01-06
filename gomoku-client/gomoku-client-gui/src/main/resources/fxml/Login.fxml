@@ -5,16 +5,17 @@
 
 <VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="com.athtech.gomoku.client.gui.LoginController"
+      fx:controller="com.athtech.gomoku.client.gui.controllers.LoginController"
+      fx:id="loginRoot"
       spacing="10" alignment="CENTER" prefWidth="400" prefHeight="300">
 
     <padding>
         <Insets top="20" right="20" bottom="20" left="20"/>
     </padding>
 
-    <TextField fx:id="txtUser" promptText="Username"/>
-    <PasswordField fx:id="txtPwd" promptText="Password"/>
-    <Label fx:id="lblMessage"/>
+    <TextField fx:id="txtLoginUser" promptText="Username"/>
+    <PasswordField fx:id="txtLoginPwd" promptText="Password"/>
+    <Label fx:id="serverLoginResponseMessage"/>
     <Button fx:id="btnLogin" text="Login" onAction="#handleLogin"/>
-    <Button fx:id="btnSignup" text="Signup" onAction="#switchToSignup"/>
+    <Button fx:id="btnSwitchSignup" text="Signup" onAction="#handleSwitchSignup"/>
 </VBox>
