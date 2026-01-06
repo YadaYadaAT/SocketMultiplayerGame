@@ -4,7 +4,8 @@ public enum View {
     LOGIN("/fxml/Login.fxml"),
     SIGNUP("/fxml/SignUp.fxml"),
     LOBBY("/fxml/Lobby.fxml"),
-    GAME("/fxml/Game.fxml");
+    GAME("/fxml/Game.fxml"),
+    SCENEWRAPPER("/fxml/SceneWrapper.fxml");
 
     private final String fxmlPath;
 

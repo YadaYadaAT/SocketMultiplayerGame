@@ -1,9 +1,14 @@
 package com.athtech.gomoku.client.gui;
 
 import com.athtech.gomoku.client.gui.controllers.LoginController;
+import com.athtech.gomoku.client.gui.controllers.SignupController;
+import com.athtech.gomoku.client.gui.controllers.WrapperController;
 import com.athtech.gomoku.client.gui.enums.View;
 import com.athtech.gomoku.client.net.ClientNetworkAdapterImpl;
 import javafx.application.Application;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 public class GomokuFXApp extends Application {
@@ -15,9 +20,13 @@ public class GomokuFXApp extends Application {
         // The Stage is passed so the navigator can directly change the root of the scene when switching views.
         var viewNavigator = new GomokuFXViewNavigator(stage);
 
+
+
         // Preload the LOGIN view FXML and its associated controller.//TODO: will change into an intro scene
         // This ensures the root node and controller are created now, so switching to it later is instant.
+
         viewNavigator.preload(View.LOGIN);
+        viewNavigator.preload(View.SIGNUP);
 
         // Create a shared data object that all controllers will reference.
         // Holds things like username, nickname, relogCode, player stats, pending invites, and login state.
@@ -43,6 +52,7 @@ public class GomokuFXApp extends Application {
         // (Currently we are about to have like 4-5 maximum controllers with 1:1 fxml, if it scales we
         // might swap to a map or something... currently we set one by one.
         networkHandler.setLoginCtrl((LoginController) viewNavigator.getController(View.LOGIN));
+        networkHandler.setSignupCtrl((SignupController) viewNavigator.getController(View.SIGNUP));
 
         // Initialize all controllers with references to:
         // - The view navigator (so they can switch views)
@@ -59,10 +69,21 @@ public class GomokuFXApp extends Application {
         // (currently only the info_response packet goes to more than 1 controller, due to being generic)
         networkHandler.initCallbackHandler();
 
-        // Create the JavaFX Scene and attach the preloaded LOGIN view root.
-        // This becomes the initial UI displayed to the user.
-        //TODO:(Change the comment to "intro root" when you add an intro)
-        stage.setScene(new javafx.scene.Scene(viewNavigator.getRoot(View.LOGIN)));
+        // Load the wrapper scene that contains the persistent header and a contentPane where all other views will appear
+        FXMLLoader wrapperLoader = new FXMLLoader(getClass().getResource(View.SCENEWRAPPER.fxmlPath()));
+        Parent wrapper = wrapperLoader.load();
+        WrapperController wrapperController = wrapperLoader.getController();
+
+        // Tell the navigator about the wrapper root so it can access contentPane later
+        viewNavigator.setWrapperRoot(wrapper);
+        viewNavigator.setWrapperController(wrapperController);
+
+        // Create the JavaFX Scene and attach the wrapper root.
+        // The wrapper stays constant; only its contentPane will be swapped when switching views.
+        stage.setScene(new Scene(wrapper));
+
+        // Set the initial view in the contentPane (LOGIN)
+        wrapperController.getContentPane().getChildren().setAll(viewNavigator.getRoot(View.LOGIN));
 
         // Set the window title. ~YadaYada~ <-You  put this title; => bounds to be good...
         stage.setTitle("YadaYada Gomoku 2026");

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.athtech.gomoku.client.gui.controllers.SignupController"
+      spacing="10" alignment="CENTER" prefWidth="400" prefHeight="350">
+
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20"/>
+    </padding>
+
+    <TextField fx:id="txtSignupUser" promptText="Choose username"/>
+    <PasswordField fx:id="txtSignupPwd" promptText="Choose password"/>
+    <TextField fx:id="txtSignupNickname" promptText="Pick a nickname"/>
+    <Label fx:id="serverSignupResponseMessage"/>
+    <Button fx:id="btnSignup" text="Signup" onAction="#handleSignup"/>
+    <Button fx:id="btnSwitchLogin" text="Back to Login" onAction="#handleSwitchLogin"/>
+</VBox>

@@ -1,6 +1,8 @@
 package com.athtech.gomoku.client.gui;
 
 import com.athtech.gomoku.client.gui.controllers.LoginController;
+import com.athtech.gomoku.client.gui.controllers.SignupController;
+import com.athtech.gomoku.client.gui.controllers.WrapperController;
 import com.athtech.gomoku.client.net.ClientNetworkAdapter;
 
 import com.athtech.gomoku.protocol.messaging.NetPacket;
@@ -11,10 +13,21 @@ import java.util.Map;
 public class GomokuFXNetworkHandler {
     private final ClientNetworkAdapter cna;
     private final GomokuFXCommonToAllControllersData ctAllControllersData;
+    private WrapperController wrapperCtrl;
     private LoginController loginCtrl;
+    private SignupController signupCtrl;
+
+
+    public void setWrapperCtrl(WrapperController wrapperCtrl) {
+        this.wrapperCtrl = wrapperCtrl;
+    }
 
     public void setLoginCtrl(LoginController loginCtrl) {
         this.loginCtrl = loginCtrl;
+    }
+
+    public void setSignupCtrl(SignupController signupCtrl) {
+        this.signupCtrl = signupCtrl;
     }
 
     public void initCallbackHandler(){
@@ -42,7 +55,7 @@ public class GomokuFXNetworkHandler {
 //        if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE) return;
         switch (packet.type()) {
             case LOGIN_RESPONSE -> loginCtrl.onLoginResponse(packet);
-//            case SIGNUP_RESPONSE -> onSignupResponse(packet);
+            case SIGNUP_RESPONSE -> signupCtrl.onSignupResponse(packet);
 //            case LOGOUT_RESPONSE -> onLogoutResponse(packet);
 //            case LOBBY_PLAYERS_RESPONSE -> onLobbyPlayersResponse(packet);
 //            case GAME_QUIT_RESPONSE -> onGameQuitResponse(packet);
@@ -78,6 +91,7 @@ public class GomokuFXNetworkHandler {
     }
 
 
+
 //    private void onPlayerReconnectedResponse(NetPacket packet){
 //        PlayerReconnectedResponse res = (PlayerReconnectedResponse) packet.payload();
 //        view.unsynchronizedCallback(res.msg());
@@ -104,13 +118,6 @@ public class GomokuFXNetworkHandler {
 //
 
 
-
-
-//    private void onSignupResponse(NetPacket packet) {
-//        SignupResponse resp = (SignupResponse) packet.payload();
-//        view.showCallback(resp.message());
-//        notifyAllLock(loginLock);
-//    }
 //
 //    private void onLobbyPlayersResponse(NetPacket packet) {
 //        LobbyPlayersResponse resp = (LobbyPlayersResponse) packet.payload();
