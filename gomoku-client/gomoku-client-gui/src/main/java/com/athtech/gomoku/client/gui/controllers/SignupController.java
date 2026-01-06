@@ -21,6 +21,28 @@ public class SignupController extends BaseController {
     @FXML private Button btnSignup;
     @FXML private Button btnSwitchLogin;
 
+    @FXML
+    private void initialize() {
+        // Press Enter in username → focus password
+        txtSignupUser.setOnAction(e -> txtSignupPwd.requestFocus());
+
+        // Press Enter in password → focus nickname
+        txtSignupPwd.setOnAction(e -> txtSignupNickname.requestFocus());
+
+        // Press Enter in nickname → attempt signup if all fields filled
+        txtSignupNickname.setOnAction(e -> trySignupOnEnter());
+    }
+
+    private void trySignupOnEnter() {
+        String username = txtSignupUser.getText().trim();
+        String password = txtSignupPwd.getText().trim();
+        String nickname = txtSignupNickname.getText().trim();
+
+        if (!username.isEmpty() && !password.isEmpty() && !nickname.isEmpty()) {
+            handleSignup(); // call existing signup method
+        }
+    }
+
     // Simple flag to track success state
     private boolean signupSuccessful = false;
 

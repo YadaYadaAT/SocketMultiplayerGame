@@ -17,6 +17,36 @@ public class LoginController extends BaseController{
     @FXML private TextField txtLoginUser;
     @FXML private PasswordField txtLoginPwd;
     @FXML private Label serverLoginResponseMessage;
+    @FXML
+    private Button btnLogin;
+
+    @FXML
+    private void initialize() {
+        // Move focus from username → password
+        txtLoginUser.setOnAction(e -> txtLoginPwd.requestFocus());
+
+        // Press Enter in password triggers login
+        txtLoginPwd.setOnAction(e -> attemptLogin());
+
+        // Optional: Press Enter on login button (if it exists)
+        btnLogin.setOnAction(e -> attemptLogin());
+
+        // Enable login only if both fields have text
+        txtLoginUser.textProperty().addListener((obs, oldVal, newVal) -> checkLoginEnabled());
+        txtLoginPwd.textProperty().addListener((obs, oldVal, newVal) -> checkLoginEnabled());
+
+        checkLoginEnabled(); // initial check
+    }
+
+    private void checkLoginEnabled() {
+        boolean enabled = !txtLoginUser.getText().isBlank() && !txtLoginPwd.getText().isBlank();
+        if (btnLogin != null) btnLogin.setDisable(!enabled);
+    }
+
+    private void attemptLogin() {
+        if (txtLoginUser.getText().isBlank() || txtLoginPwd.getText().isBlank()) return;
+        handleLogin();
+    }
 
     @FXML
     private void handleLogin() {
