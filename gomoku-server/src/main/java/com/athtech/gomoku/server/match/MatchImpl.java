@@ -26,7 +26,7 @@ public class MatchImpl implements Match {
     private final Map<String, RematchVote> rematchVotes = Collections.synchronizedMap(new HashMap<>()); // Tracks rematch votes
     private final Map<String, Boolean> midGameAsyncRematchVotes = Collections.synchronizedMap(new HashMap<>());
     private boolean ended = false;         // Flag indicating if the match has ended
-
+    private long stateVersion = 0;
     // ─────────────────────────────────────────────
     // Timer management
     // ─────────────────────────────────────────────
@@ -109,7 +109,7 @@ public class MatchImpl implements Match {
     }
 
 
-
+//“Has exactly ONE player been disconnected long enough that the OTHER player should win?”
     public Optional<String> checkDisconnectTimeout() {
         if (ended) return Optional.empty();
 
@@ -119,7 +119,6 @@ public class MatchImpl implements Match {
             if (!isPlayerConnected.getOrDefault(player, true)) {
                 long lastSeen = lastConnectionTime.getOrDefault(player, now);
                 if (now - lastSeen >= disconnectTimeoutMs) {
-                    ended = true;
                     return Optional.of(
                             game.getPlayer1().equals(player)
                                     ? game.getPlayer2()
@@ -142,7 +141,6 @@ public class MatchImpl implements Match {
             }
         }
 
-        ended = true;
         return true;
     }
 
@@ -159,6 +157,10 @@ public class MatchImpl implements Match {
             lastMoveTime = System.currentTimeMillis();
             softTimeoutWarned = false;
         }
+    }
+
+    public boolean  isPlayerDisconnected (String player){
+        return isPlayerDisconnected(player);
     }
 
     public synchronized void markFinalized() {
@@ -189,6 +191,7 @@ public class MatchImpl implements Match {
         if (ok) {
             lastMoveTime = System.currentTimeMillis(); // Update last move time
             softTimeoutWarned = false;                // Reset soft timeout warning
+            stateVersion++; // increment version on successful move
         }
         return ok;
     }
@@ -259,7 +262,8 @@ public class MatchImpl implements Match {
                 game.isGameOver(),
                 game.getPlayer1(),
                 game.getPlayer2(),
-                Game.getWinCount()
+                Game.getWinCount(),
+                stateVersion
         );
     }
 
@@ -277,6 +281,7 @@ public class MatchImpl implements Match {
 
     @Override
     public synchronized boolean markEnded() {
+        if (ended) return false;
         ended = true;
         return true;
     }
@@ -441,4 +446,9 @@ public class MatchImpl implements Match {
     public long getLastMoveTime() {
         return lastMoveTime;
     }
+
+    public synchronized long getStateVersion() {
+        return stateVersion;
+    }
+
 }

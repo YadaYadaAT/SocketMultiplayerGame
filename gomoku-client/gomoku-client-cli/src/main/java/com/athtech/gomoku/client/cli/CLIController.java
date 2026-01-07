@@ -21,6 +21,7 @@ public class CLIController {
     private volatile boolean rematchPhase = false; //end of game rematch
     private volatile boolean sessionClosing = false; //during logout
     private volatile boolean forceExitGame = false;
+    private volatile long  gameVersion = 0;
 
     private volatile boolean rematchTriggered = false;
     private volatile long lastServerActivity = System.currentTimeMillis();
@@ -516,6 +517,7 @@ public class CLIController {
     }
 
     private void onGameStartResponse(NetPacket packet) {
+        gameVersion = 0;// reset version..
         GameStateResponse gs = (GameStateResponse) packet.payload();
         view.showBoard(gs.board(), username, gs.player1());
         boolean yourTurn = gs.currentPlayer().equals(username);
@@ -564,6 +566,11 @@ public class CLIController {
     }
 
     private void onGameStateFromPayload(GameStateResponse gs){
+        if (gs.version() < gameVersion) {
+            // old packet, ignore
+            return;
+        }
+        gameVersion = gs.version();
         view.showBoard(gs.board(),username, gs.player1());
 
         if (gs.currentPlayer().equals(username)) {
@@ -644,6 +651,7 @@ public class CLIController {
     }
 
     private void onMatchSessionEndedResponse(NetPacket packet) {
+        gameVersion = 0;
         MatchSessionEndedResponse resp = (MatchSessionEndedResponse) packet.payload();
         if (resp !=null && resp.isRematchOn()){
             view.showCallback("Get Ready for the rematch");

@@ -120,7 +120,7 @@ public class MatchManagerImpl implements MatchManager {
                 return;
             }
 
-            // Disconnect win
+            // Goal :“Has exactly ONE player been disconnected long enough that the OTHER player should win?”
             impl.checkDisconnectTimeout().ifPresent(winner -> {
                 System.out.println("\uD83C\uDFAE \uD83D\uDD0C [Match] Disconnect timeout. Winner: " + winner +
                         " | Match: " + impl.getMatchId());
@@ -237,7 +237,17 @@ public class MatchManagerImpl implements MatchManager {
 
             // Determine opponent
             String opponent = impl.getOpponent(player);
-            if (opponent == null) return true;
+
+            if (impl.isEnded()){
+                    removeMatchAndCleanupPlayers(impl);
+                    return true;
+            }
+
+            if (opponent==null){
+                return true;
+            }
+
+
 
             boolean isOpponentsTurn = opponent.equals(impl.getCurrentPlayer());
             long timeoutSeconds = MatchImpl.disconnectTimeoutMs() / 1000;

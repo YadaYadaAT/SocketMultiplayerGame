@@ -1,129 +1,163 @@
+/* ================= ROOT ================= */
 .root-pane {
-    -fx-background-color: #f0f4f8;
+    -fx-background-color: #0f1218;
     -fx-font-family: "Segoe UI", sans-serif;
 }
 
+/* ================= TOP ================= */
 .top-bar {
-    -fx-background-color: #ffffffcc;
-    -fx-border-color: #4a90e2;
+    -fx-background-color: linear-gradient(to right, #141a22, #0f1218);
+    -fx-border-color: #1e88e5;
     -fx-border-width: 0 0 2 0;
-    -fx-padding: 10 15;
-    -fx-alignment: CENTER_LEFT;
-    -fx-spacing: 15;
-}
-
-.center-container {
-    -fx-alignment: CENTER;
-    -fx-spacing: 50;
-}
-
-.bottom-bar {
-    -fx-alignment: CENTER;
-    -fx-spacing: 8;
+    -fx-padding: 12 18;
 }
 
 .game-status {
     -fx-font-size: 18px;
     -fx-font-weight: bold;
-    -fx-text-fill: #333;
+    -fx-text-fill: #e3f2fd;
+}
+
+/* ================= CENTER ================= */
+.center-container {
+    -fx-alignment: CENTER;
 }
 
 .turn-info {
     -fx-font-size: 15px;
-    -fx-text-fill: #555;
+    -fx-text-fill: #90caf9;
 }
 
-/* ============================= */
-/* BOARD */
+/* ================= RIGHT ================= */
+.right-panel {
+    -fx-background-color: #121722;
+    -fx-padding: 25;
+    -fx-border-radius: 14;
+    -fx-background-radius: 14;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 12, 0.3, 0, 4);
+}
+
+/* ================= BOARD ================= */
 .board-grid {
-    -fx-background-color: #1e1e1e;
-    -fx-padding: 6;
-    -fx-border-color: #4a90e2;
+    -fx-background-color: #0b0f14;
+    -fx-padding: 8;
+    -fx-border-color: #1e88e5;
     -fx-border-width: 3;
-    -fx-border-radius: 10;
-    -fx-background-radius: 10;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 5, 0.3, 0, 2);
+    -fx-border-radius: 14;
+    -fx-background-radius: 14;
 }
 
+/* cell hover & click feedback */
 .board-cell {
-    -fx-background-color: #2b2b2b;
-    -fx-border-color: #3f3f3f;
+    -fx-background-color: linear-gradient(
+            to bottom,
+            #161b22,
+            #10151c
+    );
+
+    -fx-border-color: #2a2f3a;
     -fx-border-width: 1;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+
     -fx-alignment: center;
     -fx-cursor: hand;
-    -fx-effect: innershadow(gaussian, rgba(0,0,0,0.2), 2, 0.3, 0, 1);
+
+    -fx-transition: all 0.12s ease-in-out;
 }
 
 .board-cell:hover {
-    -fx-background-color: #353535;
+    -fx-background-color: #1f2633;
+    -fx-border-color: #1e88e5;
+}
+
+.board-cell:pressed {
+    -fx-background-color: #1e88e5;
 }
 
 .cell-symbol {
-    -fx-font-size: 24px;
+    -fx-font-size: 26px;
     -fx-font-weight: bold;
-    -fx-text-fill: #00fffc;
+    -fx-text-fill: #00e5ff;
+
+    -fx-effect: dropshadow(
+            gaussian,
+            rgba(0,229,255,0.55),
+            6, 0.5, 0, 0
+    );
 }
 
-/* ============================= */
-/* REMATCH */
+/* ================= REMATCH ================= */
 .rematch-circle {
-    -fx-min-width: 64px;
-    -fx-min-height: 64px;
-    -fx-max-width: 64px;
-    -fx-max-height: 64px;
+    -fx-min-width: 64;
+    -fx-min-height: 64;
     -fx-background-radius: 50%;
     -fx-border-radius: 50%;
-    -fx-background-color: #4a90e2;
-    -fx-border-color: #357ABD;
+    -fx-background-color: #1e88e5;
+    -fx-border-color: #42a5f5;
     -fx-border-width: 2;
     -fx-text-fill: white;
     -fx-font-size: 20px;
-    -fx-font-weight: bold;
     -fx-cursor: hand;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 5, 0.3, 0, 2);
 }
 
 .rematch-circle:hover {
-    -fx-background-color: #357ABD;
+    -fx-background-color: #42a5f5;
 }
 
 .rematch-circle:selected {
-    -fx-background-color: #00fffc;
+    -fx-background-color: #00e5ff;
     -fx-text-fill: black;
+}
+
+/* ================= ENDGAME ================= */
+.endgame-box {
+    -fx-background-color: #0d1117;
+    -fx-padding: 18 20 20 20;
+
+    /* size guarantees */
+    -fx-min-width: 200px;
+    -fx-pref-width: 220px;
+
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: #1e88e5;
+    -fx-border-width: 1.5;
+
+    /* visual lift */
+    -fx-effect: dropshadow(gaussian, rgba(30,136,229,0.35), 14, 0.3, 0, 4);
 }
 
 .rematch-label {
     -fx-font-size: 14px;
-    -fx-text-fill: #333;
+    -fx-text-fill: #e3f2fd;
 }
 
 .rematch-yes {
     -fx-background-color: #00c853;
-    -fx-text-fill: white;
-    -fx-padding: 6 20;
+    -fx-text-fill: black;
     -fx-font-weight: bold;
-    -fx-background-radius: 6px;
+    -fx-background-radius: 6;
 }
 
 .rematch-no {
     -fx-background-color: #d32f2f;
     -fx-text-fill: white;
-    -fx-padding: 6 20;
     -fx-font-weight: bold;
-    -fx-background-radius: 6px;
+    -fx-background-radius: 6;
 }
 
+/* ================= QUIT ================= */
 .quit-button {
-    -fx-background-color: #ffffffcc;
-    -fx-border-color: #d32f2f;
+    -fx-background-color: transparent;
+    -fx-border-color: #ef5350;
     -fx-border-width: 2;
-    -fx-text-fill: #d32f2f;
-    -fx-padding: 6 20;
+    -fx-text-fill: #ef5350;
     -fx-font-weight: bold;
-    -fx-background-radius: 6px;
+    -fx-background-radius: 6;
 }
 
 .quit-button:hover {
-    -fx-background-color: #d32f2f;
-    -fx-text-fill: white;
+    -fx-background-color: #ef5350;
+    -fx-text-fill: black;
 }
