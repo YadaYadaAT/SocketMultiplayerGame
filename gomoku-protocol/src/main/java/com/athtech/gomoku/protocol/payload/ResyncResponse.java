@@ -9,5 +9,7 @@ public record ResyncResponse(
         PlayerStatsResponse myStats,
         InviteNotificationResponse[] pendingInvites,
         GameStateResponse currentGameState,
-        String relogCode
+        String relogCode,
+        String nickname,
+        String username
 ) implements Serializable{}

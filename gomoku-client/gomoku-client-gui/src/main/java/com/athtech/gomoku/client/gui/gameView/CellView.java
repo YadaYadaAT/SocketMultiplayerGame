@@ -20,8 +20,7 @@ public class CellView extends StackPane {
         this.col = col;
 
         Rectangle bg = new Rectangle(size, size);
-        bg.setFill(Color.BEIGE);
-        bg.setStroke(Color.BLACK);
+        bg.getStyleClass().add("board-cell");
         getChildren().add(bg);
         setAlignment(Pos.CENTER);
 

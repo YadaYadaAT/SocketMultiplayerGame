@@ -9,8 +9,8 @@
       fx:controller="com.athtech.gomoku.client.gui.controllers.LoginController"
       fx:id="loginRoot"
       spacing="20"
-      prefWidth="1200"
-      prefHeight="800"
+      prefWidth="1920"
+      prefHeight="1080"
       alignment="CENTER"
       stylesheets="@../css/Login.css"
       VBox.vgrow="ALWAYS">

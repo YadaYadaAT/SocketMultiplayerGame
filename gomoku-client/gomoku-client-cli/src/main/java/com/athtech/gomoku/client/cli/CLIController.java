@@ -82,6 +82,7 @@ public class CLIController {
         nickname = null;
         username = null;
         relogCode = null;
+        gameVersion =0;
         lobbyPlayers.clear();
         myStats = null;
         gameStartingPromptConsumsed = false;

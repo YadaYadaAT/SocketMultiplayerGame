@@ -252,8 +252,25 @@ public class MatchController {
     private void handleRematchAccept(String username, Match match) throws IllegalStateException{
             match.requestRematch(username);
             if (match.isEnded()) {
-                sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
-                        new RematchResponse(false, "Rematch request recorded")));
+                if( matchManager.getMatch(match.getMatchId()) != null && !match.isThePlayerConnected(
+                        match.getOpponent(username)
+                )){
+                    sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                            new RematchResponse(false, "Rematch not available, opponent disconnected from game")));
+                    sendToClient.accept(username, new NetPacket(PacketType.MATCH_SESSION_ENDED_RESPONSE, "server",
+                            new MatchSessionEndedResponse(false)));
+
+                }else if (matchManager.getMatch(match.getMatchId()) == null ){
+                    sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                            new RematchResponse(false, "Rematch not available, game no longer exists")));
+                    sendToClient.accept(username, new NetPacket(PacketType.MATCH_SESSION_ENDED_RESPONSE, "server",
+                            new MatchSessionEndedResponse(false)));
+                }else{
+                    sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
+                            new RematchResponse(false, "Rematch request recorded")));
+                }
+
+
 
             }else{
                 // ───── mid-game intent ON ─────

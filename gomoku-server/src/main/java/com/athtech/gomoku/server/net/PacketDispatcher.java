@@ -5,6 +5,7 @@ import com.athtech.gomoku.protocol.messaging.PacketType;
 import com.athtech.gomoku.server.match.MatchController;
 import com.athtech.gomoku.server.persistence.PersistenceManager;
 import com.athtech.gomoku.protocol.payload.*;
+import com.athtech.gomoku.server.persistence.Player;
 
 import java.time.Instant;
 import java.util.Map;
@@ -261,7 +262,7 @@ public class PacketDispatcher {
                     new ResyncResponse(
                             false,
                             "Invalid relog code. Please login again.",
-                            null, null, null, null, null
+                            null, null, null, null, null,null,null
                     )
             ));
             return;
@@ -287,6 +288,11 @@ public class PacketDispatcher {
                 matchController.getInvitationsFor(req.username());
         GameStateResponse currentGame =
                 matchController.getCurrentGame(req.username());
+        String nickname = persistence //dirty...but sleepy...project is almost over..
+                .getPlayerByUsername(req.username())
+                .map(Player::getNickname)
+                .orElse(req.username());
+
 
         client.sendPacket(new NetPacket(
                 PacketType.RESYNC_RESPONSE,
@@ -298,7 +304,9 @@ public class PacketDispatcher {
                         stats,
                         pendingInvites,
                         currentGame,
-                        relogCode
+                        relogCode,
+                        nickname,
+                        client.getUsername()
                 )
         ));
     }

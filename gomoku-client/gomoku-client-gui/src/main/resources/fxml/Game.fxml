@@ -1,108 +1,101 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.geometry.Insets?>
+<?import javafx.scene.Cursor?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ToggleButton?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
-<?import javafx.scene.text.Font?>
 
-<BorderPane prefHeight="800"
-            prefWidth="1200"
-            styleClass="root-pane"
-            stylesheets="@../css/game.css"
-            xmlns="http://javafx.com/javafx/21"
+<BorderPane xmlns="http://javafx.com/javafx/21"
             xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="com.athtech.gomoku.client.gui.controllers.GameController">
+            fx:controller="com.athtech.gomoku.client.gui.controllers.GameController"
+            stylesheets="@../css/game.css"
+            prefWidth="1920"
+            prefHeight="1080"
+            >
 
     <!-- TOP BAR -->
     <top>
         <HBox alignment="CENTER"
-              prefHeight="110"
+              prefHeight="80"
               styleClass="top-bar">
-            <Label fx:id="lblGameStatus"
-                   styleClass="game-status"
-                   textAlignment="CENTER">
-                <font>
-                    <Font size="16"/>
-                </font>
-            </Label>
+            <Label fx:id="lblGameStatus"/>
         </HBox>
     </top>
 
     <!-- CENTER -->
     <center>
         <HBox alignment="CENTER"
-              spacing="50"
+              spacing="30"
               styleClass="center-container">
 
+            <!-- LEFT : messages -->
+            <VBox spacing="12"
+                  styleClass="message-box">
+                <Label fx:id="lblTurnInfo"/>
+                <Label fx:id="lblRematchStatus"
+                       />
+            </VBox>
+
+            <!-- CENTER : board -->
             <VBox fx:id="boardContainer"
                   alignment="CENTER"
-                  minWidth="480"
-                  minHeight="480"
-                  spacing="5"/>
+                  spacing="10"
+                  styleClass="board-wrapper"/>
 
-            <Label fx:id="lblTurnInfo"
-                   styleClass="turn-info"/>
+            <!-- RIGHT : controls -->
+            <VBox alignment="TOP_CENTER"
+                  spacing="20"
+                  styleClass="right-panel">
+
+                <VBox fx:id="midgameBox"
+                      alignment="CENTER">
+                    <ToggleButton fx:id="btnMidgameRematch"
+                                  onAction="#onMidgameRematchToggle"/>
+                </VBox>
+
+                <VBox spacing="12"
+                      alignment="CENTER">
+                    <Button fx:id="btnBackToLobby"
+                            text="Back to Lobby"
+                            onAction="#backToLobby">
+                        <cursor>
+                            <Cursor fx:constant="OPEN_HAND"/>
+                        </cursor>
+                    </Button>
+
+                    <Button fx:id="btnQuitGame"
+                            text="Quit Game"
+                            onAction="#quitGame"
+                            styleClass="quit-button"/>
+                </VBox>
+
+            </VBox>
+
         </HBox>
     </center>
 
-    <!-- RIGHT PANEL -->
-    <right>
-        <VBox alignment="CENTER"
-              spacing="25"
-              styleClass="right-panel"
-              BorderPane.alignment="CENTER">
-
-            <!-- MIDGAME -->
-            <VBox alignment="CENTER" spacing="15">
-                <ToggleButton fx:id="btnMidgameRematch"
-                              onAction="#onMidgameRematchToggle"
-                              styleClass="rematch-circle"
-                              text="↻"/>
-                <Button fx:id="btnQuitGame"
-                        onAction="#quitGame"
-                        styleClass="quit-button"
-                        text="Quit Game"/>
-            </VBox>
-
-            <!-- ENDGAME -->
-            <VBox fx:id="endgameBox"
-                  alignment="CENTER"
-                  spacing="15"
-                  visible="false"
-                  managed="false"
-                  maxWidth="220"
-                  styleClass="endgame-box">
-
-                <Label text="Play again?"
-                       styleClass="rematch-label"/>
-
-                <HBox alignment="CENTER" spacing="15">
-                    <Button text="Yes"
-                            onAction="#onEndGameRematchYes"
-                            styleClass="rematch-yes"/>
-                    <Button text="No"
-                            onAction="#onEndGameRematchNo"
-                            styleClass="rematch-no"/>
-                </HBox>
-
-                <Button fx:id="btnBackToLobby"
-                        onAction="#backToLobby"
-                        styleClass="quit-button"
-                        text="Back to Lobby"/>
-            </VBox>
-
-        </VBox>
-    </right>
-
+    <!-- BOTTOM : ENDGAME BOX (UNCHANGED) -->
     <bottom>
-        <VBox prefHeight="80">
-            <padding>
-                <Insets top="10"/>
-            </padding>
+        <VBox fx:id="endgameBox"
+              alignment="CENTER"
+              spacing="15"
+              visible="false"
+              styleClass="endgame-box">
+            <Label text="Play again?"
+                   styleClass="endgame-label"/>
+            <HBox spacing="15"
+                  alignment="CENTER">
+                <Button text="Yes"
+                        onAction="#onEndGameRematchYes"
+                        styleClass="rematch-yes"/>
+                <Button text="No"
+                        onAction="#onEndGameRematchNo"
+                        styleClass="rematch-no"/>
+            </HBox>
         </VBox>
     </bottom>
 

@@ -14,7 +14,7 @@
 <?import javafx.scene.text.Font?>
 
 <VBox alignment="CENTER" maxWidth="1.7976931348623157E308"
-      prefWidth="1200" prefHeight="800" spacing="12" styleClass="root"
+      spacing="12" styleClass="root"
       stylesheets="@../css/lobbychat.css" xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.athtech.gomoku.client.gui.controllers.LobbyController">
@@ -52,7 +52,7 @@
     <Label styleClass="lobby-title" text="LOBBY" />
 
     <!-- Players + Invites -->
-    <HBox minHeight="250" prefHeight="520" spacing="15">
+    <HBox minHeight="150" prefHeight="520" spacing="15">
         <!-- Available Players -->
         <VBox spacing="8" HBox.hgrow="ALWAYS">
             <Label styleClass="section-title" text="Available Players" />
@@ -83,7 +83,7 @@
             <Label fx:id="lobbyStatusLabel" styleClass="status-label" />
         </HBox>
 
-        <ListView fx:id="chatListView" prefHeight="200" styleClass="chat-list" VBox.vgrow="ALWAYS" />
+        <ListView fx:id="chatListView" minHeight="50" styleClass="chat-list" VBox.vgrow="ALWAYS" />
 
         <HBox spacing="8">
             <TextField fx:id="chatInput" promptText="Type your message..." styleClass="chat-input" HBox.hgrow="ALWAYS" />

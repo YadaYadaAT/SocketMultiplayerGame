@@ -213,10 +213,21 @@ public class MatchManagerImpl implements MatchManager {
     private void removeMatchAndCleanupPlayers(MatchImpl match) {
         match.markFinalized(); // prevent reconnections from interfering
 
+        // Notify all players that the match/session has ended
+        for (String player : match.getMatchPlayers()) {
+            notifier.accept(player, new NetPacket(
+                    PacketType.MATCH_SESSION_ENDED_RESPONSE,
+                    "server",
+                    new MatchSessionEndedResponse(false) // false = no rematch
+            ));
+        }
+
+        // Now remove players from active list and call callbacks
         for (String player : match.getMatchPlayers()) {
             activePlayers.remove(player);
             match.onPlayerRemoved.accept(player);
         }
+
         matches.remove(match.getMatchId());
         System.out.println("\uD83C\uDFAE [Match] Removed match " + match.getMatchId());
     }

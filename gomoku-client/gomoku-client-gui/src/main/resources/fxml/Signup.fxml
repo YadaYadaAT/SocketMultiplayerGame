@@ -8,7 +8,7 @@
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox alignment="CENTER"  prefWidth="1200" prefHeight="800" spacing="15" styleClass="root-pane" stylesheets="@../css/Singup.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.SignupController">
+<VBox alignment="CENTER"  spacing="15" styleClass="root-pane" stylesheets="@../css/Singup.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.SignupController">
 
     <padding>
         <Insets bottom="30" left="30" right="30" top="30" />

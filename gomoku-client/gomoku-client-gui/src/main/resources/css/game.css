@@ -1,136 +1,126 @@
 /* ================= ROOT ================= */
-.root-pane {
-    -fx-background-color: #0f1218;
+.root {
+    -fx-background-color: #0f0f0f;
     -fx-font-family: "Segoe UI", sans-serif;
+    -fx-font-size: 14px;
+    -fx-text-fill: #e0e0e0;
 }
 
-/* ================= TOP ================= */
+/* ================= TOP BAR ================= */
 .top-bar {
-    -fx-background-color: linear-gradient(to right, #141a22, #0f1218);
-    -fx-border-color: #1e88e5;
+    -fx-background-color: #1c1c1c;
+    -fx-padding: 15;
+    -fx-border-color: #333;
     -fx-border-width: 0 0 2 0;
-    -fx-padding: 12 18;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.7), 8,0.3,0,2);
 }
 
-.game-status {
-    -fx-font-size: 18px;
+.top-bar Label {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 20px;
     -fx-font-weight: bold;
-    -fx-text-fill: #e3f2fd;
 }
 
-/* ================= CENTER ================= */
+/* ================= CENTER CONTAINER ================= */
 .center-container {
     -fx-alignment: CENTER;
-}
-
-.turn-info {
-    -fx-font-size: 15px;
-    -fx-text-fill: #90caf9;
-}
-
-/* ================= RIGHT ================= */
-.right-panel {
-    -fx-background-color: #121722;
     -fx-padding: 25;
-    -fx-border-radius: 14;
-    -fx-background-radius: 14;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 12, 0.3, 0, 4);
+    -fx-border-color: #333;
+    -fx-border-width: 2;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10,0.2,0,2);
 }
 
-/* ================= BOARD ================= */
-.board-grid {
-    -fx-background-color: #0b0f14;
-    -fx-padding: 8;
-    -fx-border-color: #1e88e5;
-    -fx-border-width: 3;
-    -fx-border-radius: 14;
-    -fx-background-radius: 14;
+/* LEFT MESSAGES */
+.message-box {
+    -fx-padding: 15;
+    -fx-background-color: #1a1a1a;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 6,0.2,0,2);
+    -fx-min-width: 180px;
 }
 
-/* cell hover & click feedback */
-.board-cell {
-    -fx-background-color: linear-gradient(
-            to bottom,
-            #161b22,
-            #10151c
-    );
-
-    -fx-border-color: #2a2f3a;
-    -fx-border-width: 1;
-    -fx-background-radius: 6;
-    -fx-border-radius: 6;
-
-    -fx-alignment: center;
-    -fx-cursor: hand;
-
-    -fx-transition: all 0.12s ease-in-out;
-}
-
-.board-cell:hover {
-    -fx-background-color: #1f2633;
-    -fx-border-color: #1e88e5;
-}
-
-.board-cell:pressed {
-    -fx-background-color: #1e88e5;
-}
-
-.cell-symbol {
-    -fx-font-size: 26px;
+.message-box Label {
+    -fx-text-fill: #e0e0e0;
     -fx-font-weight: bold;
-    -fx-text-fill: #00e5ff;
-
-    -fx-effect: dropshadow(
-            gaussian,
-            rgba(0,229,255,0.55),
-            6, 0.5, 0, 0
-    );
 }
 
-/* ================= REMATCH ================= */
-.rematch-circle {
-    -fx-min-width: 64;
-    -fx-min-height: 64;
+/* BOARD CELL */
+.board-cell {
+    -fx-fill: #1f1f1f;
+    -fx-stroke: #444;
+    -fx-arc-width: 6;
+    -fx-arc-height: 6;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 4,0.2,0,2);
+}
+
+/* STONES */
+.stone-your {
+    -fx-fill: #2979ff;
+    -fx-effect: dropshadow(gaussian, rgba(41,121,255,0.6), 8,0.3,0,0);
+}
+.stone-opponent {
+    -fx-fill: #ff5252;
+    -fx-effect: dropshadow(gaussian, rgba(255,82,82,0.6), 8,0.3,0,0);
+}
+
+/* RIGHT PANEL */
+.right-panel {
+    -fx-background-color: #1b1b1b;
+    -fx-padding: 25;
+    -fx-min-width: 260px;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.7), 10,0.3,0,2);
+}
+
+/* TURN INFO & REMATCH STATUS */
+.turn-info {
+    -fx-text-fill: #82b1ff;
+    -fx-font-weight: bold;
+    -fx-font-size: 16px;
+}
+
+.rematch-status {
+    -fx-text-fill: #ffeb3b;
+
+}
+
+/* REMATCH BUTTONS */
+.rematch-button {
+    -fx-background-color: #2979ff;
+    -fx-text-fill: white;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
     -fx-background-radius: 50%;
     -fx-border-radius: 50%;
-    -fx-background-color: #1e88e5;
-    -fx-border-color: #42a5f5;
-    -fx-border-width: 2;
-    -fx-text-fill: white;
-    -fx-font-size: 20px;
-    -fx-cursor: hand;
+    -fx-min-width: 60px;
+    -fx-min-height: 60px;
 }
 
-.rematch-circle:hover {
-    -fx-background-color: #42a5f5;
+.rematch-button:hover {
+    -fx-background-color: #5393ff;
 }
-
-.rematch-circle:selected {
+.rematch-button:selected {
     -fx-background-color: #00e5ff;
     -fx-text-fill: black;
 }
 
-/* ================= ENDGAME ================= */
+/* ENDGAME BOX (Bottom) */
 .endgame-box {
-    -fx-background-color: #0d1117;
-    -fx-padding: 18 20 20 20;
-
-    /* size guarantees */
-    -fx-min-width: 200px;
-    -fx-pref-width: 220px;
-
-    -fx-background-radius: 14;
-    -fx-border-radius: 14;
-    -fx-border-color: #1e88e5;
-    -fx-border-width: 1.5;
-
-    /* visual lift */
-    -fx-effect: dropshadow(gaussian, rgba(30,136,229,0.35), 14, 0.3, 0, 4);
+    -fx-padding: 15;
+    -fx-background-color: #1c1c1c;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 10,0.2,0,2);
 }
 
-.rematch-label {
-    -fx-font-size: 14px;
-    -fx-text-fill: #e3f2fd;
+.endgame-label {
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+    -fx-font-size: 16px;
 }
 
 .rematch-yes {
@@ -138,26 +128,31 @@
     -fx-text-fill: black;
     -fx-font-weight: bold;
     -fx-background-radius: 6;
+    -fx-min-width: 80px;
+    -fx-min-height: 35px;
 }
 
 .rematch-no {
-    -fx-background-color: #d32f2f;
+    -fx-background-color: #ff5252;
     -fx-text-fill: white;
     -fx-font-weight: bold;
     -fx-background-radius: 6;
+    -fx-min-width: 80px;
+    -fx-min-height: 35px;
 }
 
-/* ================= QUIT ================= */
+/* QUIT BUTTONS */
 .quit-button {
     -fx-background-color: transparent;
-    -fx-border-color: #ef5350;
+    -fx-border-color: #ff5252;
     -fx-border-width: 2;
-    -fx-text-fill: #ef5350;
+    -fx-text-fill: #ff5252;
     -fx-font-weight: bold;
     -fx-background-radius: 6;
+    -fx-padding: 6 15;
 }
 
 .quit-button:hover {
-    -fx-background-color: #ef5350;
+    -fx-background-color: #ff5252;
     -fx-text-fill: black;
 }

@@ -70,9 +70,18 @@ public class WrapperController extends BaseController{
         if (resp.success()) {
             Platform.runLater(() -> {
                 setUsername(resp.message());
-                navigator.goTo(View.LOBBY);
+
+                if(resp.currentGameState() !=null){
+                    navigator.goTo(View.GAME);
+                }else{
+                    navigator.goTo(View.LOBBY);
+                }
             });
         }
+    }
+
+    public void onResyncResponse(NetPacket netPacket){
+
     }
 
     public void onLogoutResponse(NetPacket packet) {
@@ -94,6 +103,7 @@ public class WrapperController extends BaseController{
             lblConnection.setText(resp.msg());
         });
     }
+
 
 
     @Override

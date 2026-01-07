@@ -74,7 +74,19 @@ public class LoginController extends BaseController{
             data.setRelogCode(resp.relogCode());
             data.setNickname(resp.nickname());
             data.setUsername(resp.username());
-            data.setInvites(resp.pendingInvites());
+            clientNetwork.updateCredentials(data.getUsername(), data.getRelogCode());
+        }
+
+    }
+
+    public void onResyncResponse(NetPacket packet){
+        ResyncResponse resp = (ResyncResponse) packet.payload();
+        data.setLoggedIn(resp.success());
+        Platform.runLater(() -> serverLoginResponseMessage.setText(resp.message()));
+        if (data.isLoggedIn()) {
+            data.setRelogCode(resp.relogCode());
+            data.setNickname(resp.nickname());
+            data.setUsername(resp.username());
             clientNetwork.updateCredentials(data.getUsername(), data.getRelogCode());
         }
 

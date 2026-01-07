@@ -17,6 +17,7 @@ public class GameController extends BaseController {
 
     /* ---------------- UI ---------------- */
     @FXML private Label lblGameStatus;
+    @FXML private Label lblRematchStatus;
 
     @FXML private Label lblTurnInfo;
 
@@ -30,17 +31,26 @@ public class GameController extends BaseController {
     /* ---------------- State ---------------- */
     private static final int CELL_SIZE = 48;
 
-    private boolean inGame = false;
-    private boolean rematchPhase = false;
+    private volatile long  gameVersion = 0;
+
+    private volatile boolean inGame = false;
+    private volatile boolean rematchPhase = false;
     private BoardView boardView;
+
+    private volatile boolean reconnecting = false;
 
 
     @Override
     public void onLeave() {
-        inGame = false;
-        rematchPhase = false;
-        Platform.runLater( () -> {
+         Platform.runLater( () -> {
+            if (reconnecting){
+                return;
+            }
+            gameVersion =0;
+            inGame = false;
+            rematchPhase = false;
             lblGameStatus.setText("");
+             setRematchStatus("");
             lblTurnInfo.setText("");
             boardContainer.getChildren().clear();
 
@@ -60,8 +70,7 @@ public class GameController extends BaseController {
             //back to lobbySafety
             btnBackToLobby.setVisible(false);
             btnBackToLobby.setDisable(true);
-
-        });
+         });
 
     }
 
@@ -73,6 +82,7 @@ public class GameController extends BaseController {
         if ( !inGame){
             return;
         }
+        Platform.runLater(() -> {    lblRematchStatus.setText("");});
 
         clientNetwork.sendPacket(new NetPacket(
                 PacketType.MOVE_REQUEST,
@@ -105,12 +115,10 @@ public class GameController extends BaseController {
     }
 
 
-
-
-
     /* ---------------- Server → UI ---------------- */
 
     public void onGameStartResponse(NetPacket packet) {
+        gameVersion = 0;
         GameStateResponse gs = (GameStateResponse) packet.payload();
 
         Platform.runLater(() -> {
@@ -136,6 +144,8 @@ public class GameController extends BaseController {
             //back to lobbySafety
             btnBackToLobby.setVisible(false);
             btnBackToLobby.setDisable(true);
+
+
 
 //----------------------------------------------------------
 
@@ -165,6 +175,15 @@ public class GameController extends BaseController {
 
     public void onGameStateResponse(NetPacket packet) {
         GameStateResponse gs = (GameStateResponse) packet.payload();
+        onGameStateResponseFromPayload(gs);
+    }
+
+
+    public void onGameStateResponseFromPayload(GameStateResponse gs) {
+        if (gs.version() < gameVersion) {
+            // old packet, ignore
+            return;
+        }
 
         Platform.runLater(() -> {
             char[][] charBoard = gs.board().cells();
@@ -218,7 +237,7 @@ public class GameController extends BaseController {
             char mySymbol = data.getUsername().equals(end.player1()) ? 'X' : 'O';
             if (end.finalBoard() != null) boardView.updateBoard(strBoard, mySymbol);
 
-            lblGameStatus.setText(getEndMessage(end.reason()));
+            lblTurnInfo.setText(getEndMessage(end.reason()));
 
 
         });
@@ -249,25 +268,13 @@ public class GameController extends BaseController {
         MatchSessionEndedResponse match = (MatchSessionEndedResponse) packet.payload();
         Platform.runLater(() -> {
             rematchPhase = false;
+            gameVersion =0;
             if(!match.isRematchOn()) {
 
-                navigator.goTo(View.LOBBY);
-                //Ui states
-
-//                //MID REMATCH states
-//                btnMidgameRematch.setSelected(false);
-//                btnMidgameRematch.setVisible(false);
-//                btnMidgameRematch.setDisable(true);
-//
-//                //Quit btn
-//                btnQuitGame.setVisible(false);
-//                btnQuitGame.setDisable(true);
-//
-//                //End game rematch states
-//                endgameBox.setVisible(false);
-//                endgameBox.setDisable(true);
-//
-                //back to lobbySafety
+//                navigator.goTo(View.LOBBY);
+                endgameBox.setVisible(false);
+                endgameBox.setDisable(true);
+                lblGameStatus.setText("Game is Over");
                 btnBackToLobby.setVisible(true);
                 btnBackToLobby.setDisable(false);
 
@@ -291,6 +298,87 @@ public class GameController extends BaseController {
             }
 
         });
+    }
+
+    public void onResyncResponse(NetPacket packet){
+        ResyncResponse resp =(ResyncResponse) packet.payload();
+        onLoginResponseFromExtractedGamestate( resp.currentGameState());
+    }
+
+    public void onLoginResponse(NetPacket packet){
+        LoginResponse loginR = (LoginResponse) packet.payload();
+        GameStateResponse gs = loginR.currentGameState();
+        onLoginResponseFromExtractedGamestate(gs);
+    }
+
+    public synchronized void onLoginResponseFromExtractedGamestate(GameStateResponse gs){
+
+        if(gs != null){
+            reconnecting = true;
+
+            // ----------------------
+            // Board
+            // ----------------------
+            int rows = gs.board().cells().length;
+            int cols = gs.board().cells()[0].length;
+
+            if(boardView == null){
+                boardView = new BoardView(rows, cols, CELL_SIZE);
+                boardView.setCellClickListener(this::sendMove);
+            }
+
+            Platform.runLater(() -> {
+                boardContainer.getChildren().setAll(boardView);
+
+                // ----------------------
+                // Flags
+                // ----------------------
+                inGame = true;
+                rematchPhase = false;
+
+                // ----------------------
+                // UI states
+                // ----------------------
+                boolean myTurn = gs.currentPlayer().equals(data.getUsername());
+
+                lblTurnInfo.setText(myTurn ? "Your turn" : "Opponent's turn");
+                lblGameStatus.setText("Connect " + gs.winCount() + " to win the game");
+
+                // Midgame rematch
+                btnMidgameRematch.setVisible(true);
+                btnMidgameRematch.setDisable(false);
+                btnMidgameRematch.setSelected(false);
+
+                // Quit button
+                btnQuitGame.setVisible(true);
+                btnQuitGame.setDisable(false);
+
+                // Endgame box
+                endgameBox.setVisible(false);
+                endgameBox.setDisable(true);
+
+                // Back to lobby
+                btnBackToLobby.setVisible(false);
+                btnBackToLobby.setDisable(true);
+
+                // ----------------------
+                // Populate board
+                // ----------------------
+                char[][] charBoard = gs.board().cells();
+                String[][] strBoard = new String[rows][cols];
+                for (int r = 0; r < rows; r++)
+                    for (int c = 0; c < cols; c++)
+                        strBoard[r][c] = (charBoard[r][c] == '\0' || charBoard[r][c] == ' ') ? null : String.valueOf(charBoard[r][c]);
+
+                char mySymbol = data.getUsername().equals(gs.player1()) ? 'X' : 'O';
+                boardView.updateBoard(strBoard, mySymbol);
+            });
+
+            // ----------------------
+            // Done reconnecting
+            // ----------------------
+            reconnecting = false;
+        }
     }
 
 
@@ -320,7 +408,7 @@ public class GameController extends BaseController {
 
     public void onRematchResponse(NetPacket packet) {
         RematchResponse resp = (RematchResponse) packet.payload();
-        Platform.runLater(() -> lblGameStatus.setText(resp.message()));
+        Platform.runLater(() -> setRematchStatus(resp.message()));
     }
 
 
@@ -359,9 +447,6 @@ public class GameController extends BaseController {
     }
 
 
-
-
-
     private String getEndMessage(MatchEndReason reason) {
         return switch (reason) {
             case MID_GAME_REMATCH -> "Good luck at your rematch!";
@@ -369,13 +454,21 @@ public class GameController extends BaseController {
             case WIN_QUIT -> "Opponent quit. You win!";
             case WIN_TIMEOUT -> "Opponent AFK. You win!";
             case WIN_DISCONNECT -> "Opponent disconnected. You win!";
-            case LOSS_NORMAL -> "You lost 😢";
-            case LOSS_QUIT -> "You quit 😢";
-            case LOSS_TIMEOUT -> "You were AFK 😢";
-            case LOSS_DISCONNECT -> "You disconnected 😢";
+            case LOSS_NORMAL -> "You lost ";
+            case LOSS_QUIT -> "You quit ";
+            case LOSS_TIMEOUT -> "You were AFK ";
+            case LOSS_DISCONNECT -> "You disconnected ";
             case DRAW -> "It's a draw.";
             default -> "Game ended.";
         };
+    }
+
+    private void setRematchStatus(String text){
+        Platform.runLater(() -> {
+            boolean hasText = text != null && !text.isBlank();
+            lblRematchStatus.setVisible(hasText);
+            lblRematchStatus.setText(text);
+        });
     }
 
     @FXML

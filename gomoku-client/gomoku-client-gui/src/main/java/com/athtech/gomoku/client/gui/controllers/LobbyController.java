@@ -154,11 +154,14 @@ public class LobbyController extends BaseController {
 
         if (resp.success()) {
             Platform.runLater(() -> {
+
                 PlayerStatsResponse stats = resp.myStats();
-                played.setText(Integer.toString(stats.gamesPlayed()));
-                wins.setText(Integer.toString(stats.wins()));
-                loses.setText(Integer.toString(stats.losses()));
-                draws.setText(Integer.toString(stats.draws()));
+
+                updateStats(stats);
+                for(InviteNotificationResponse i : resp.pendingInvites()){
+                    onInviteNotificationResponseFromPayload(i);
+                }
+
             });
         } else {
             Platform.runLater(() ->
@@ -167,9 +170,34 @@ public class LobbyController extends BaseController {
         }
     }
 
+    public void updateStats(PlayerStatsResponse stats){
+        Platform.runLater(() -> {
+            played.setText(Integer.toString(stats.gamesPlayed()));
+            wins.setText(Integer.toString(stats.wins()));
+            loses.setText(Integer.toString(stats.losses()));
+            draws.setText(Integer.toString(stats.draws()));
+        });
+
+    }
+
+    public void onResyncResponse(NetPacket packet){
+        ResyncResponse resp = (ResyncResponse)  packet.payload();
+        updateStats(resp.myStats());
+        for(InviteNotificationResponse i : resp.pendingInvites()){
+            onInviteNotificationResponseFromPayload(i);
+        }
+        onLobbyPlayersResponseFromPayload(resp.lobbyPlayers());
+
+    }
+
+
     public void onLobbyPlayersResponse(NetPacket packet) {
         LobbyPlayersResponse resp = (LobbyPlayersResponse) packet.payload();
+        onLobbyPlayersResponseFromPayload(resp);
 
+    }
+
+    public void onLobbyPlayersResponseFromPayload(LobbyPlayersResponse resp) {
         Platform.runLater(() -> {
             lobbyPlayersList.getItems().clear();
             displayToUsername.clear();
@@ -187,6 +215,7 @@ public class LobbyController extends BaseController {
             }
         });
     }
+
 
     public void onPlayerStatsResponse(NetPacket packet) {
         PlayerStatsResponse stats = (PlayerStatsResponse) packet.payload();
@@ -225,6 +254,10 @@ public class LobbyController extends BaseController {
     public void onInviteNotificationResponse(NetPacket packet) {
         InviteNotificationResponse invite =
                 (InviteNotificationResponse) packet.payload();
+        onInviteNotificationResponseFromPayload(invite);
+    }
+
+    public void onInviteNotificationResponseFromPayload(InviteNotificationResponse invite){
         String from = invite.fromUsername();
 
         Platform.runLater(() -> {

@@ -9,7 +9,6 @@ public class GomokuFXCommonToAllControllersData {
     private volatile String username;
     private volatile String nickname;
     private volatile String relogCode;
-    private volatile List<InviteNotificationResponse> invites = Collections.emptyList();
 
     public boolean isLoggedIn() {
         return loggedIn;
@@ -22,10 +21,6 @@ public class GomokuFXCommonToAllControllersData {
     private volatile boolean loggedIn = false;
 
 
-    public long getLastServerActivity() {
-        return lastServerActivity;
-    }
-
     public void setLastServerActivity(long lastServerActivity) {
         this.lastServerActivity = lastServerActivity;
     }
@@ -36,10 +31,6 @@ public class GomokuFXCommonToAllControllersData {
 
     public void setUsername(String username) {
         this.username = username;
-    }
-
-    public String getNickname() {
-        return nickname;
     }
 
     public void setNickname(String nickname) {
@@ -55,25 +46,11 @@ public class GomokuFXCommonToAllControllersData {
     }
 
 
-    public List<InviteNotificationResponse> getInvites() {
-        return invites;
-    }
-
-    public void setInvites(InviteNotificationResponse[] invitesArray) {
-        // Immutable copy to avoid race conditions on array
-        if (invitesArray == null || invitesArray.length == 0) {
-            this.invites = Collections.emptyList();
-        } else {
-            this.invites = Collections.unmodifiableList(Arrays.asList(invitesArray.clone()));
-        }
-    }
-
     public void reset() {
         lastServerActivity = System.currentTimeMillis();
         username = null;
         nickname = null;
         relogCode = null;
-        invites = Collections.emptyList();
         loggedIn = false;
     }
 

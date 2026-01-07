@@ -29,6 +29,7 @@ public interface Match {
     boolean makeMove(String player, MoveRequest moveRequest); // returns true if move accepted
     boolean isFinished();
     boolean markEnded();
+    boolean isThePlayerConnected(String username);
 //    void touch();
 //    boolean isInactive(long timeoutMs);
     boolean isEnded();

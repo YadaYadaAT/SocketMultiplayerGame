@@ -267,6 +267,12 @@ public class MatchImpl implements Match {
         );
     }
 
+
+    @Override
+    public boolean isThePlayerConnected(String username){
+        return isPlayerConnected.get(username);
+    }
+
     @Override
     public synchronized Set<String> getMatchPlayers() {
         return new HashSet<>(matchPlayers);

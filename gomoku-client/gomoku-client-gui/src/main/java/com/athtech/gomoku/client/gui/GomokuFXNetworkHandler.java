@@ -103,7 +103,7 @@ public class GomokuFXNetworkHandler {
             case MATCH_SESSION_ENDED_RESPONSE ->  gameCtrl.onMatchSessionEndedResponse(packet);
             case MOVE_REJECTED_RESPONSE -> gameCtrl.onMoveRejectedResponse(packet);
             case PLAYER_INACTIVITY_WARNING_RESPONSE -> gameCtrl.onPlayerInactivityWarningResponse(packet);
-//            case RESYNC_RESPONSE -> onResyncResponse(packet);
+            case RESYNC_RESPONSE -> onResyncResponse(packet);
             case ERROR_MESSAGE_RESPONSE -> wrapperCtrl.onErrorMessageResponse(packet);
             case INFO_RESPONSE -> onInfoResponse(packet);
             case GAME_QUIT_NOTIFICATION_RESPONSE -> gameCtrl.onGameQuitNotification(packet);
@@ -118,7 +118,9 @@ public class GomokuFXNetworkHandler {
 
         loginCtrl.onLoginResponse(packet);
         lobbyCtrl.onLoginResponse(packet);//extract pending invites from response...
+        gameCtrl.onLoginResponse(packet); //reconnection; populate and modify,preset up to avoid triggers of regular leave/enter
         wrapperCtrl.onLoginResponse(packet);
+
     }
 
     private void onInfoResponse(NetPacket packet){
@@ -143,57 +145,27 @@ public class GomokuFXNetworkHandler {
 
 
 
-//    private void onResyncResponse(NetPacket packet) {
-//        ResyncResponse resp = (ResyncResponse) packet.payload();
-//
-//
-//
-//        if (!resp.success()) {
-//            view.showCallback("Resync attempt rejected: " + resp.message());
-//            resetSessionState();
-//            wakeAllLocks();
-//            return;
-//        }
-//
-//        synchronized (resyncLock) {
-//            resyncLock.notifyAll();
-//        }
-//
-//
-//        loggedIn = true;
-//        sessionClosing = false;
-//
-//        InviteNotificationResponse[] invites = resp.pendingInvites();
-//        lastInvite = (invites != null && invites.length > 0) ? invites[invites.length - 1] : null;
-//
-//        myStats = resp.myStats();
-//        relogCode = resp.relogCode();
-//        if (clientNetwork instanceof ClientNetworkAdapterImpl adapter) {
-//            adapter.updateCredentials(username, relogCode);
-//        }
-//        onLobbyPlayersFromPayload(resp.lobbyPlayers().players(), false);
-//
-////        inGame = false;
-////        gameStartingPromptConsumsed = false;
-//
-//        clientNetwork.onResyncFinished();
-//        view.showCallback(resp.message());
-//        if (stateIndicator == CLIstateIndicatorHelper.LOBBY_LOOP && !inGame){
-//            view.showLobbyMenu();
-//        } else if (stateIndicator == CLIstateIndicatorHelper.GAME_LOOP && inGame) {
-//            view.showBoard(resp.currentGameState().board(),username,resp.currentGameState().player1());
-//
-////            view.show("This CLI does not support rejoining an ongoing match after reconnect.\n" +
-////                    "To continue playing, you must end your previous match from the lobby.");
-//        }
-//        resyncWasTriggered =true;
-//        notifyAllLock(gameLock);
-//        notifyAllLock(loginLock);
-//    }
-//
-//
-//
-//
+    private void onResyncResponse(NetPacket packet) {
+        ResyncResponse resp = (ResyncResponse) packet.payload();
+
+        if (!resp.success()) {
+            wrapperCtrl.setConnectionStatus("Resync attempt rejected: " + resp.message());
+//            resetSessionState(); < - need to find a way to reset everything ..
+            return;
+        }
+        lobbyCtrl.onResyncResponse(packet);
+        gameCtrl.onResyncResponse(packet);
+        loginCtrl.onResyncResponse(packet);
+        wrapperCtrl.onResyncResponse(packet);
+        cna.onResyncFinished();
+        wrapperCtrl.setConnectionStatus(resp.message());
+    }
+
+
+
+    public void setSession(GomokuFXSession session) {
+        this.session = session;
+    }
 
 
 
