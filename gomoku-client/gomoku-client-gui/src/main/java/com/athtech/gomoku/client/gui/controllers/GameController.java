@@ -13,6 +13,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
 
 public class GameController extends BaseController {
 
@@ -42,10 +44,19 @@ public class GameController extends BaseController {
 
     private volatile boolean reconnecting = false;
 
+    // ---------------- Music ----------------
+    private MediaPlayer backgroundMusic;
+    @FXML private Button muteBtn;
+
+    @Override
+    public void onEnter() {
+        Platform.runLater(() -> setupMusic());
+    }
 
     @Override
     public void onLeave() {
          Platform.runLater( () -> {
+             if (backgroundMusic != null) backgroundMusic.setMute(true);
             if (reconnecting){
                 return;
             }
@@ -324,6 +335,41 @@ public class GameController extends BaseController {
             }
 
         });
+    }
+
+
+    /* ---------------- Music & Controls ---------------- */
+    private void setupMusic() {
+        try {
+            if (backgroundMusic != null) return; // already setup
+
+            Media music1 = new Media(getClass().getResource("/music/johny.mp3").toExternalForm());
+            backgroundMusic = new MediaPlayer(music1);
+            backgroundMusic.setCycleCount(MediaPlayer.INDEFINITE);
+            backgroundMusic.setVolume(0.5);
+            backgroundMusic.play();
+
+            // Set initial button text based on mute
+            updateMuteButtonText();
+
+        } catch (Exception e) {
+            System.err.println("Failed to load background music: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleMute() {
+        if (backgroundMusic == null) return;
+        boolean muted = backgroundMusic.isMute();
+        backgroundMusic.setMute(!muted);
+        updateMuteButtonText();
+    }
+
+    private void updateMuteButtonText() {
+        if (backgroundMusic == null) return;
+        boolean muted = backgroundMusic.isMute();
+        // Shows the action that will happen when pressed
+        muteBtn.setText(muted ? "Unmute 🔇" : "Mute 🔊");
     }
 
     public void onResyncResponse(NetPacket packet){
