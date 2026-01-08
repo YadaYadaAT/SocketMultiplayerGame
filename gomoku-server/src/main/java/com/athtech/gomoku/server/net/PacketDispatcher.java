@@ -77,15 +77,8 @@ public class PacketDispatcher {
             return;
         }
 
-        // Build the broadcast message
-        LobbyChatMessageResponse chatResp = new LobbyChatMessageResponse(
-                now,
-                client.getUsername(),
-                req.message()
-        );
-
         // Broadcast to everyone (including sender, for client-side counter / sync)
-        lobbyController.broadcastMessageLobbyChat(chatResp);
+        lobbyController.broadcastMessageLobbyChat(client.getUsername(),req.message());
     }
 
     private void handleLobbyPlayerRequest(ClientHandler client, NetPacket packet){
@@ -185,6 +178,7 @@ public class PacketDispatcher {
         });
 
         lobbyController.userLoggedIn(username, client.getClientId());
+        lobbyController.broadcastMessageLobbyChat("[server] : ",username + " entered the lobby");
     }
 
 
@@ -248,6 +242,7 @@ public class PacketDispatcher {
             client.sendPacket(new NetPacket(PacketType.LOGOUT_RESPONSE, "server",
                     new LogoutResponse(true, "Logged out successfully.")));
             client.setUsername(null);
+            lobbyController.broadcastMessageLobbyChat("[server] : ",client.getUsername() + " has left the lobby.");
         }
     }
 

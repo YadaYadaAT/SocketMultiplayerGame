@@ -26,9 +26,7 @@ public class CLIController {
     private volatile boolean rematchTriggered = false;
     private volatile long lastServerActivity = System.currentTimeMillis();
     //turns true after resync, altough lobby returns with "resync response" there can be a timing issue and miss someone log
-    private volatile boolean resyncWasTriggered = false;//because of broadcast triggered by users user might be out of sync
-                                                            // till anyone in lobby trigger a broadcast (login,logout,gameIn/out)
-                                                            //rare case in big lobbies...
+
     private String username;
 
     private String nickname;
@@ -87,7 +85,6 @@ public class CLIController {
         myStats = null;
         gameStartingPromptConsumsed = false;
         rematchPhase = false;
-        resyncWasTriggered = false;
         rematchTriggered =false;
         forceExitGame = false;
     }
@@ -753,7 +750,6 @@ public class CLIController {
 //            view.show("This CLI does not support rejoining an ongoing match after reconnect.\n" +
 //                    "To continue playing, you must end your previous match from the lobby.");
         }
-        resyncWasTriggered =true;
         notifyAllLock(gameLock);
         notifyAllLock(loginLock);
     }

@@ -9,6 +9,7 @@ import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.util.Duration;
 
@@ -24,6 +25,7 @@ public class WrapperController extends BaseController{
     private StackPane contentPane;
     @FXML private Label lblClock;
     private Timeline clockTimeline;
+    private Pane inputBlocker;
 
     @Override
     public void onLeave() {
@@ -139,6 +141,35 @@ public class WrapperController extends BaseController{
             clockTimeline.stop();
             clockTimeline = null;
         }
+    }
+
+
+    public void blockInput() {
+        if (inputBlocker != null) return;
+        Platform.runLater(() ->{
+        inputBlocker = new Pane();
+        inputBlocker.setStyle("-fx-background-color: rgba(0,0,0,0.50);");
+
+        inputBlocker.setPickOnBounds(true); // capture all clicks
+        inputBlocker.setMouseTransparent(false); // block interaction
+
+        // make it resize automatically with contentPane
+        inputBlocker.prefWidthProperty().bind(contentPane.widthProperty());
+        inputBlocker.prefHeightProperty().bind(contentPane.heightProperty());
+
+        contentPane.getChildren().add(inputBlocker);
+        });
+
+
+
+    }
+
+    public void unblockInput() {
+        if (inputBlocker == null) return;
+        Platform.runLater(() ->{
+        contentPane.getChildren().remove(inputBlocker);
+        inputBlocker = null;
+        });
     }
 
 }

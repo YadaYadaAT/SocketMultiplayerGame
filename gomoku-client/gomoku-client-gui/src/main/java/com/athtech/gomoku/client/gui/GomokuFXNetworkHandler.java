@@ -46,12 +46,29 @@ public class GomokuFXNetworkHandler {
     }
 
     public void initCallbackHandler(){
-        cna.setConNotifier(this::conNotifier);
+        cna.setConNotifier(this::conNotifier);//Order matters!
         cna.setListener(this::handleServerPacket);
+        cna.setSyncAndConInputBlocker(this::syncAndConInputBlocker);
+        cna.setSyncAndConInputUnblocker(this::syncAndConInputUnblocker);
     }
 
     public void conNotifier(String msg){
-        wrapperCtrl.setConnectionStatus(msg);
+        if (wrapperCtrl!=null) {
+            wrapperCtrl.setConnectionStatus(msg);
+        }
+    }
+
+    public void syncAndConInputBlocker(){
+        if (wrapperCtrl!=null){
+            wrapperCtrl.blockInput();
+        }
+
+    }
+
+    public void syncAndConInputUnblocker(){
+        if (wrapperCtrl!=null){
+            wrapperCtrl.unblockInput();
+        }
     }
 
     public GomokuFXNetworkHandler(ClientNetworkAdapter networkAdapter
@@ -74,6 +91,7 @@ public class GomokuFXNetworkHandler {
 
                 if (lastServerActivity < sentAt) {
                     wrapperCtrl.setConnectionStatus("\uD83D\uDD0C No server activity detected. Attempting resync...");
+                    syncAndConInputBlocker();
                     if (ctAllControllersData.getUsername() == null || ctAllControllersData.getRelogCode() == null) return;
                     cna.requestResync();
                 }
@@ -186,6 +204,7 @@ public class GomokuFXNetworkHandler {
         wrapperCtrl.onResyncResponse(packet);
         cna.onResyncFinished();
         wrapperCtrl.setConnectionStatus(resp.message());
+        wrapperCtrl.unblockInput();
     }
 
 
@@ -195,8 +214,6 @@ public class GomokuFXNetworkHandler {
         //going to create a new controller but if we do not the JavaFX thread will still have a reference
         //and it won't let GC collect the object, but even worse it would do GUI work, scaling up at each
         //session reset...(i almost missed this one)
-
-
 
         //TODO: make connection and reconnection methods send data to
         // wrapper controller field(header); Therefore here we are gonna
@@ -227,6 +244,7 @@ public class GomokuFXNetworkHandler {
         // with a transition scene;..actually keep the login here and we change only at the
         // start method to lead to the intro ; ..or we put a transition scene for 3 seconds
         viewNavigator.getContentPane().getChildren().setAll(viewNavigator.getRoot(View.LOGIN));
+        wrapperCtrl.unblockInput();
 
     }
 

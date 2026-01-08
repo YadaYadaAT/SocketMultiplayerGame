@@ -13,6 +13,10 @@ public interface ClientNetworkAdapter {
     void onResyncFinished();
     void setConNotifier(ConnectionNotificationListener conNotifier);
     void setListener(PacketListener listener);
+
+    void setSyncAndConInputBlocker( SyncAndConInputBlockerInter sib);
+    void setSyncAndConInputUnblocker( SyncAndConInputUnblockerInter siu);
+
     void updateCredentials(String username, String relogCode);
 
     interface PacketListener {
@@ -21,6 +25,14 @@ public interface ClientNetworkAdapter {
 
     interface ConnectionNotificationListener{
         void connectionNotifer(String msg);
+    }
+
+    interface SyncAndConInputBlockerInter {
+        void syncAndConInputBlocker();
+    }
+
+    interface SyncAndConInputUnblockerInter {
+        void syncAndConInputUnblocker();
     }
 
 

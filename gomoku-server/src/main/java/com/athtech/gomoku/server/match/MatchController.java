@@ -39,6 +39,7 @@ public class MatchController {
             Match match = matchManager.createMatch(player1, player2);
             clearInvitesForMatchPlayers(player1,player2);
             broadcastMatchCreate(match);
+            lobbyController.broadcastMessageLobbyChat("[server] : ",player1 +" ⚔️ "+player2);
         } catch (IllegalStateException e) {
             sendToClient.accept(player1, new NetPacket(PacketType.INVITE_RESPONSE, "server",
                     new InviteResponse(false, "Cannot create match, one of the players is busy")));
@@ -60,9 +61,21 @@ public class MatchController {
                 } else {
                     boolean draw = match.isDraw();
                     MatchEndReason winnerReason;
+                    String opponent = match.getOpponent(username);
+                    boolean isUsernamePlayer1 = match.getPlayer1().equals(username);
                     if (draw) {
                         winnerReason = MatchEndReason.DRAW;
+
+                        lobbyController.broadcastMessageLobbyChat("[server] : ",
+                                (isUsernamePlayer1)
+                                        ? username +" ⚖️ "+opponent
+                                        : opponent +" ⚖️ "+ username);
                     } else {
+                        lobbyController.broadcastMessageLobbyChat("[server] : ",
+                                (isUsernamePlayer1)
+                                        ? (" 🏆 " + username +" || "+ opponent  + " 💀 ")
+                                        : (" 💀 " + opponent +" || "+ username) + " 🏆 ");
+
                         winnerReason = MatchEndReason.WIN_NORMAL;
                     }
                    endDaMatch(match, winnerReason);
@@ -101,6 +114,13 @@ public class MatchController {
                 // Use per-player enum
                 MatchEndReason winnerReason = MatchEndReason.WIN_QUIT;
                 matchManager.handleForcedEnd(impl, opponent, winnerReason);
+
+
+                boolean isUsernamePlayer1 = match.getPlayer1().equals(quitter);
+                lobbyController.broadcastMessageLobbyChat("[server] : ",
+                        (isUsernamePlayer1)
+                                ? (" 🐔 " + quitter +" || "+ opponent  + " 🏆 ")
+                                : (" 🏆 " + opponent +" || "+ quitter) + " 🐔 ");
             }
             return true;
         }).orElse(false);

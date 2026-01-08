@@ -104,7 +104,8 @@ public class LobbyController {
         );
     }
 
-    public void broadcastMessageLobbyChat(LobbyChatMessageResponse lcmr){
+    public synchronized void broadcastMessageLobbyChat(String from,String msg){
+        LobbyChatMessageResponse lcmr = new LobbyChatMessageResponse(System.currentTimeMillis(),from,msg);
         System.out.println("\uD83E\uDDD1\u200D\uD83E\uDD1D\u200D\uD83E\uDDD1 [Lobby] Broadcasting message to lobby chat :"
                 + lcmr.timestamp() +" "+lcmr.username() +" : " +lcmr.message()
         );

@@ -26,6 +26,9 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     private volatile PacketListener listener;
     private volatile ConnectionNotificationListener conNotifier;
+    private volatile SyncAndConInputBlockerInter syncAndConInputBlockerInter;
+    private volatile SyncAndConInputUnblockerInter syncAndConInputUnblockerInter;
+
     private Thread listenThread;
     private volatile boolean listening = false;
 
@@ -45,7 +48,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
             openSocket();
             startListenThread();
             netState = NetState.CONNECTED;
-            tryExecuteResync();
+            //todo ..resync on the spot?...
         } catch (IOException e) {
             System.err.println("Initial connection failed: " + e.getMessage());
             handleConnectionLost();
@@ -81,8 +84,10 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
             }
         } catch (IOException | ClassNotFoundException e) {
             if (!listening) return;
-            System.err.println("\nConnection lost: " + e.getMessage());
 
+            enableSyncAndConInputBlocker();
+            System.err.println("\nConnection lost: " + e.getMessage());
+            sendToConNotifier("\uD83D\uDD0C Connection lost: " + e.getMessage());
             handleConnectionLost();
         } catch (Exception e){
             //silence weirdo objectStream syncs to port header i guess... grab them here
@@ -146,6 +151,8 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
                     if (pendingUsername != null && pendingRelogCode != null) {
                         tryExecuteResync();
+                    }else{
+                        disableSyncAndConInputBlocker();
                     }
 
                     ioLock.notifyAll();
@@ -166,18 +173,23 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     }
 
     public void requestResync() {
-        synchronized (resyncLock) {
-            resyncRequested = true;
-        }
         tryExecuteResync();
     }
 
     private void tryExecuteResync() {
         synchronized (resyncLock) {
-            if (!resyncRequested) return;
-            if (resyncInProgress) return;
-            if (netState != NetState.CONNECTED) return;
-            if (out == null || socket == null || socket.isClosed()) return;
+            if (resyncInProgress) {
+                disableSyncAndConInputBlocker();
+                return;
+            }
+            if (netState != NetState.CONNECTED) {
+                disableSyncAndConInputBlocker();
+                return;
+            }
+            if (out == null || socket == null || socket.isClosed()) {
+                disableSyncAndConInputBlocker();
+                return;
+            }
 
             resyncRequested = false;
             resyncInProgress = true;
@@ -247,11 +259,11 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
             char[] spinner = {'|', '/', '-', '\\'};
             int i = 0;
 
-            System.out.print("Reconnecting 🔄 ");
-            sendToConNotifier("Reconnecting 🔄 ");
+            System.out.print("🔄 Reconnecting ");
+            sendToConNotifier("🔄 Reconnecting ");
             while (netState == NetState.RECONNECTING) {
-                System.out.print("\rReconnecting 🔄 " + spinner[i++ % spinner.length]);
-                sendToConNotifier("Reconnecting 🔄 " + spinner[i++ % spinner.length]);
+                System.out.print("\r 🔄 Reconnecting  " + spinner[i++ % spinner.length]);
+                sendToConNotifier("🔄 Reconnecting  " + spinner[i++ % spinner.length]);
                 try {
                     Thread.sleep(200);
                 } catch (InterruptedException ignored) {
@@ -269,7 +281,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
             reconnectSpinner.interrupt();
         }
         System.out.print("\rConnected ✓                     \n");
-        sendToConNotifier("Connected ✓");
+        sendToConNotifier("\uD83C\uDF10 Connected");
     }
 
     @Override
@@ -278,21 +290,47 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     }
 
     @Override
+    public void setSyncAndConInputBlocker( SyncAndConInputBlockerInter sib) {
+        this.syncAndConInputBlockerInter = sib;
+    }
+
+    @Override
+    public void setSyncAndConInputUnblocker( SyncAndConInputUnblockerInter siu) {
+        this.syncAndConInputUnblockerInter = siu;
+    }
+
+    @Override
     public void setListener(PacketListener listener) {
         this.listener = listener;
         if (netState == NetState.CONNECTED){
-            sendToConNotifier("Connected");
+            sendToConNotifier("\uD83C\uDF10 Connected");
         } else if (netState == NetState.RECONNECTING) {
             sendToConNotifier("Reconnecting");
         }else{
-            sendToConNotifier("Connection is dead");
+            sendToConNotifier("\uD83D\uDD0C Connection is dead");
         }
 
     }
 
+
+
+
     private void sendToConNotifier(String msg){
         if (conNotifier != null){
             conNotifier.connectionNotifer(msg);
+        }
+    }
+
+
+    public void enableSyncAndConInputBlocker() {
+        if (syncAndConInputBlockerInter !=null){
+            syncAndConInputBlockerInter.syncAndConInputBlocker();
+        }
+    }
+
+    public void disableSyncAndConInputBlocker() {
+        if (syncAndConInputUnblockerInter !=null){
+            syncAndConInputUnblockerInter.syncAndConInputUnblocker();
         }
     }
 
