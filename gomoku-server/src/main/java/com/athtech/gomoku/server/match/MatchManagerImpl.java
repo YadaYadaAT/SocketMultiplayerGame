@@ -120,7 +120,7 @@ public class MatchManagerImpl implements MatchManager {
                 return;
             }
 
-            // Disconnect win
+            // Goal :“Has exactly ONE player been disconnected long enough that the OTHER player should win?”
             impl.checkDisconnectTimeout().ifPresent(winner -> {
                 System.out.println("\uD83C\uDFAE \uD83D\uDD0C [Match] Disconnect timeout. Winner: " + winner +
                         " | Match: " + impl.getMatchId());
@@ -213,10 +213,21 @@ public class MatchManagerImpl implements MatchManager {
     private void removeMatchAndCleanupPlayers(MatchImpl match) {
         match.markFinalized(); // prevent reconnections from interfering
 
+        // Notify all players that the match/session has ended
+        for (String player : match.getMatchPlayers()) {
+            notifier.accept(player, new NetPacket(
+                    PacketType.MATCH_SESSION_ENDED_RESPONSE,
+                    "server",
+                    new MatchSessionEndedResponse(false) // false = no rematch
+            ));
+        }
+
+        // Now remove players from active list and call callbacks
         for (String player : match.getMatchPlayers()) {
             activePlayers.remove(player);
             match.onPlayerRemoved.accept(player);
         }
+
         matches.remove(match.getMatchId());
         System.out.println("\uD83C\uDFAE [Match] Removed match " + match.getMatchId());
     }
@@ -237,18 +248,25 @@ public class MatchManagerImpl implements MatchManager {
 
             // Determine opponent
             String opponent = impl.getOpponent(player);
-            if (opponent == null) return true;
+
+            if (impl.isEnded()){
+                    removeMatchAndCleanupPlayers(impl);
+                    return true;
+            }
+
+            if (opponent==null){
+                return true;
+            }
+
+
 
             boolean isOpponentsTurn = opponent.equals(impl.getCurrentPlayer());
             long timeoutSeconds = MatchImpl.disconnectTimeoutMs() / 1000;
 
-            StringBuilder msg = new StringBuilder();
-            msg.append("Your opponent has disconnected.\n");
-            if (isOpponentsTurn) msg.append("It's your turn! You may play your move, as the inactive timer still applies.\n");
-            msg.append("The game will terminate in ")
-                    .append(timeoutSeconds)
-                    .append(" seconds if your opponent does not reconnect, resulting in a tie.\n");
-            msg.append("Better to wait than quit to avoid counting as a loss.");
+            String msg = "Your opponent has disconnected. " +
+                    (isOpponentsTurn ? "It's your turn! You may play as the timer still applies. " : "") +
+                    "The game will end in " + timeoutSeconds + " seconds if they don't reconnect, resulting in a tie. " +
+                    "Better to wait than quit to avoid a loss.";
 
             notifier.accept(opponent, new NetPacket(
                     PacketType.PLAYER_DISCONNECTED_NOTIFICATION_RESPONSE,

@@ -1,0 +1,162 @@
+/* ----- General Dark Lobby ----- */
+.root {
+    -fx-background-color: #000000; /* full black background */
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+}
+
+/* ----- Labels ----- */
+.label {
+    -fx-text-fill: #f0f0f0;
+    -fx-font-weight: bold;
+}
+
+/* Header Stats */
+.hbox > .label {
+    -fx-font-size: 14px;
+}
+
+/* ----- Section Titles (LOBBY, Available Players, Incoming Invites) ----- */
+.lobby-title, .section-title {
+    -fx-font-size: 22px;
+    -fx-font-family: "Orbitron", "Segoe UI", sans-serif;
+    -fx-text-fill: #00fffc;
+    -fx-effect: dropshadow( gaussian , rgba(0,255,252,0.7) , 4,0.5,0,0 );
+}
+
+/* ----- ListViews ----- */
+.list-view {
+    -fx-background-color: #2b2b3b;
+    -fx-border-color: #444455;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 5;
+}
+
+.list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #e0e0e0;
+    -fx-padding: 5 10 5 10;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+    -fx-transition: all 0.2s ease;
+}
+
+.list-view .list-cell:hover {
+    -fx-background-color: #3a3a5a;
+    -fx-text-fill: #ffffff;
+    -fx-scale-x: 1.02;
+    -fx-scale-y: 1.02;
+    -fx-effect: dropshadow(gaussian, #00fffc, 5, 0.3, 0, 0);
+}
+
+.lobbyChatListview{
+    -fx-text-fill: white;
+}
+
+.list-view .list-cell:selected {
+    -fx-background-color: #5555aa;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, #ff00e1, 8, 0.4, 0, 0);
+}
+
+/* ----- Chat Messages Styling ----- */
+.chat-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #f0f0f0;
+    -fx-padding: 4 8 4 8;
+    -fx-font-size: 14px;
+    -fx-wrap-text: true; /* wrap long messages */
+}
+
+/*!* ----- Buttons ----- *!*/
+.button {
+    -fx-background-color: linear-gradient(to right, #4b6cb7, #182848);
+    -fx-text-fill: white;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+
+    -fx-border-color: transparent;
+    -fx-padding: 5 15 5 15;
+    -fx-cursor: hand;
+
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 3, 0, 0, 1);
+
+    -fx-transition: all 0.2s ease;
+}
+
+.button:hover {
+    -fx-background-color: linear-gradient(to right, #667eea, #764ba2);
+}
+
+#logoutBtn {
+    -fx-background-color: linear-gradient(to right, #4b6cb7, #182848);
+    -fx-text-fill: white;
+    -fx-border-color: transparent;
+    -fx-transition: all 0.2s ease;
+
+}
+
+.fancy-list {
+    -fx-background-color: #2b2b3b;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-border-width: 2;
+    -fx-border-color: linear-gradient(to right, #00fffc, #ff00e1);
+    -fx-effect: dropshadow(gaussian, #00fffc, 10, 0.3, 0, 0);
+}
+
+#logoutBtn:hover {
+    -fx-text-fill: #00fffc;
+    -fx-border-color: #00fffc;
+}
+
+/* ----- Chat Section ----- */
+#chatListView, #lobbyChatListview {
+    -fx-background-color: #1b1b2b;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-control-inner-background: #1b1b2b;
+}
+
+#chatInput {
+    -fx-background-color: #2b2b3b;
+    -fx-text-fill: #f0f0f0;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-border-color: #444455;
+    -fx-padding: 5 10 5 10;
+    -fx-font-size: 14px;
+    -fx-pref-height: 30px; /* align with Send button */
+}
+
+#sendBtn {
+    -fx-background-color: linear-gradient(to bottom, #ff7e5f, #feb47b);
+    -fx-text-fill: white;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-font-weight: bold;
+    -fx-pref-height: 30px; /* align with input field */
+}
+
+#sendBtn:hover {
+    -fx-background-color: linear-gradient(to bottom, #feb47b, #ff7e5f);
+    -fx-scale-x: 1.05;
+    -fx-scale-y: 1.05;
+}
+
+/* ----- Chat Label ----- */
+#lobbyChatLabel {
+    -fx-background-color: #333355;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 5 15 5 15;
+    -fx-font-size: 16px;
+}
+
+/* ----- Info Label (outgoing invites) ----- */
+.info-label {
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 14px;
+}

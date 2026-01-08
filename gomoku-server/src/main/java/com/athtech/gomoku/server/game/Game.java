@@ -4,7 +4,7 @@ public class Game {
 
     private static final int ROWS = 10;
     private static final int COLS = 10;
-    private static final int WIN_COUNT = 2;
+    private static final int WIN_COUNT = 4;
 
     private final char[][] board;
     private String currentPlayer;

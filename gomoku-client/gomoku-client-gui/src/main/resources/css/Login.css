@@ -1,0 +1,65 @@
+/* Root background for login page */
+#loginRoot {
+    -fx-background-color: #f9f9f9; /* light neutral */
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-alignment: CENTER;  /* make content centered vertically too */
+}
+
+/* Title */
+.login-title {
+    -fx-font-size: 32px;
+    -fx-text-fill: #333333;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 10 0;
+}
+
+/* Input fields */
+.login-input {
+    -fx-background-color: white;
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+    -fx-padding: 8 10 8 10;
+    -fx-font-size: 19px;
+    -fx-pref-width: 250px;  /* fixed width for nice alignment */
+    -fx-max-width: 250px;
+    -fx-focus-color: #667eea;
+    -fx-faint-focus-color: #667eea33;
+}
+
+/* Server messages */
+.server-msg {
+    -fx-font-size: 12px;
+    -fx-padding: 5 0 5 0;
+}
+
+/* Primary buttons (Login) */
+.action-btn {
+    -fx-background-color: linear-gradient(to right, #667eea, #764ba2);
+    -fx-text-fill: white;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-font-weight: bold;
+    -fx-padding: 8 20 8 20;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 3, 0, 0, 1);
+}
+
+.action-btn:hover {
+    -fx-background-color: linear-gradient(to right, #5a6edb, #6f3da6);
+}
+
+/* Secondary button (Signup) */
+.action-btn-secondary {
+    -fx-background-color: transparent;
+    -fx-text-fill: #667eea;
+    -fx-border-color: #667eea;
+    -fx-border-radius: 5;
+    -fx-padding: 8 18 8 18;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.action-btn-secondary:hover {
+    -fx-background-color: #e5e5ff;
+}

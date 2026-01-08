@@ -3,11 +3,14 @@ package com.athtech.gomoku.server.net;
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
 import com.athtech.gomoku.protocol.payload.InfoResponse;
+import com.athtech.gomoku.protocol.payload.LobbyChatMessageResponse;
 import com.athtech.gomoku.server.match.MatchController;
 import com.athtech.gomoku.server.persistence.PersistenceManager;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.UUID;
 
 public class ClientHandler implements Runnable {
@@ -22,6 +25,10 @@ public class ClientHandler implements Runnable {
     private ObjectOutputStream out;
     private final String clientId = UUID.randomUUID().toString();
     private String username = null;
+
+    private static final int MAX_MESSAGES = 5;       // max messages allowed
+    private static final long WINDOW_MS = 10000;    // in 10 seconds
+    private final Deque<Long> recentMessageTimestamps = new ArrayDeque<>();
 
     public ClientHandler(Socket clientSocket,
                          ServerNetworkAdapter server,
@@ -40,11 +47,14 @@ public class ClientHandler implements Runnable {
         try {
             initStreams();
             System.out.println("\uD83D\uDEF0\uFE0F [ClientHandler] Handler started (clientId=" + clientId + ")");
-            sendPacket(new NetPacket(PacketType.INFO_RESPONSE, "server",  new InfoResponse("Connected to server...")));
 
             while (true) {
                 Object obj = in.readObject();
                 if (!(obj instanceof NetPacket packet)) continue;
+                System.out.println(" [ClientHandler] Received packet from client " + clientId +
+                        " | Type: " + packet.type() +
+                        " | Payload: " + packet.payload());
+
                 updateActivity();
                 dispatcher.dispatch(this, packet);
             }
@@ -56,11 +66,17 @@ public class ClientHandler implements Runnable {
                 matchController.disconnectPlayer(username);
                 lobbyController.userLoggedOut(username);
                 lobbyController.broadcastLobby(matchController);
+                lobbyController.broadcastMessageLobbyChat("[server] : ",username + " has left the lobby.");
                 System.out.println("\uD83D\uDEF0\uFE0F [ClientHandler] User session ended: " + username);
             }
             server.unregisterClientConnection(clientId);
             try { clientSocket.close(); } catch (IOException ignored) {}
-            System.out.println("\uD83D\uDEF0\uFE0F [ClientHandler]" +username + " has been disconnected");
+            if (username!=null){
+                System.out.println("\uD83D\uDEF0\uFE0F [ClientHandler]" +username + " has been disconnected");
+            }else{
+                System.out.println("\uD83D\uDEF0\uFE0F [ClientHandler] Unregistered user has been disconnected");
+            }
+
         }
     }
 
@@ -73,10 +89,10 @@ public class ClientHandler implements Runnable {
             try {
                 out.writeObject(packet);
                 out.flush();
-//                // Debug output
-//                System.out.println(" [ClientHandler] Sent packet to client " + clientId +
-//                        " | Type: " + packet.type() +
-//                        " | Payload: " + packet.payload());
+                // Debug output
+                System.out.println(" [ClientHandler] Sent packet to client " + clientId +
+                        " | Type: " + packet.type() +
+                        " | Payload: " + packet.payload());
             } catch (IOException e) {
                 System.err.println("Send failed to client " + clientId + ": " + e.getMessage());
             }
@@ -100,7 +116,12 @@ public class ClientHandler implements Runnable {
     }
 
     public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    public void setUsername(String username) {
+        if (username == null){
+            matchController.disconnectPlayer(this.username);
+        }
+        this.username = username;
+    }
     public String getClientId() { return clientId; }
     public void updateActivity() {
         lastActivity = System.currentTimeMillis();
@@ -109,4 +130,22 @@ public class ClientHandler implements Runnable {
     public long getLastActivity() {
         return lastActivity;
     }
+
+    public synchronized boolean canSendLobbyMessage() {
+        long now = System.currentTimeMillis();
+
+        // remove old timestamps outside the window
+        while (!recentMessageTimestamps.isEmpty() && now - recentMessageTimestamps.peekFirst() > WINDOW_MS) {
+            recentMessageTimestamps.pollFirst();
+        }
+
+        if (recentMessageTimestamps.size() >= MAX_MESSAGES) {
+            return false;
+        }
+
+        recentMessageTimestamps.addLast(now);
+        return true;
+    }
+
+
 }

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.effect.DropShadow?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.paint.Color?>
+
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.text.TextFlow?>
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.athtech.gomoku.client.gui.controllers.IntroController"
+      fx:id="introRoot"
+      alignment="CENTER"
+      spacing="10"
+      style="-fx-background-color: black;"
+      prefWidth="1920" prefHeight="1080">
+
+    <!-- Top GIF animation -->
+    <ImageView fx:id="introGif" fitWidth="150" preserveRatio="true" translateY="20">
+        <image>
+            <Image url="@../images/thanksForReading.gif"/>
+        </image>
+    </ImageView>
+    <ImageView  fitWidth="150" preserveRatio="true" >
+        <image>
+            <Image url="@../images/icon.png"/>
+        </image>
+    </ImageView>
+    <!-- Gomoku label -->
+    <TextFlow fx:id="titleFlow" prefHeight="90" textAlignment="CENTER">  </TextFlow>
+
+
+
+</VBox>

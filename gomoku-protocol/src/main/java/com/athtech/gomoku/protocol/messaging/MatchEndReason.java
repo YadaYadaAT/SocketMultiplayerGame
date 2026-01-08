@@ -3,7 +3,7 @@ package com.athtech.gomoku.protocol.messaging;
 public enum MatchEndReason {
     // Draw
     DRAW,                // Both players tie
-
+    MID_GAME_REMATCH,
     // Wins
     WIN_NORMAL,          // Won by normal gameplay
     WIN_QUIT,            // Opponent quit

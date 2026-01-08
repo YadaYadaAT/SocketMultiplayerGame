@@ -11,6 +11,9 @@ public enum PacketType {
 
     HANDSHAKE_REQUEST,
 
+    //LOBBY
+    LOBBY_CHAT_MESSAGE_REQUEST,
+
 // Authentication
     LOGIN_REQUEST,
     LOGOUT_REQUEST,
@@ -48,9 +51,15 @@ public enum PacketType {
 //                 RESPONSE
 ------------------------------------------------*/
 
+
+
 //Generic
     INFO_RESPONSE,//so far the only one without payload record class ; simple strings will do as payload
     HANDSHAKE_RESPONSE,
+
+//LOBBY
+    LOBBY_CHAT_MESSAGE_RESPONSE,
+
 //Authentication
     LOGIN_RESPONSE,
     LOGOUT_RESPONSE,

@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ServerNetworkAdapter {
@@ -20,7 +21,7 @@ public class ServerNetworkAdapter {
     private final Map<String, ClientHandler> connectedClients = new ConcurrentHashMap<>();
     //username -clientID
     private final Map<String, String> loggedInClients = new ConcurrentHashMap<>();
-    private final long INACTIVITY_LIMIT_MS = 1 * 60 * 1000; // 3 min (was set low for reviewer testing)
+    private final long INACTIVITY_LIMIT_MS = 3 * 60 * 1000; // 3 min (was set low for reviewer testing)
     private final PersistenceManager persistenceManager;
     private final LobbyController lobbyController;
     private final MatchController matchController;
@@ -33,7 +34,7 @@ public class ServerNetworkAdapter {
                 this::broadcastToLobby
         );
         this.matchController = new MatchController(this, lobbyController, persistenceManager);
-
+        lobbyController.setMatchController(matchController);
     }
 
     public void startServer(int port) {
@@ -118,16 +119,17 @@ public class ServerNetworkAdapter {
                     long now = System.currentTimeMillis();
 
                     for (ClientHandler client : connectedClients.values()) {
-                        if (now - client.getLastActivity() > INACTIVITY_LIMIT_MS) {
+                        String username = client.getUsername();
+                        if (now - client.getLastActivity() > INACTIVITY_LIMIT_MS && username != null) {
+                            persistenceManager.setRelogCode(username, UUID.randomUUID().toString());
                             System.out.println("⏱\uFE0F [InactivityChecker] Disconnecting inactive client: " + client.getUsername());
-
                             // send info packet
                             client.sendPacket(new NetPacket(
                                     PacketType.INFO_RESPONSE,
                                     "server",
                                     new InfoResponse("You have been disconnected due to inactivity.")
                             ));
-
+                        //I disconnect the user too to make sure we do not have stale connection
                             client.close(); // triggers cleanup in finally block of ClientHandler.run()
                         }
                     }

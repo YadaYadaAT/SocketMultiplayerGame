@@ -5,6 +5,7 @@ import com.athtech.gomoku.protocol.messaging.PacketType;
 import com.athtech.gomoku.server.match.MatchController;
 import com.athtech.gomoku.server.persistence.PersistenceManager;
 import com.athtech.gomoku.protocol.payload.*;
+import com.athtech.gomoku.server.persistence.Player;
 
 import java.time.Instant;
 import java.util.Map;
@@ -16,6 +17,7 @@ public class PacketDispatcher {
     private final PersistenceManager persistence;
     private final LobbyController lobbyController;
     private final MatchController matchController;
+    private static final int MAX_LOBBY_MESSAGE_LENGTH = 250;
 
     public PacketDispatcher(PersistenceManager persistence,
                             LobbyController lobbyController,
@@ -38,9 +40,45 @@ public class PacketDispatcher {
             case MOVE_REQUEST -> handleMove(client, packet);
             case GAME_QUIT_REQUEST -> handleGameQuitRequest(client,packet);
             case HANDSHAKE_REQUEST -> handleHandshakeRequest(client,packet);
+            case LOBBY_CHAT_MESSAGE_REQUEST -> onLobbyChatMessageRequest(client,packet);
             default -> client.sendPacket(new NetPacket(PacketType.ERROR_MESSAGE_RESPONSE, "server",
                     new ErrorMessageResponse("Unknown packet type: " + packet.type())));
         }
+    }
+
+
+    private void onLobbyChatMessageRequest(ClientHandler client, NetPacket packet) {
+        if (client.getUsername() == null || !(packet.payload() instanceof LobbyChatMessageRequest req)) {
+            return;
+        }
+        String message = req.message().trim();
+
+        // Length check
+        if (message.isEmpty()) return; // ignore empty
+
+        if (message.length() > MAX_LOBBY_MESSAGE_LENGTH) {
+            client.sendPacket(new NetPacket(
+                    PacketType.INFO_RESPONSE,
+                    "server",
+                    new InfoResponse("Message too long! Max " + MAX_LOBBY_MESSAGE_LENGTH + " characters.")
+            ));
+            return;
+        }
+
+        // Check rate limiting: allow max 5 messages per 10 seconds
+        long now = System.currentTimeMillis();
+        if (!client.canSendLobbyMessage()) {
+
+            client.sendPacket(new NetPacket(
+                    PacketType.INFO_RESPONSE,
+                    "server",
+                    new InfoResponse("Slow down, speedy! You're sending messages too fast.")
+            ));
+            return;
+        }
+
+        // Broadcast to everyone (including sender, for client-side counter / sync)
+        lobbyController.broadcastMessageLobbyChat(client.getUsername(),req.message());
     }
 
     private void handleLobbyPlayerRequest(ClientHandler client, NetPacket packet){
@@ -54,11 +92,11 @@ public class PacketDispatcher {
     private void handleHandshakeRequest(ClientHandler client, NetPacket packet){
         if (client.getUsername() == null){
             client.sendPacket(new NetPacket(PacketType.HANDSHAKE_RESPONSE, "server",
-                    new HandshakeResponse("Connection to server tested") ));
+                    new HandshakeResponse("  \uD83C\uDF10 Connected") ));
         }else{
             client.sendPacket(new NetPacket(PacketType.HANDSHAKE_RESPONSE, "server",
-                  new HandshakeResponse("Connection to server tested. User:  " + client.getUsername() + " .")  ));
-        }
+                  new HandshakeResponse("  \uD83C\uDF10 Connected ")));//initially i was returning also the login but it hurts the gui
+        }//let it be...waste else... i might change my mind again later so...
 
 
     }
@@ -72,13 +110,13 @@ public class PacketDispatcher {
         if (payload.isUnstuckProcess()){
          GameStateResponse game = matchController.getCurrentGame(client.getUsername());
              if (game == null){
-                 client.sendPacket(new NetPacket(PacketType.INFO_RESPONSE,"server",
-                         new InfoResponse("You are not part of any active game")));
+                 client.sendPacket(new NetPacket(PacketType.GAME_QUIT_RESPONSE,"server",
+                         new GameQuitResponse(false,true,"You are not participating in any game")));
                  return;
              }
         }
         boolean success = matchController.handleGameQuit(client.getUsername());
-        client.sendPacket(new NetPacket(PacketType.GAME_QUIT_RESPONSE,"server",new GameQuitResponse(success)));
+        client.sendPacket(new NetPacket(PacketType.GAME_QUIT_RESPONSE,"server",new GameQuitResponse(success,false,"")));
     }
 
     private void handleLogin(ClientHandler client, NetPacket packet) {
@@ -140,7 +178,7 @@ public class PacketDispatcher {
         });
 
         lobbyController.userLoggedIn(username, client.getClientId());
-        lobbyController.broadcastLobby(matchController);
+        lobbyController.broadcastMessageLobbyChat("[server] : ",username + " entered the lobby");
     }
 
 
@@ -204,7 +242,7 @@ public class PacketDispatcher {
             client.sendPacket(new NetPacket(PacketType.LOGOUT_RESPONSE, "server",
                     new LogoutResponse(true, "Logged out successfully.")));
             client.setUsername(null);
-            lobbyController.broadcastLobby(matchController);
+            lobbyController.broadcastMessageLobbyChat("[server] : ",client.getUsername() + " has left the lobby.");
         }
     }
 
@@ -219,7 +257,7 @@ public class PacketDispatcher {
                     new ResyncResponse(
                             false,
                             "Invalid relog code. Please login again.",
-                            null, null, null, null, null
+                            null, null, null, null, null,null,null
                     )
             ));
             return;
@@ -238,13 +276,18 @@ public class PacketDispatcher {
         } else {
             relogCode = req.relogCode();
         }
-
+        matchController.reconnectPlayer(req.username());//TODO: <- this line requires testing
         Map<String, Boolean> lobbyPlayers = lobbyController.getLobbySnapshot(matchController);
         PlayerStatsResponse stats = persistence.getPlayerStats(req.username());
         InviteNotificationResponse[] pendingInvites =
                 matchController.getInvitationsFor(req.username());
         GameStateResponse currentGame =
                 matchController.getCurrentGame(req.username());
+        String nickname = persistence //dirty...but sleepy...project is almost over..
+                .getPlayerByUsername(req.username())
+                .map(Player::getNickname)
+                .orElse(req.username());
+
 
         client.sendPacket(new NetPacket(
                 PacketType.RESYNC_RESPONSE,
@@ -256,7 +299,9 @@ public class PacketDispatcher {
                         stats,
                         pendingInvites,
                         currentGame,
-                        relogCode
+                        relogCode,
+                        nickname,
+                        client.getUsername()
                 )
         ));
     }

@@ -8,5 +8,6 @@ public record GameStateResponse(
         boolean gameOver,
         String player1,
         String player2,
-        int winCount
+        int winCount,
+                long version
 ) implements Serializable {}

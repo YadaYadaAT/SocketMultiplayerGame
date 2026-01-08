@@ -24,8 +24,9 @@ public class MatchImpl implements Match {
     private volatile boolean finalized = false; // once true, no reconnections allowed
     private final Set<String> matchPlayers = Collections.synchronizedSet(new HashSet<>()); // Currently participating players
     private final Map<String, RematchVote> rematchVotes = Collections.synchronizedMap(new HashMap<>()); // Tracks rematch votes
+    private final Map<String, Boolean> midGameAsyncRematchVotes = Collections.synchronizedMap(new HashMap<>());
     private boolean ended = false;         // Flag indicating if the match has ended
-
+    private long stateVersion = 0;
     // ─────────────────────────────────────────────
     // Timer management
     // ─────────────────────────────────────────────
@@ -39,6 +40,7 @@ public class MatchImpl implements Match {
     Consumer<String> onPlayerRemoved;
     private final Map<String, Long> lastConnectionTime = new ConcurrentHashMap<>(); // Last known connection time for each player
     private final Map<String, Boolean> isPlayerConnected = new ConcurrentHashMap<>();     // Connection status of each player
+
 
 
 
@@ -56,6 +58,9 @@ public class MatchImpl implements Match {
 
         rematchVotes.put(player1, RematchVote.PENDING);
         rematchVotes.put(player2, RematchVote.PENDING);
+
+        midGameAsyncRematchVotes.put(player1, false);
+        midGameAsyncRematchVotes.put(player2, false);
 
         lastMoveTime = System.currentTimeMillis();
         lastConnectionTime.put(player1, System.currentTimeMillis());
@@ -81,8 +86,7 @@ public class MatchImpl implements Match {
         long now = System.currentTimeMillis();
         long secondsLeftTillKick = (turnHardTimeoutMs - turnSoftTimeoutMs) / 1000;
         if (!softTimeoutWarned && now - lastMoveTime >= turnSoftTimeoutMs) {
-            notifier.accept(current, "You have been inactive for a while, please make your move!" +
-                    "\n (Seconds left before inactivity kickout :" + secondsLeftTillKick);
+            notifier.accept(current, "You have been inactive for a while, please make your move!");
             softTimeoutWarned = true; // Prevent sending multiple warnings per turn
         }
     }
@@ -104,7 +108,7 @@ public class MatchImpl implements Match {
     }
 
 
-
+//“Has exactly ONE player been disconnected long enough that the OTHER player should win?”
     public Optional<String> checkDisconnectTimeout() {
         if (ended) return Optional.empty();
 
@@ -114,7 +118,6 @@ public class MatchImpl implements Match {
             if (!isPlayerConnected.getOrDefault(player, true)) {
                 long lastSeen = lastConnectionTime.getOrDefault(player, now);
                 if (now - lastSeen >= disconnectTimeoutMs) {
-                    ended = true;
                     return Optional.of(
                             game.getPlayer1().equals(player)
                                     ? game.getPlayer2()
@@ -137,7 +140,6 @@ public class MatchImpl implements Match {
             }
         }
 
-        ended = true;
         return true;
     }
 
@@ -154,6 +156,10 @@ public class MatchImpl implements Match {
             lastMoveTime = System.currentTimeMillis();
             softTimeoutWarned = false;
         }
+    }
+
+    public boolean  isPlayerDisconnected (String player){
+        return isPlayerDisconnected(player);
     }
 
     public synchronized void markFinalized() {
@@ -184,10 +190,20 @@ public class MatchImpl implements Match {
         if (ok) {
             lastMoveTime = System.currentTimeMillis(); // Update last move time
             softTimeoutWarned = false;                // Reset soft timeout warning
+            stateVersion++; // increment version on successful move
         }
         return ok;
     }
 
+    @Override
+    public Map<String, RematchVote> getRematchVotes() {
+        return rematchVotes;
+    }
+
+    @Override
+    public Map<String, Boolean> getMidGameAsyncRematchVotes() {
+        return midGameAsyncRematchVotes;
+    }
 
     @Override
     public boolean isFinished() {
@@ -245,8 +261,15 @@ public class MatchImpl implements Match {
                 game.isGameOver(),
                 game.getPlayer1(),
                 game.getPlayer2(),
-                Game.getWinCount()
+                Game.getWinCount(),
+                stateVersion
         );
+    }
+
+
+    @Override
+    public boolean isThePlayerConnected(String username){
+        return isPlayerConnected.get(username);
     }
 
     @Override
@@ -263,6 +286,7 @@ public class MatchImpl implements Match {
 
     @Override
     public synchronized boolean markEnded() {
+        if (ended) return false;
         ended = true;
         return true;
     }
@@ -287,64 +311,131 @@ public class MatchImpl implements Match {
 
     @Override
     public synchronized void requestRematch(String player) {
-        if (!ended)
-            throw new IllegalStateException("Game is not over yet");
+
         if (!matchPlayers.contains(player)){
-            throw new IllegalStateException("Player not in match");
+            throw new IllegalStateException("Player not in this match");
         }
         if (!isPlayerConnected.get(player)){
             matchPlayers.remove(player);
             onPlayerRemoved.accept(player);
-            throw new IllegalStateException("You are not connected,yet you request a rematch," +
-                    "we have been hacked! or we are simple really bad devs...and lazy..specially lazy since" +
-                    "we do not even have different type of exceptions...");
+            throw new IllegalStateException("You are not connected,yet you request a rematch");
         }
 
-        String opponent = rematchVotes.keySet().stream()
-                .filter(p -> !p.equals(player))
-                .findFirst()
-                .orElse(null);
-        if (!isPlayerConnected.get(opponent)){
-            matchPlayers.remove(player);
-            onPlayerRemoved.accept(player);
-            throw new IllegalStateException("Cannot rematch with disconnected opponent");
+        if (isEnded()){
+                String opponent = rematchVotes.keySet().stream()
+                        .filter(p -> !p.equals(player))
+                        .findFirst()
+                        .orElse(null);
+
+                if (!isPlayerConnected.get(opponent)){
+                    matchPlayers.remove(player);
+                    onPlayerRemoved.accept(player);
+                    throw new IllegalStateException("Cannot rematch with disconnected opponent");
+                }
+
+                if (opponent == null || rematchVotes.get(opponent) == RematchVote.DECLINED
+                        || rematchVotes.get(opponent) == RematchVote.UNAVAILABLE) {
+                    matchPlayers.remove(player);
+                    onPlayerRemoved.accept(player);
+                    throw new IllegalStateException("Rematch unavailable or declined");
+                }
+
+                rematchVotes.put(player, RematchVote.ACCEPTED);
+            System.out.println( player + "  vote is "  + rematchVotes.get(player));
+
+        }else{
+            var opponent = midGameAsyncRematchVotes.keySet().stream()
+                    .filter(p -> !p.equals(player))
+                    .findFirst()
+                    .orElse(null);
+            if (!isPlayerConnected.get(opponent)){
+                System.out.println("");
+                throw new IllegalStateException("Cannot rematch with disconnected opponent");
+            }
+
+            if (opponent == null) {
+                System.out.println("");
+                throw new IllegalStateException("We cant find your opponent, Rematch unavailable");
+            }
+
+            midGameAsyncRematchVotes.put(player, true);
         }
 
-        if (opponent == null || rematchVotes.get(opponent) == RematchVote.DECLINED
-                || rematchVotes.get(opponent) == RematchVote.UNAVAILABLE) {
-            matchPlayers.remove(player);
-            onPlayerRemoved.accept(player);
-            throw new IllegalStateException("Rematch unavailable or declined");
-        }
-
-        rematchVotes.put(player, RematchVote.ACCEPTED);
     }
 
-    @Override
-    public synchronized String getOpponent(String player) {
-        if (!matchPlayers.contains(player)) return null;
-        for (String p : matchPlayers) {
-            if (!p.equals(player)) return p;
-        }
-        return null; // just in case
-    }
+
 
     @Override
     public synchronized void declineRematch(String player) {
-        if (!ended || !matchPlayers.contains(player)) return;
-        rematchVotes.put(player, RematchVote.DECLINED);
-        matchPlayers.remove(player);
-        onPlayerRemoved.accept(player);
+        if (isEnded()){
+            if (!matchPlayers.contains(player)) return;
+            rematchVotes.put(player, RematchVote.DECLINED);
+            matchPlayers.remove(player);
+            onPlayerRemoved.accept(player);
+        }else{//migame...
+            if (!matchPlayers.contains(player)) {
+                throw new IllegalStateException("you declined a rematch that you are not in;" +
+                        " you break logic or our code is broken :P");
+            }
+            midGameAsyncRematchVotes.put(player,false);
+        }
+
     }
 
 
     @Override
     public synchronized boolean isRematchReady() {
-        return rematchVotes.size() == 2 &&
-                rematchVotes.values().stream()
-                        .allMatch(v -> v == RematchVote.ACCEPTED);
+        if (isEnded()){
+            return rematchVotes.size() == 2 &&
+                    rematchVotes.values().stream()
+                            .allMatch(v -> v == RematchVote.ACCEPTED);
+        }else{
+            return midGameAsyncRematchVotes.size() == 2 &&
+                    midGameAsyncRematchVotes.values().stream()
+                            .allMatch(v -> v);
+        }
+
     }
 
+    @Override
+    public synchronized String getOpponent(String player) {
+        if (!matchPlayers.contains(player)) return null;
+        synchronized (matchPlayers) {
+            for (String p : matchPlayers) {
+                if (!p.equals(player)) return p;
+            }
+        }
+        return null; // just in case
+    }
+
+    @Override
+    public String getRematchVoteOpponent(String player){
+
+        if (rematchVotes.isEmpty() || !rematchVotes.keySet().contains(player)){
+            System.out.println(" rematch vote of " +  player + "could not be found since it  was empty");
+            return null;
+        }
+
+        synchronized (rematchVotes) {
+            for (String p : rematchVotes.keySet()) {
+                System.out.println("rematchVote Key while on getRematchVoteOpponent for " +player +  ": " + p);
+                if (!p.equals(player)) return p;
+            }
+        }
+        System.out.println(" rematch vote of " +  player + "could not be found end result");
+        return null;
+    }
+
+    @Override
+    public String getmidGameAsyncRematchVotesOpponent(String player){
+        if (midGameAsyncRematchVotes.isEmpty() || !midGameAsyncRematchVotes.keySet().contains(player)) return null;
+        synchronized (midGameAsyncRematchVotes) {
+            for (String p : midGameAsyncRematchVotes.keySet()) {
+                if (!p.equals(player)) return p;
+            }
+        }
+        return null;
+    }
 
     @Override
     public synchronized RematchVote getRematchOutcome() {
@@ -355,13 +446,12 @@ public class MatchImpl implements Match {
         return null;
     }
 
-
-    @Override
-    public synchronized void resetRematchRequests() {
-        rematchVotes.replaceAll((k, v) -> RematchVote.PENDING);
-    }
-
     public long getLastMoveTime() {
         return lastMoveTime;
     }
+
+    public synchronized long getStateVersion() {
+        return stateVersion;
+    }
+
 }
