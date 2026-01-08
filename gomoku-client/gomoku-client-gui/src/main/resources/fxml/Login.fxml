@@ -21,10 +21,13 @@
       <children>
       
           <!-- Title -->
-          <Label styleClass="login-title" text="Welcome to Gomoku 2026" />
+          <Label alignment="CENTER" prefHeight="87.0" prefWidth="547.0" styleClass="login-title" text="Welcome to Gomoku 2026">
+            <VBox.margin>
+               <Insets bottom="40.0" top="-40.0" />
+            </VBox.margin></Label>
       
           <!-- Username + Password -->
-          <TextField fx:id="txtLoginUser" promptText="Username" styleClass="login-input" />
+          <TextField fx:id="txtLoginUser" maxWidth="286.0" prefHeight="42.0" prefWidth="286.0" promptText="Username" styleClass="login-input" />
           <PasswordField fx:id="txtLoginPwd" promptText="Password" styleClass="login-input" />
       
           <!-- Server messages -->
@@ -32,8 +35,8 @@
       
           <!-- Buttons side by side -->
           <HBox alignment="CENTER" prefHeight="32.0" prefWidth="1860.0" spacing="15">
-              <Button fx:id="btnLogin" onAction="#handleLogin" styleClass="action-btn" text="Login" />
-              <Button fx:id="btnSwitchSignup" onAction="#handleSwitchSignup" styleClass="action-btn-secondary" text="Signup" />
+              <Button fx:id="btnLogin" onAction="#handleLogin" prefHeight="31.0" prefWidth="117.0" styleClass="action-btn" text="Login" />
+              <Button fx:id="btnSwitchSignup" onAction="#handleSwitchSignup" prefHeight="33.0" prefWidth="119.0" styleClass="action-btn-secondary" text="Signup" />
           </HBox>
       </children>
    </VBox>
