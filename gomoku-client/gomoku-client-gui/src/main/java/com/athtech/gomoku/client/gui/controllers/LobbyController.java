@@ -84,7 +84,7 @@ public class LobbyController extends BaseController {
             setupListGradientAnimation();
             setupMusic();
             boolean muted = backgroundMusic.isMute();
-            muteBtn.setText(muted ? "Mute 🔊" : "Unmute 🔇");
+            muteBtn.setText(muted ? "Unmute 🔇"  : "Mute 🔊");
         });
     }
 

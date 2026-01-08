@@ -11,6 +11,11 @@
     -fx-cursor:hand;
 }
 
+#muteBtn{
+    -fx-background-color: #8f50c4;
+    -fx-cursor:hand;
+}
+
 #btnMidgameRematch:hover{
     -fx-scale-x: 1.2;
     -fx-scale-y: 1.2;

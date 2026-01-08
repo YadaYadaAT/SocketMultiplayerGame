@@ -79,8 +79,8 @@ public class IntroController {
             Text t = new Text(String.valueOf(c));
 
             // color effect for Gomoku "o"s (the 2nd and 4th letters)
-            if (i == 7) t.setFill(Color.GREEN);
-            else if (i == 11) t.setFill(Color.RED);
+            if (i == 8) t.setFill(Color.GREEN);
+            else if (i == 10) t.setFill(Color.RED);
             else t.setFill(Color.WHITE);
 
             t.setStyle("-fx-font-size: 64px; -fx-font-family: 'Orbitron', 'Arial Black';");

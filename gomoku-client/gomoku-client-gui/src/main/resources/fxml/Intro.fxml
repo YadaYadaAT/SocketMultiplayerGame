@@ -28,7 +28,7 @@
         </image>
     </ImageView>
     <!-- Gomoku label -->
-    <TextFlow fx:id="titleFlow" prefHeight="80" textAlignment="CENTER">  </TextFlow>
+    <TextFlow fx:id="titleFlow" prefHeight="90" textAlignment="CENTER">  </TextFlow>
 
 
 
