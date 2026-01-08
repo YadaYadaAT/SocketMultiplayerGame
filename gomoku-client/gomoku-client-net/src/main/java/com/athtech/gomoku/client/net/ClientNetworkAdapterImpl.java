@@ -24,13 +24,15 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     private ObjectInputStream in;
     private ObjectOutputStream out;
 
-    private PacketListener listener;
-
+    private volatile PacketListener listener;
+    private volatile ConnectionNotificationListener conNotifier;
     private Thread listenThread;
     private volatile boolean listening = false;
 
     private volatile NetState netState = NetState.DEAD;
     private Thread reconnectSpinner;
+
+
 
     public ClientNetworkAdapterImpl(String host, int port) {
         this.host = host;
@@ -80,6 +82,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         } catch (IOException | ClassNotFoundException e) {
             if (!listening) return;
             System.err.println("\nConnection lost: " + e.getMessage());
+
             handleConnectionLost();
         } catch (Exception e){
             //silence weirdo objectStream syncs to port header i guess... grab them here
@@ -142,7 +145,6 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
                     System.out.println("Reconnected successfully.");
 
                     if (pendingUsername != null && pendingRelogCode != null) {
-                        resyncRequested = true;
                         tryExecuteResync();
                     }
 
@@ -163,10 +165,8 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         listenThread.start();
     }
 
-    public void requestResync(String username, String relogCode) {
+    public void requestResync() {
         synchronized (resyncLock) {
-            pendingUsername = username;
-            pendingRelogCode = relogCode;
             resyncRequested = true;
         }
         tryExecuteResync();
@@ -227,11 +227,6 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
 
     @Override
-    public void setListener(PacketListener listener) {
-        this.listener = listener;
-    }
-
-    @Override
     public NetState getState() {
         return netState;
     }
@@ -253,9 +248,10 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
             int i = 0;
 
             System.out.print("Reconnecting 🔄 ");
-
+            sendToConNotifier("Reconnecting 🔄 ");
             while (netState == NetState.RECONNECTING) {
                 System.out.print("\rReconnecting 🔄 " + spinner[i++ % spinner.length]);
+                sendToConNotifier("Reconnecting 🔄 " + spinner[i++ % spinner.length]);
                 try {
                     Thread.sleep(200);
                 } catch (InterruptedException ignored) {
@@ -272,8 +268,32 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         if (reconnectSpinner != null) {
             reconnectSpinner.interrupt();
         }
-        System.out.print("\rReconnected ✓                     \n");
+        System.out.print("\rConnected ✓                     \n");
+        sendToConNotifier("Connected ✓");
     }
 
+    @Override
+    public void setConNotifier(ConnectionNotificationListener conNotifier) {
+        this.conNotifier = conNotifier;
+    }
+
+    @Override
+    public void setListener(PacketListener listener) {
+        this.listener = listener;
+        if (netState == NetState.CONNECTED){
+            sendToConNotifier("Connected");
+        } else if (netState == NetState.RECONNECTING) {
+            sendToConNotifier("Reconnecting");
+        }else{
+            sendToConNotifier("Connection is dead");
+        }
+
+    }
+
+    private void sendToConNotifier(String msg){
+        if (conNotifier != null){
+            conNotifier.connectionNotifer(msg);
+        }
+    }
 
 }

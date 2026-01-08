@@ -9,18 +9,21 @@ import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
 import com.athtech.gomoku.protocol.payload.*;
 import javafx.application.Platform;
-
-import java.util.Map;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.stage.Stage;
 
 public class GomokuFXNetworkHandler {
     private final ClientNetworkAdapter cna;
-    private final GomokuFXCommonToAllControllersData ctAllControllersData;
+    private GomokuFXCommonToAllControllersData ctAllControllersData;
     private WrapperController wrapperCtrl;
     private LoginController loginCtrl;
     private SignupController signupCtrl;
     private LobbyController lobbyCtrl;
     private GameController gameCtrl;
-
+    private Stage stage;
+    private volatile boolean sessionClosing = false;
+    private volatile long lastServerActivity = System.currentTimeMillis();
 
     public void setGameCtrl(GameController gameCtrl) {
         this.gameCtrl = gameCtrl;
@@ -43,31 +46,43 @@ public class GomokuFXNetworkHandler {
     }
 
     public void initCallbackHandler(){
+        cna.setConNotifier(this::conNotifier);
         cna.setListener(this::handleServerPacket);
     }
 
-    public GomokuFXNetworkHandler(ClientNetworkAdapter networkAdapter, GomokuFXCommonToAllControllersData ctAllControllersData) {
+    public void conNotifier(String msg){
+        wrapperCtrl.setConnectionStatus(msg);
+    }
+
+    public GomokuFXNetworkHandler(ClientNetworkAdapter networkAdapter
+            , GomokuFXCommonToAllControllersData ctAllControllersData
+            , Stage stage) {
         this.cna = networkAdapter;
         this.ctAllControllersData = ctAllControllersData;
+        this.stage = stage;
     }
 
 
     public synchronized void sendPacket(NetPacket packet){
-//        long sentAt = System.currentTimeMillis();//TODO last of all when we have ready all the FX inputs...
-//        if (cna.getState() == NetState.CONNECTED) {
-//            new Thread(() -> {
-//                try {
-//                    Thread.sleep(12_000);
-//                } catch (InterruptedException ignored) {}
-//
-//                if (ctAllControllersData.getLastServerActivity() < sentAt && cna.getState() == NetState.CONNECTED) {
-//                    wrapperCtrl.setConnectionStatus("\uD83D\uDD0C No server activity detected. Attempting resync...");
-//                    if (ctAllControllersData.getUsername() == null || ctAllControllersData.getRelogCode() == null) return;
-//                    cna.requestResync(ctAllControllersData.getUsername(), ctAllControllersData.getRelogCode());
-//                }
-//            }).start();
-//        }
+        long sentAt = System.currentTimeMillis();//TODO last of all when we have ready all the FX inputs...
 
+        if (cna.getState() == NetState.CONNECTED) {
+            new Thread(() -> {
+                try {
+                    Thread.sleep(12_000);
+                } catch (InterruptedException ignored) {}
+
+                if (lastServerActivity < sentAt) {
+                    wrapperCtrl.setConnectionStatus("\uD83D\uDD0C No server activity detected. Attempting resync...");
+                    if (ctAllControllersData.getUsername() == null || ctAllControllersData.getRelogCode() == null) return;
+                    cna.requestResync();
+                }
+            }).start();
+        }
+
+        if(packet.payload() instanceof LogoutRequest){
+         sessionClosing = true;
+        }
         cna.sendPacket(packet);
     }
 
@@ -82,12 +97,19 @@ public class GomokuFXNetworkHandler {
 
 
     private void handleServerPacket(NetPacket packet) {
-        ctAllControllersData.setLastServerActivity(System.currentTimeMillis());
-//        if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE) return;
+        lastServerActivity = System.currentTimeMillis();
+        if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE
+                && packet.type()!=PacketType.RESYNC_RESPONSE){
+            return;
+        }
+
         switch (packet.type()) {
             case LOGIN_RESPONSE -> onLoginResponse(packet);
             case SIGNUP_RESPONSE -> signupCtrl.onSignupResponse(packet);
-            case LOGOUT_RESPONSE -> onLogoutResponse(packet);
+            case LOGOUT_RESPONSE -> {
+                onLogoutResponse(packet);
+                sessionClosing = false;
+            }
             case LOBBY_PLAYERS_RESPONSE -> lobbyCtrl.onLobbyPlayersResponse(packet);
             case GAME_QUIT_RESPONSE -> gameCtrl.onGameQuitResponse(packet);
             case PLAYER_STATS_RESPONSE -> lobbyCtrl.onPlayerStatsResponse(packet);
@@ -103,7 +125,10 @@ public class GomokuFXNetworkHandler {
             case MATCH_SESSION_ENDED_RESPONSE ->  gameCtrl.onMatchSessionEndedResponse(packet);
             case MOVE_REJECTED_RESPONSE -> gameCtrl.onMoveRejectedResponse(packet);
             case PLAYER_INACTIVITY_WARNING_RESPONSE -> gameCtrl.onPlayerInactivityWarningResponse(packet);
-            case RESYNC_RESPONSE -> onResyncResponse(packet);
+            case RESYNC_RESPONSE -> {
+                sessionClosing = false;
+                onResyncResponse(packet);
+            }
             case ERROR_MESSAGE_RESPONSE -> wrapperCtrl.onErrorMessageResponse(packet);
             case INFO_RESPONSE -> onInfoResponse(packet);
             case GAME_QUIT_NOTIFICATION_RESPONSE -> gameCtrl.onGameQuitNotification(packet);
@@ -146,11 +171,13 @@ public class GomokuFXNetworkHandler {
 
 
     private void onResyncResponse(NetPacket packet) {
+
         ResyncResponse resp = (ResyncResponse) packet.payload();
 
         if (!resp.success()) {
-            wrapperCtrl.setConnectionStatus("Resync attempt rejected: " + resp.message());
-//            resetSessionState(); < - need to find a way to reset everything ..
+            cna.setListener(null); // remove the listener from the network adapter
+            cna.updateCredentials(null, null);
+            Platform.runLater(this::flatlineTheSession);
             return;
         }
         lobbyCtrl.onResyncResponse(packet);
@@ -163,13 +190,45 @@ public class GomokuFXNetworkHandler {
 
 
 
-    public void setSession(GomokuFXSession session) {
-        this.session = session;
+    private void flatlineTheSession(){
+        wrapperCtrl.dispose();//stop the clock ,might seem weird we stop a clock here since we just
+        //going to create a new controller but if we do not the JavaFX thread will still have a reference
+        //and it won't let GC collect the object, but even worse it would do GUI work, scaling up at each
+        //session reset...(i almost missed this one)
+
+
+
+        //TODO: make connection and reconnection methods send data to
+        // wrapper controller field(header); Therefore here we are gonna
+        // also need to unset and set this from the listener
+
+        //The whole process is explained once in the GomokuFXAPP, we just follow the same logic
+        // excluding the steps that would create what we keep (networkhandler ,stage e.t.c).
+        var viewNavigator = new GomokuFXViewNavigator();
+        viewNavigator.preload(View.SCENEWRAPPER);
+        viewNavigator.preload(View.LOGIN);
+        viewNavigator.preload(View.SIGNUP);
+        viewNavigator.preload(View.LOBBY);
+        viewNavigator.preload(View.GAME);
+        var data = new GomokuFXCommonToAllControllersData();
+        ctAllControllersData = data;
+        setWrapperCtrl((WrapperController) viewNavigator.getController(View.SCENEWRAPPER));
+        setLoginCtrl((LoginController) viewNavigator.getController(View.LOGIN));
+        setSignupCtrl((SignupController) viewNavigator.getController(View.SIGNUP));
+        setLobbyCtrl((LobbyController) viewNavigator.getController(View.LOBBY));
+        setGameCtrl((GameController) viewNavigator.getController(View.GAME));
+        viewNavigator.initControllers(viewNavigator, this, data);
+        initCallbackHandler();
+        sendHandshake();
+        Parent wrapper = viewNavigator.getWrapper();
+        viewNavigator.setTheContentPane();
+        stage.setScene(new Scene(wrapper));
+        //TODO: change this with the intro or....not xD its reconnection...so we can change it
+        // with a transition scene;..actually keep the login here and we change only at the
+        // start method to lead to the intro ; ..or we put a transition scene for 3 seconds
+        viewNavigator.getContentPane().getChildren().setAll(viewNavigator.getRoot(View.LOGIN));
+
     }
-
-
-
-
 
 
 }

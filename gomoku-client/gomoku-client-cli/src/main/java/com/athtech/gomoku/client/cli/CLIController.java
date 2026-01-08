@@ -326,7 +326,7 @@ public class CLIController {
 
     public void requestResync() {
         if (username == null || relogCode == null) return;
-        clientNetwork.requestResync(username, relogCode);
+        clientNetwork.requestResync();
     }
 
 
@@ -362,8 +362,10 @@ public class CLIController {
 
     private void handleServerPacket(NetPacket packet) {
         lastServerActivity = System.currentTimeMillis();
-        if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE) return;
-
+        if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE
+                && packet.type()!=PacketType.RESYNC_RESPONSE){
+            return;
+        }
         switch (packet.type()) {
             case LOGIN_RESPONSE -> onLoginResponse(packet);
             case SIGNUP_RESPONSE -> onSignupResponse(packet);
@@ -793,7 +795,7 @@ public class CLIController {
                     Thread.sleep(6_000);
                 } catch (InterruptedException ignored) {}
 
-                if (lastServerActivity < sentAt && clientNetwork.getState() == NetState.CONNECTED) {
+                if (lastServerActivity < sentAt) {
                     view.showCallback("No server activity detected. Attempting resync...");
                     requestResync();
                 }

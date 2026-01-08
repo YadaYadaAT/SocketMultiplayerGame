@@ -23,8 +23,15 @@ public class WrapperController extends BaseController{
     @FXML
     private StackPane contentPane;
     @FXML private Label lblClock;
+    private Timeline clockTimeline;
 
-    private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+    @Override
+    public void onLeave() {
+        if (clockTimeline != null) {
+            clockTimeline.stop();
+            clockTimeline = null;
+        }
+    }
 
     @FXML
     public void initialize() {
@@ -41,6 +48,12 @@ public class WrapperController extends BaseController{
     public void setConnectionStatus(String status) {
         Platform.runLater(() -> {
          lblConnection.setText(status);
+        });
+    }
+
+    public void setLblError(String errMsg) {
+        Platform.runLater(() -> {
+            lblError.setText(errMsg);
         });
     }
 
@@ -112,13 +125,20 @@ public class WrapperController extends BaseController{
     }
 
     private void startClock() {
-        // Simple clock update
-        Timeline clockTimeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> {
-            lblClock.setText("⏰ " + java.time.LocalTime.now().withNano(0).toString());
-        }));
+        clockTimeline = new Timeline(
+                new KeyFrame(Duration.seconds(1), e ->
+                        lblClock.setText("⏰ " + LocalTime.now().withNano(0))
+                )
+        );
         clockTimeline.setCycleCount(Animation.INDEFINITE);
         clockTimeline.play();
     }
 
+    public void dispose() {
+        if (clockTimeline != null) {
+            clockTimeline.stop();
+            clockTimeline = null;
+        }
+    }
 
 }

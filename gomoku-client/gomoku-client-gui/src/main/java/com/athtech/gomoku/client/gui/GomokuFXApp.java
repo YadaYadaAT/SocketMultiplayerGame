@@ -9,7 +9,10 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
+
+
 public class GomokuFXApp extends Application {
+
 
     @Override
     public void start(Stage stage) throws Exception {
@@ -32,6 +35,7 @@ public class GomokuFXApp extends Application {
         //yet since only callbacks write and javathreads read...with an exception of a constructor , no way to have sync issues)
         var data = new GomokuFXCommonToAllControllersData();
 
+
         // Create the low-level network adapter to handle TCP communication with the server.
         // "localhost" and port 999 indicate the server address. It opens a socket and starts a listener thread internally.
         // This thread constantly reads incoming packets and triggers callbacks when packets arrive.
@@ -39,10 +43,16 @@ public class GomokuFXApp extends Application {
         // class itself
         var cna = new ClientNetworkAdapterImpl("localhost", 999);
 
+
+        // For the client network adapter class itself :
         // Create a higher-level network handler that wraps the adapter and provides controller-friendly callbacks.
         // Also holds a reference to the shared data object; while most data are maintained by the callback in controllers.
         // things like lastServerActivity time (long) is being send from there to the field in the data (since centralized)
-        var networkHandler = new GomokuFXNetworkHandler(cna, data);
+        //For the stage being passed down :
+        // passing the stage to a field so we can have access to it in case we want to nuke the session
+        //(alternately you could also clear/reset every controller from  session data
+        // but here we took the bug free guarantee solution to just nuke the objects(no GC problem...rarely happens)
+        var networkHandler = new GomokuFXNetworkHandler(cna, data , stage);
 
         // Set the LoginController reference in the network handler so that LOGIN_RESPONSE packets can be delivered to it.
         // The controller was preloaded by the navigator, so we fetch it from the navigator's controller map.
@@ -105,4 +115,5 @@ public class GomokuFXApp extends Application {
     public static void main(String[] args) {
         launch(args);
     }
+
 }

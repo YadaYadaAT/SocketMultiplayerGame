@@ -8,14 +8,20 @@ public interface ClientNetworkAdapter {
 
     NetState getState();
 
-    void requestResync(String username, String relogCode);
+    void requestResync();
 
     void onResyncFinished();
-
+    void setConNotifier(ConnectionNotificationListener conNotifier);
     void setListener(PacketListener listener);
     void updateCredentials(String username, String relogCode);
 
     interface PacketListener {
         void onPacketReceived(NetPacket packet);
     }
+
+    interface ConnectionNotificationListener{
+        void connectionNotifer(String msg);
+    }
+
+
 }
