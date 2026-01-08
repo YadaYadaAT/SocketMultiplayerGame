@@ -172,4 +172,9 @@ public class WrapperController extends BaseController{
         });
     }
 
+    @FXML
+    public void handleExit() {
+        Platform.exit();
+    }
+
 }

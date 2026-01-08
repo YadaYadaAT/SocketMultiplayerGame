@@ -5,6 +5,7 @@
 <?import javafx.scene.layout.VBox?>
 <VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.athtech.gomoku.client.gui.controllers.IntroController"
       fx:id="introRoot"
       alignment="CENTER"
       prefWidth="600" prefHeight="400">

@@ -92,10 +92,10 @@ public class PacketDispatcher {
     private void handleHandshakeRequest(ClientHandler client, NetPacket packet){
         if (client.getUsername() == null){
             client.sendPacket(new NetPacket(PacketType.HANDSHAKE_RESPONSE, "server",
-                    new HandshakeResponse("  \uD83C\uDF10 Connected...") ));
+                    new HandshakeResponse("  \uD83C\uDF10 Connected") ));
         }else{
             client.sendPacket(new NetPacket(PacketType.HANDSHAKE_RESPONSE, "server",
-                  new HandshakeResponse("  \uD83C\uDF10 Connected... ")));//initially i was returning also the login but it hurts the gui
+                  new HandshakeResponse("  \uD83C\uDF10 Connected ")));//initially i was returning also the login but it hurts the gui
         }//let it be...waste else... i might change my mind again later so...
 
 
