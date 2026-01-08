@@ -186,6 +186,19 @@ public class PersistenceManagerImpl implements PersistenceManager {
         }
     }
 
+    @Override
+    public void setRelogCode(String username, String relogCode) {
+        String sql = "UPDATE players SET relog_code=? WHERE username=?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, relogCode);
+            ps.setString(2, username);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+
 
     @Override
     public Optional<String> getRelogCode(String username) {
