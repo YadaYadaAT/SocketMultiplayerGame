@@ -13,6 +13,11 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.paint.Color;
 import javafx.util.Duration;
 
+
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+
+
 import java.util.*;
 
 public class LobbyController extends BaseController {
@@ -32,6 +37,11 @@ public class LobbyController extends BaseController {
     private Button acceptBtn; // fx:id="acceptBtn"
     @FXML
     private Button declineBtn; // fx:id="declineBtn"
+
+    @FXML private Button muteBtn;
+
+    // Media for background music
+    private MediaPlayer backgroundMusic;
 
     private Timeline clearInviteTimeline;
 
@@ -65,7 +75,26 @@ public class LobbyController extends BaseController {
         acceptBtn.setVisible(false);
         declineBtn.setVisible(false);
 
+
     }
+
+    @Override
+    public void onEnter() {
+        Platform.runLater(()->{
+            setupListGradientAnimation();
+            setupMusic();
+            boolean muted = backgroundMusic.isMute();
+            muteBtn.setText(muted ? "Mute 🔊" : "Unmute 🔇");
+        });
+    }
+
+    @Override
+    public void onLeave() {
+        Platform.runLater(()->{
+        backgroundMusic.setMute(true);
+        });
+    }
+
 
     @FXML
     private void handleInvite() {
@@ -419,5 +448,36 @@ public class LobbyController extends BaseController {
         int b = (int) (color.getBlue() * 255);
         return String.format("#%02X%02X%02X", r, g, b);
     }
+
+
+
+
+    private void setupMusic() {
+        try {
+
+            Media music1 = new Media(getClass().getResource("/music/johny.mp3").toExternalForm());
+
+            backgroundMusic = new MediaPlayer(music1);
+
+            backgroundMusic.setCycleCount(MediaPlayer.INDEFINITE);
+            backgroundMusic.setVolume(0.5); // adjust starting volume
+            backgroundMusic.play();
+
+        } catch (Exception e) {
+            System.err.println("Failed to load background music: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleMute() {
+        if (backgroundMusic == null) return;
+
+        boolean muted = backgroundMusic.isMute();
+        backgroundMusic.setMute(!muted);
+        muteBtn.setText(muted ? "Mute 🔊" : "Unmute 🔇");
+    }
+
+
+
 
 }

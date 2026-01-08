@@ -23,6 +23,7 @@
 
     <!-- Header with stats -->
     <HBox alignment="CENTER_RIGHT" prefHeight="36.0" prefWidth="555.0" spacing="15">
+        <!-- Stats Labels -->
         <Label styleClass="stat-label" text="Played:" />
         <Label fx:id="played" styleClass="stat-number" />
         <Label styleClass="stat-label" text="Wins:" />
@@ -31,16 +32,24 @@
         <Label fx:id="loses" styleClass="stat-number loses" />
         <Label styleClass="stat-label" text="Draws:" />
         <Label fx:id="draws" styleClass="stat-number draws" />
-        <Region HBox.hgrow="ALWAYS" />
-      <Line endX="-112.17349243164062" endY="-15.427791595458984" fill="WHITE" scaleX="1.5" startX="-100.0" stroke="WHITE" translateX="25.0" translateY="-30.0" />
 
+        <Region HBox.hgrow="ALWAYS" />
+
+        <Line endX="-112.17349243164062" endY="-15.427791595458984" fill="WHITE" scaleX="1.5" startX="-100.0" stroke="WHITE" translateX="25.0" translateY="-30.0" />
+
+
+        <!-- Logout Button -->
         <Button fx:id="logoutBtn" alignment="CENTER" onAction="#handleLogout" prefHeight="36" prefWidth="135" rotate="10.5" text="Logout">
-            <font>
-                <Font name="High Tower Text" size="18" />
-            </font>
-            <cursor>
-                <Cursor fx:constant="OPEN_HAND" />
-            </cursor>
+            <font><Font name="High Tower Text" size="18" /></font>
+            <cursor><Cursor fx:constant="OPEN_HAND" /></cursor>
+        </Button>
+      <Line endX="-112.17349243164062" endY="-15.427791595458984" fill="WHITE" rotate="39.0" startX="-100.0" stroke="WHITE" translateX="75.0" translateY="-27.0" />
+      <Line endX="-112.17349243164062" endY="-15.427791595458984" fill="WHITE" rotate="47.0" startX="-100.0" stroke="WHITE" translateX="130.0" translateY="-27.0" />
+
+        <!-- Mute Button -->
+        <Button fx:id="muteBtn" alignment="CENTER" onAction="#handleMute" prefHeight="36" prefWidth="135" text="Mute">
+            <font><Font name="High Tower Text" size="18" /></font>
+            <cursor><Cursor fx:constant="HAND" /></cursor>
         </Button>
     </HBox>
 
@@ -95,7 +104,7 @@
 
         <HBox spacing="8">
             <TextField fx:id="chatInput" promptText="Type your message..." styleClass="chat-input" HBox.hgrow="ALWAYS" />
-            <Button fx:id="sendBtn" onAction="#sendChatMessage" styleClass="send-btn" text="Send" />
+            <Button fx:id="sendBtn" onAction="#sendChatMessage" prefWidth="176.0" styleClass="send-btn" text="Send" />
         </HBox>
     </VBox>
 
