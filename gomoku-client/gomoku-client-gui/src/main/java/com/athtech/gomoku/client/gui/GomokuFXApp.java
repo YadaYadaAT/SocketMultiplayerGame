@@ -7,8 +7,10 @@ import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
+import java.util.Objects;
 
 
 public class GomokuFXApp extends Application {
@@ -94,6 +96,8 @@ public class GomokuFXApp extends Application {
 
         // Set the initial view in the contentPane (LOGIN)
         viewNavigator.getContentPane().getChildren().setAll(viewNavigator.getRoot(View.LOGIN));
+
+        stage.getIcons().add(new Image(Objects.requireNonNull(getClass().getResourceAsStream("/images/icon.png"))));
 
         // Set the window title. ~YadaYada~ <-You  put this title; => bounds to be good...
         stage.setTitle("YadaYada Gomoku 2026");
