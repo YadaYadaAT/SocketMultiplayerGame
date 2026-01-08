@@ -11,6 +11,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
 
 public class GameController extends BaseController {
@@ -20,6 +21,8 @@ public class GameController extends BaseController {
     @FXML private Label lblRematchStatus;
 
     @FXML private Label lblTurnInfo;
+    @FXML private ImageView waitForYourTurn;
+    @FXML private ImageView playYourTurn;
 
     @FXML private VBox boardContainer;
 
@@ -70,6 +73,9 @@ public class GameController extends BaseController {
             //back to lobbySafety
             btnBackToLobby.setVisible(false);
             btnBackToLobby.setDisable(true);
+
+             playYourTurn.setVisible(false);
+             waitForYourTurn.setVisible(false);
          });
 
     }
@@ -145,6 +151,8 @@ public class GameController extends BaseController {
             btnBackToLobby.setVisible(false);
             btnBackToLobby.setDisable(true);
 
+            playYourTurn.setVisible(true);
+            waitForYourTurn.setVisible(true);
 
 
 //----------------------------------------------------------
@@ -169,6 +177,7 @@ public class GameController extends BaseController {
 
             boolean myTurn = gs.currentPlayer().equals(data.getUsername());
             lblTurnInfo.setText(myTurn ? "Its Your turn" : "Opponent's turn");
+            updateTurnImages(myTurn);
             lblGameStatus.setText("Connect " + gs.winCount() + " to win the game");
         });
     }
@@ -197,6 +206,7 @@ public class GameController extends BaseController {
 
             boolean myTurn = gs.currentPlayer().equals(data.getUsername());
             lblTurnInfo.setText(myTurn ? "Your turn" : "Opponent's turn");
+            updateTurnImages(myTurn);
         });
     }
 
@@ -208,7 +218,8 @@ public class GameController extends BaseController {
             rematchPhase = true;
 
             //Ui states
-
+            playYourTurn.setVisible(false);
+            waitForYourTurn.setVisible(false);
                 //MID REMATCH states
                 btnMidgameRematch.setSelected(false);
                 btnMidgameRematch.setVisible(false);
@@ -479,5 +490,10 @@ public class GameController extends BaseController {
     @Override
     public void showInfo(InfoResponse infoResponse) {
         Platform.runLater(() -> lblGameStatus.setText(infoResponse.msg()));
+    }
+
+    private void updateTurnImages(boolean myTurn) {
+        playYourTurn.setVisible(myTurn);
+        waitForYourTurn.setVisible(!myTurn);
     }
 }

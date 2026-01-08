@@ -1,76 +1,90 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.Cursor?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
 
-<BorderPane xmlns="http://javafx.com/javafx/21"
-            xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="com.athtech.gomoku.client.gui.controllers.GameController"
-            stylesheets="@../css/game.css"
-            prefWidth="1920"
-            prefHeight="1080"
-            >
+<BorderPane prefHeight="1080" prefWidth="1920" stylesheets="@../css/game.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.GameController">
 
     <!-- TOP BAR -->
     <top>
-        <HBox alignment="CENTER"
-              prefHeight="80"
-              styleClass="top-bar">
-            <Label fx:id="lblGameStatus"/>
+        <HBox alignment="CENTER" prefHeight="110.0" prefWidth="1920.0" styleClass="top-bar" BorderPane.alignment="CENTER">
+            <Label fx:id="lblGameStatus" alignment="CENTER" contentDisplay="CENTER" text="Games on" textAlignment="CENTER" textFill="WHITE">
+            <font>
+               <Font size="22.0" />
+            </font></Label>
+         <padding>
+            <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+         </padding>
         </HBox>
     </top>
 
     <!-- CENTER -->
     <center>
-        <HBox alignment="CENTER"
-              spacing="30"
-              styleClass="center-container">
+        <HBox alignment="CENTER" spacing="30" styleClass="center-container">
 
             <!-- LEFT : messages -->
-            <VBox spacing="12"
-                  styleClass="message-box">
-                <Label fx:id="lblTurnInfo"/>
-                <Label fx:id="lblRematchStatus"
-                       />
+            <VBox alignment="TOP_CENTER" prefWidth="260.0" spacing="50.0" styleClass="message-box">
+                <Label fx:id="lblTurnInfo" alignment="CENTER" contentDisplay="CENTER" prefHeight="272.0" prefWidth="230.0" style="-fx-font-size: 27;" text="Turn" textAlignment="CENTER" wrapText="true">
+               <font>
+                  <Font name="High Tower Text" size="19.0" />
+               </font></Label>
+            <StackPane prefHeight="150.0" prefWidth="200.0">
+               <children>
+                  <ImageView fx:id="waitForYourTurn" fitHeight="182.0" fitWidth="120.0" pickOnBounds="true" preserveRatio="true">
+                     <image>
+                        <Image url="@../images/clock.gif" />
+                     </image>
+                  </ImageView>
+                  <ImageView fx:id="playYourTurn" fitHeight="150.0" fitWidth="185.0" pickOnBounds="true" preserveRatio="true">
+                     <image>
+                        <Image url="@../images/reduceSize.gif" />
+                     </image>
+                     <StackPane.margin>
+                        <Insets left="40.0" />
+                     </StackPane.margin>
+                  </ImageView>
+               </children>
+            </StackPane>
             </VBox>
 
             <!-- CENTER : board -->
-            <VBox fx:id="boardContainer"
-                  alignment="CENTER"
-                  spacing="10"
-                  styleClass="board-wrapper"/>
+            <VBox fx:id="boardContainer" alignment="CENTER" spacing="10" styleClass="board-wrapper" />
 
             <!-- RIGHT : controls -->
-            <VBox alignment="TOP_CENTER"
-                  spacing="20"
-                  styleClass="right-panel">
+            <VBox alignment="CENTER" prefWidth="260.0" spacing="50.0" style="-fx-background-color: black;" styleClass="right-panel">
+                <Label fx:id="lblRematchStatus" prefHeight="33.0" prefWidth="210.0" textFill="WHITE" wrapText="true">
+               <font>
+                  <Font size="18.0" />
+               </font></Label>
 
-                <VBox fx:id="midgameBox"
-                      alignment="CENTER">
-                    <ToggleButton fx:id="btnMidgameRematch"
-                                  onAction="#onMidgameRematchToggle"/>
+                <VBox fx:id="midgameBox" alignment="CENTER" prefHeight="37.0" prefWidth="181.0">
+                    <ToggleButton fx:id="btnMidgameRematch" onAction="#onMidgameRematchToggle" text="Rematch" textFill="WHITE" visible="false">
+                  <font>
+                     <Font name="High Tower Text" size="20.0" />
+                  </font></ToggleButton>
                 </VBox>
 
-                <VBox spacing="12"
-                      alignment="CENTER">
-                    <Button fx:id="btnBackToLobby"
-                            text="Back to Lobby"
-                            onAction="#backToLobby">
+                <VBox alignment="CENTER" spacing="25.0">
+                    <Button fx:id="btnBackToLobby" onAction="#backToLobby" prefHeight="50.0" prefWidth="210.0" text="Back to Lobby">
                         <cursor>
-                            <Cursor fx:constant="OPEN_HAND"/>
+                            <Cursor fx:constant="OPEN_HAND" />
                         </cursor>
                     </Button>
 
-                    <Button fx:id="btnQuitGame"
-                            text="Quit Game"
-                            onAction="#quitGame"
-                            styleClass="quit-button"/>
+                    <Button fx:id="btnQuitGame" onAction="#quitGame" prefHeight="34.0" prefWidth="210.0" styleClass="quit-button" text="Quit Game">
+                  <cursor>
+                     <Cursor fx:constant="OPEN_HAND" />
+                  </cursor></Button>
                 </VBox>
 
             </VBox>
@@ -80,21 +94,11 @@
 
     <!-- BOTTOM : ENDGAME BOX (UNCHANGED) -->
     <bottom>
-        <VBox fx:id="endgameBox"
-              alignment="CENTER"
-              spacing="15"
-              visible="false"
-              styleClass="endgame-box">
-            <Label text="Play again?"
-                   styleClass="endgame-label"/>
-            <HBox spacing="15"
-                  alignment="CENTER">
-                <Button text="Yes"
-                        onAction="#onEndGameRematchYes"
-                        styleClass="rematch-yes"/>
-                <Button text="No"
-                        onAction="#onEndGameRematchNo"
-                        styleClass="rematch-no"/>
+        <VBox fx:id="endgameBox" alignment="CENTER" spacing="15" styleClass="endgame-box" visible="false">
+            <Label styleClass="endgame-label" text="Play again?" />
+            <HBox alignment="CENTER" spacing="15">
+                <Button onAction="#onEndGameRematchYes" styleClass="rematch-yes" text="Yes" />
+                <Button onAction="#onEndGameRematchNo" styleClass="rematch-no" text="No" />
             </HBox>
         </VBox>
     </bottom>

@@ -28,6 +28,10 @@ public class LobbyController extends BaseController {
     @FXML private Label loses;
     @FXML private Label draws;
     @FXML private TextField chatInput;
+    @FXML
+    private Button acceptBtn; // fx:id="acceptBtn"
+    @FXML
+    private Button declineBtn; // fx:id="declineBtn"
 
     private Timeline clearInviteTimeline;
 
@@ -49,6 +53,18 @@ public class LobbyController extends BaseController {
                 sendChatMessage();
             }
         });
+
+        // Accept/Decline buttons only enabled when an invite is selected
+        inviteListView.getSelectionModel().selectedItemProperty().addListener((obs, oldSel, newSel) -> {
+            boolean hasSelection = newSel != null;
+            acceptBtn.setVisible(hasSelection);
+            declineBtn.setVisible(hasSelection);
+        });
+
+        // Initially hide Accept/Decline buttons
+        acceptBtn.setVisible(false);
+        declineBtn.setVisible(false);
+
     }
 
     @FXML
@@ -67,6 +83,43 @@ public class LobbyController extends BaseController {
                         new InviteRequest(usernameToInvite)
                 )
         );
+    }
+
+    @FXML
+    private void handleRandomInvite() {
+        List<String> availablePlayers = new ArrayList<>();
+        for (String label : lobbyPlayersList.getItems()) {
+            String username = displayToUsername.get(label);
+            // Make sure the username is not yourself
+            if (!username.equals(data.getUsername())) {
+                availablePlayers.add(username);
+            }
+        }
+
+        if (availablePlayers.isEmpty()) {
+            // Show simple info popup
+            Platform.runLater(() -> {
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("No Players Available");
+                alert.setHeaderText(null);
+                alert.setContentText("There are no available players in the lobby to invite.");
+                alert.showAndWait();
+            });
+            return;
+        }
+
+        // Pick random player
+        String randomUsername = availablePlayers.get(new Random().nextInt(availablePlayers.size()));
+
+        clientNetwork.sendPacket(
+                new NetPacket(
+                        PacketType.INVITE_REQUEST,
+                        data.getUsername(),
+                        new InviteRequest(randomUsername)
+                )
+        );
+
+        Platform.runLater(() -> outgoingInviteLabel.setText("Invite sent to: " + randomUsername));
     }
 
     @FXML

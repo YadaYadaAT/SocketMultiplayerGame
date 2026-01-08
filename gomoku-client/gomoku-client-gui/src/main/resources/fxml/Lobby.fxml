@@ -7,24 +7,22 @@
 <?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.Separator?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.shape.Line?>
 <?import javafx.scene.text.Font?>
 
-<VBox alignment="CENTER" maxWidth="1.7976931348623157E308"
-      spacing="12" styleClass="root"
-      stylesheets="@../css/lobbychat.css" xmlns="http://javafx.com/javafx/21"
-      xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="com.athtech.gomoku.client.gui.controllers.LobbyController">
+<VBox alignment="CENTER" maxWidth="1.7976931348623157E308" spacing="12" styleClass="root" stylesheets="@../css/lobbychat.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.LobbyController">
 
     <padding>
         <Insets bottom="20" left="25" right="25" top="20" />
     </padding>
 
     <!-- Header with stats -->
-    <HBox alignment="CENTER_RIGHT" spacing="15">
+    <HBox alignment="CENTER_RIGHT" prefHeight="36.0" prefWidth="555.0" spacing="15">
         <Label styleClass="stat-label" text="Played:" />
         <Label fx:id="played" styleClass="stat-number" />
         <Label styleClass="stat-label" text="Wins:" />
@@ -47,9 +45,18 @@
     </HBox>
 
     <Separator style="-fx-background-color: linear-gradient(to right, #00fffc, #ff00e1); -fx-padding:2" />
-
-    <!-- LOBBY title -->
-    <Label styleClass="lobby-title" text="LOBBY" />
+   <VBox alignment="CENTER" prefHeight="39.0" prefWidth="555.0">
+      <children>
+         <ImageView fitHeight="35.0" fitWidth="29.0" pickOnBounds="true" preserveRatio="true">
+            <image>
+               <Image url="@../images/thanksForReading.gif" />
+            </image>
+         </ImageView>
+      
+          <!-- LOBBY title -->
+          <Label styleClass="lobby-title" text="LOBBY" />
+      </children>
+   </VBox>
 
     <!-- Players + Invites -->
     <HBox minHeight="150" prefHeight="520" spacing="15">
@@ -59,6 +66,7 @@
             <ListView fx:id="lobbyPlayersList" styleClass="fancy-list" VBox.vgrow="ALWAYS" />
             <HBox spacing="8">
                 <Button onAction="#handleInvite" styleClass="action-btn" text="Invite Selected Player" />
+                <Button fx:id="randomInviteBtn" onAction="#handleRandomInvite" styleClass="action-btn" text="Invite Random Player" />
                 <Label fx:id="outgoingInviteLabel" styleClass="info-label" />
             </HBox>
         </VBox>
@@ -68,8 +76,8 @@
             <Label styleClass="section-title" text="Incoming Invites" />
             <ListView fx:id="inviteListView" styleClass="fancy-list" VBox.vgrow="ALWAYS" />
             <HBox spacing="8">
-                <Button onAction="#handleAcceptSelectedInvite" styleClass="action-btn" text="Accept" />
-                <Button onAction="#handleDeclineSelectedInvite" styleClass="action-btn" text="Decline" />
+                <Button fx:id="acceptBtn" onAction="#handleAcceptSelectedInvite" styleClass="action-btn" text="Accept" />
+                <Button fx:id="declineBtn" onAction="#handleDeclineSelectedInvite" styleClass="action-btn" text="Decline" />
             </HBox>
         </VBox>
     </HBox>

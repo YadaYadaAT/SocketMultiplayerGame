@@ -21,12 +21,17 @@
     -fx-font-weight: bold;
 }
 
+#btnBackToLobby{
+    -fx-background-color: linear-gradient(to right, #4b6cb7, #182848);
+    -fx-text-fill: white;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+}
+
 /* ================= CENTER CONTAINER ================= */
 .center-container {
     -fx-alignment: CENTER;
     -fx-padding: 25;
-    -fx-border-color: #333;
-    -fx-border-width: 2;
     -fx-border-radius: 12;
     -fx-background-radius: 12;
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10,0.2,0,2);
@@ -35,7 +40,7 @@
 /* LEFT MESSAGES */
 .message-box {
     -fx-padding: 15;
-    -fx-background-color: #1a1a1a;
+    -fx-background-color: black;
     -fx-background-radius: 12;
     -fx-border-radius: 12;
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 6,0.2,0,2);
@@ -141,6 +146,7 @@
     -fx-min-height: 35px;
 }
 
+
 /* QUIT BUTTONS */
 .quit-button {
     -fx-background-color: transparent;
@@ -150,6 +156,7 @@
     -fx-font-weight: bold;
     -fx-background-radius: 6;
     -fx-padding: 6 15;
+    -fx-border-radius: 8;
 }
 
 .quit-button:hover {
