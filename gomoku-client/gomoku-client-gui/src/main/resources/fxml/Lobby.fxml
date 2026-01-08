@@ -32,7 +32,7 @@
         <Label styleClass="stat-label" text="Draws:" />
         <Label fx:id="draws" styleClass="stat-number draws" />
         <Region HBox.hgrow="ALWAYS" />
-      <Line endX="-123.568603515625" endY="-29.9411563873291" fill="WHITE" scaleX="1.5" startX="-100.0" stroke="WHITE" translateX="25.0" translateY="-30.0" />
+      <Line endX="-112.17349243164062" endY="-15.427791595458984" fill="WHITE" scaleX="1.5" startX="-100.0" stroke="WHITE" translateX="25.0" translateY="-30.0" />
 
         <Button fx:id="logoutBtn" alignment="CENTER" onAction="#handleLogout" prefHeight="36" prefWidth="135" rotate="10.5" text="Logout">
             <font>
@@ -47,9 +47,9 @@
     <Separator style="-fx-background-color: linear-gradient(to right, #00fffc, #ff00e1); -fx-padding:2" />
    <VBox alignment="CENTER" prefHeight="39.0" prefWidth="555.0">
       <children>
-         <ImageView fitHeight="35.0" fitWidth="29.0" pickOnBounds="true" preserveRatio="true">
+         <ImageView fitHeight="88.0" fitWidth="85.0" pickOnBounds="true" preserveRatio="true">
             <image>
-               <Image url="@../images/thanksForReading.gif" />
+               <Image url="@../images/YadaYadaWhite.png" />
             </image>
          </ImageView>
       

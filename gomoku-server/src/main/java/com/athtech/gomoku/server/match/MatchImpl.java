@@ -86,8 +86,7 @@ public class MatchImpl implements Match {
         long now = System.currentTimeMillis();
         long secondsLeftTillKick = (turnHardTimeoutMs - turnSoftTimeoutMs) / 1000;
         if (!softTimeoutWarned && now - lastMoveTime >= turnSoftTimeoutMs) {
-            notifier.accept(current, "You have been inactive for a while, please make your move!" +
-                    "\n (Seconds left before inactivity kickout :" + secondsLeftTillKick);
+            notifier.accept(current, "You have been inactive for a while, please make your move!");
             softTimeoutWarned = true; // Prevent sending multiple warnings per turn
         }
     }
@@ -319,9 +318,7 @@ public class MatchImpl implements Match {
         if (!isPlayerConnected.get(player)){
             matchPlayers.remove(player);
             onPlayerRemoved.accept(player);
-            throw new IllegalStateException("You are not connected,yet you request a rematch," +
-                    "we have been hacked! or we are simple really bad devs...and lazy..specially lazy since" +
-                    "we do not even have different type of exceptions...");
+            throw new IllegalStateException("You are not connected,yet you request a rematch");
         }
 
         if (isEnded()){

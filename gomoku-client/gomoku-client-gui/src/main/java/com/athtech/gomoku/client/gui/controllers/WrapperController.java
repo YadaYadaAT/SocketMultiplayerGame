@@ -9,6 +9,7 @@ import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.util.Duration;
@@ -24,6 +25,9 @@ public class WrapperController extends BaseController{
     @FXML
     private StackPane contentPane;
     @FXML private Label lblClock;
+    @FXML
+    private HBox headerBar;
+
     private Timeline clockTimeline;
     private Pane inputBlocker;
 
@@ -170,6 +174,11 @@ public class WrapperController extends BaseController{
         contentPane.getChildren().remove(inputBlocker);
         inputBlocker = null;
         });
+    }
+
+    public void showHeader(boolean show) {
+        headerBar.setVisible(show);
+        headerBar.setManaged(show);
     }
 
     @FXML

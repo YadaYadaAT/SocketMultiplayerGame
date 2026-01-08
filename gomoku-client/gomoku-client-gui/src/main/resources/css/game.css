@@ -6,6 +6,16 @@
     -fx-text-fill: #e0e0e0;
 }
 
+#btnMidgameRematch{
+    -fx-background-color:#4b6cb7;
+    -fx-cursor:hand;
+}
+
+#btnMidgameRematch:hover{
+    -fx-scale-x: 1.2;
+    -fx-scale-y: 1.2;
+}
+
 /* ================= TOP BAR ================= */
 .top-bar {
     -fx-background-color: #1c1c1c;
@@ -49,7 +59,6 @@
 
 .message-box Label {
     -fx-text-fill: #e0e0e0;
-    -fx-font-weight: bold;
 }
 
 /* BOARD CELL */
@@ -90,7 +99,7 @@
 
 .rematch-status {
     -fx-text-fill: #ffeb3b;
-
+    -fx-wrap-text: true;
 }
 
 /* REMATCH BUTTONS */

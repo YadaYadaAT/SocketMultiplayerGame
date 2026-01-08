@@ -100,13 +100,23 @@ public class GameController extends BaseController {
     @FXML
     private void onMidgameRematchToggle() {
         if (!inGame) return;
-        btnMidgameRematch.isSelected();
+        boolean selected = btnMidgameRematch.isSelected();
+
+        // Update text
+        btnMidgameRematch.setText(selected ? "Rematch On" : "Rematch Off");
+
+        // Change background color based on selection
+        if (selected) {
+            btnMidgameRematch.setStyle("-fx-background-color: green; -fx-text-fill: white;");
+        } else {
+            btnMidgameRematch.setStyle("-fx-background-color: #4b6cb7; -fx-text-fill: white;");
+        }
         clientNetwork.sendPacket(new NetPacket(
                 PacketType.REMATCH_REQUEST,
                 data.getUsername(),
-                new RematchRequest(btnMidgameRematch.isSelected())
+                new RematchRequest(selected)
         ));
-        lblGameStatus.setText(btnMidgameRematch.isSelected() ? "Rematch requested" : "Rematch request cancelled");
+        lblGameStatus.setText(selected ? "Rematch requested" : "Rematch request cancelled");
     }
 
     @FXML
@@ -138,6 +148,11 @@ public class GameController extends BaseController {
             btnMidgameRematch.setSelected(false);
             btnMidgameRematch.setVisible(true);
             btnMidgameRematch.setDisable(false);
+            if (btnMidgameRematch.isSelected()) {
+                btnMidgameRematch.setStyle("-fx-background-color: green; -fx-text-fill: white;");
+            } else {
+                btnMidgameRematch.setStyle("-fx-background-color: #4b6cb7; -fx-text-fill: white;");
+            }
 
             //Quit btn
             btnQuitGame.setVisible(true);

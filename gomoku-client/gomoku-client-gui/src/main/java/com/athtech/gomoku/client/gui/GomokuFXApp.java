@@ -12,12 +12,16 @@ import javafx.stage.Stage;
 
 import java.util.Objects;
 
-
 public class GomokuFXApp extends Application {
 
 
     @Override
     public void start(Stage stage) throws Exception {
+
+        // ---------- INTRO SCENE ----------
+        var introLoader = new FXMLLoader(getClass().getResource("/fxml/Intro.fxml"));
+        Parent introRoot = introLoader.load();
+        IntroController introCtrl = introLoader.getController();
 
         // Creates the view navigator which will manage scene switching between different FXML views.
         var viewNavigator = new GomokuFXViewNavigator();
@@ -37,14 +41,12 @@ public class GomokuFXApp extends Application {
         //yet since only callbacks write and javathreads read...with an exception of a constructor , no way to have sync issues)
         var data = new GomokuFXCommonToAllControllersData();
 
-
         // Create the low-level network adapter to handle TCP communication with the server.
         // "localhost" and port 999 indicate the server address. It opens a socket and starts a listener thread internally.
         // This thread constantly reads incoming packets and triggers callbacks when packets arrive.
         // It's obvious what we also use to send packets;(ObjectInputStream wraps ) more about it on the clientNetworkAdapater
         // class itself
         var cna = new ClientNetworkAdapterImpl("localhost", 999);
-
 
         // For the client network adapter class itself :
         // Create a higher-level network handler that wraps the adapter and provides controller-friendly callbacks.
@@ -61,6 +63,7 @@ public class GomokuFXApp extends Application {
         // (Currently we are about to have like 4-5 maximum controllers with 1:1 fxml, if it scales we
         // might swap to a map or something... currently we set one by one.
         networkHandler.setWrapperCtrl((WrapperController) viewNavigator.getController(View.SCENEWRAPPER));
+        networkHandler.setLoginCtrl((LoginController) viewNavigator.getController(View.INTRO));
         networkHandler.setLoginCtrl((LoginController) viewNavigator.getController(View.LOGIN));
         networkHandler.setSignupCtrl((SignupController) viewNavigator.getController(View.SIGNUP));
         networkHandler.setLobbyCtrl((LobbyController) viewNavigator.getController(View.LOBBY));
@@ -83,19 +86,34 @@ public class GomokuFXApp extends Application {
         // Test connection (well a bit of a lie ^^ we just want to trigger the callback to update
         // the header ui )
         networkHandler.sendHandshake();
-        //get wrapper (i take it from roots; been included like the rest for harmony)
-        //Although a bit abnormal in the sense that its the wrapper, we will exclude it from swapping at the goTo
+
+        // get wrapper (i take it from roots; been included like the rest for harmony)
+        // Although a bit abnormal in the sense that its the wrapper, we will exclude it from swapping at the goTo
         Parent wrapper = viewNavigator.getWrapper();
 
         // setTheContentPane after having the wrapper preload
         viewNavigator.setTheContentPane();
 
-        // Create the JavaFX Scene and attach the wrapper root.
-        // The wrapper stays constant; only its contentPane will be swapped when switching views.
-        stage.setScene(new Scene(wrapper));
+        // ---------- SETUP SINGLE SCENE ----------
+        Scene mainScene = new Scene(wrapper, 1200, 800);
+        stage.setScene(mainScene);
 
-        // Set the initial view in the contentPane (LOGIN)
-        viewNavigator.getContentPane().getChildren().setAll(viewNavigator.getRoot(View.LOGIN));
+        // ---------- SHOW INTRO ----------
+        // hides header for intro
+        ((WrapperController) viewNavigator.getController(View.SCENEWRAPPER))
+                .showHeader(false);
+
+        // sets intro as the first content
+        viewNavigator.getContentPane().getChildren().setAll(introRoot);
+
+        // callbacks when intro finishes: swap to LOGIN
+        introCtrl.setOnFinished(() -> {
+            viewNavigator.getContentPane().getChildren().setAll(viewNavigator.getRoot(View.LOGIN));
+
+            // show header after intro
+            ((WrapperController) viewNavigator.getController(View.SCENEWRAPPER))
+                    .showHeader(true);
+        });
 
         stage.getIcons().add(new Image(Objects.requireNonNull(getClass().getResourceAsStream("/images/icon.png"))));
 
@@ -110,6 +128,7 @@ public class GomokuFXApp extends Application {
         stage.setResizable(true);
         stage.setFullScreenExitHint("");
         stage.setFullScreen(true);
+
         // Show the window on the screen.
         // At this point, the FX thread takes control and renders the scene.
         // All UI updates from network callbacks must happen on the FX thread using Platform.runLater().
