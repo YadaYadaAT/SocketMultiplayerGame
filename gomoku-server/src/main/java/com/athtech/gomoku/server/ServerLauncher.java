@@ -5,8 +5,8 @@ import com.athtech.gomoku.server.persistence.PersistenceManagerImpl;
 
 public class ServerLauncher {
 
+//    private static final int DEFAULT_PORT = 10000;//
     private static final int DEFAULT_PORT = 999;
-
     public static void main(String[] args) {
 
         int port = DEFAULT_PORT;

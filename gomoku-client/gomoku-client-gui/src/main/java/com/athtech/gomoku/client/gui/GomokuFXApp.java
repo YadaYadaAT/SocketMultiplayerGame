@@ -47,9 +47,13 @@ public class GomokuFXApp extends Application {
         // It's obvious what we also use to send packets;(ObjectInputStream wraps ) more about it on the clientNetworkAdapater
         // class itself
         // Read host and port from environment variables, fallback to defaults
+
+            // keep the values here...its for the VM in azure ...
+//        String host = System.getenv().getOrDefault("GOMOKU_HOST", "4.232.170.244");
+//        int port = Integer.parseInt(System.getenv().getOrDefault("GOMOKU_PORT", "10000"));
+
         String host = System.getenv().getOrDefault("GOMOKU_HOST", "localhost");
         int port = Integer.parseInt(System.getenv().getOrDefault("GOMOKU_PORT", "999"));
-
         // Create the low-level network adapter to handle TCP communication with the server.
         var cna = new ClientNetworkAdapterImpl(host, port);
 
