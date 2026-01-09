@@ -455,7 +455,7 @@ public class LobbyController extends BaseController {
     private void setupMusic() {
         try {
 
-            Media music1 = new Media(getClass().getResource("/music/johny.mp3").toExternalForm());
+            Media music1 = new Media(getClass().getResource("/com/athtech/gomoku/client/gui/music/johny.mp3").toExternalForm());
 
             backgroundMusic = new MediaPlayer(music1);
 

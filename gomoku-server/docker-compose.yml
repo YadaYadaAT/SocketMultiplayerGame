@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  gomoku-server:
+    build:
+      context: .
+      dockerfile: gomoku-server/Dockerfile
+    container_name: gomoku-server
+    ports:
+      - "999:999"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
