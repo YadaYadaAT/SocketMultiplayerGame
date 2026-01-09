@@ -77,8 +77,11 @@ public class MatchManagerImpl implements MatchManager {
         Thread cleanupThread = new Thread(() -> {
             while (true) {
                 try {
+                    System.out.println("\uD83E\uDDF9 [MatcherCleanUp] MatcherCleanUp checker woke up");
                     cleanupMatches();
+                    System.out.println("\uD83E\uDDF9 [MatcherCleanUp] MatcherCleanUp checker put to sleep");
                     Thread.sleep(CLEANUP_INTERVAL_MS);
+
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -140,11 +143,11 @@ public class MatchManagerImpl implements MatchManager {
                 if (!impl.getMatchPlayers().isEmpty()) {
                     // There are still players, treat it as a forced end
                     handleForcedEnd(impl, null, MatchEndReason.WIN_INACTIVE_CLEANUP);
-                    System.out.println("\uD83D\uDDD1\uFE0F [Cleanup] Removed match " + impl.getMatchId() +
+                    System.out.println("\uD83E\uDDF9  [MatcherCleanUp] Removed match " + impl.getMatchId() +
                             " (inactive match)");
                 } else {
                     removeMatchAndCleanupPlayers(impl);
-                    System.out.println("\uD83D\uDDD1\uFE0F [Cleanup] Removed match " + impl.getMatchId() +
+                    System.out.println("\uD83E\uDDF9  [MatcherCleanUp] Removed match " + impl.getMatchId() +
                             " (no players)");
                 }
             }

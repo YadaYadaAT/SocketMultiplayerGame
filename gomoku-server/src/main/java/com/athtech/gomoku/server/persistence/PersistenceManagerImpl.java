@@ -15,9 +15,18 @@ public class PersistenceManagerImpl implements PersistenceManager {
 
     public PersistenceManagerImpl() {
         try {
-            Class.forName("org.h2.Driver");//In production user and password would have been set through env variables
-            connection = DriverManager.getConnection("jdbc:h2:./data/gomoku;AUTO_SERVER=TRUE", "sa", "");
+            Class.forName("org.h2.Driver");
+
+            String jdbcUrl = System.getenv("GOMOKU_DB_URL");
+
+            if (jdbcUrl == null || jdbcUrl.isBlank()) {
+                // default: file-based DB
+                jdbcUrl = "jdbc:h2:./data/gomoku;AUTO_SERVER=TRUE";
+            }
+
+            connection = DriverManager.getConnection(jdbcUrl, "sa", "");
             initDatabase();
+
         } catch (SQLException | ClassNotFoundException e) {
             throw new RuntimeException("Failed to connect to database", e);
         }

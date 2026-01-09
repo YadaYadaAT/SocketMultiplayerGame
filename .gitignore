@@ -40,3 +40,4 @@ build/
 structure.txt
 out/
 data/
+.env

@@ -19,7 +19,7 @@ public class GomokuFXApp extends Application {
     public void start(Stage stage) throws Exception {
 
         // ---------- INTRO SCENE ----------
-        var introLoader = new FXMLLoader(getClass().getResource("/fxml/Intro.fxml"));
+        var introLoader = new FXMLLoader(getClass().getResource("/com/athtech/gomoku/client/gui/fxml/Intro.fxml"));
         Parent introRoot = introLoader.load();
         IntroController introCtrl = introLoader.getController();
 
@@ -46,7 +46,16 @@ public class GomokuFXApp extends Application {
         // This thread constantly reads incoming packets and triggers callbacks when packets arrive.
         // It's obvious what we also use to send packets;(ObjectInputStream wraps ) more about it on the clientNetworkAdapater
         // class itself
-        var cna = new ClientNetworkAdapterImpl("localhost", 999);
+        // Read host and port from environment variables, fallback to defaults
+
+            // keep the values here...its for the VM in azure ...
+//        String host = System.getenv().getOrDefault("GOMOKU_HOST", "4.232.170.244");
+//        int port = Integer.parseInt(System.getenv().getOrDefault("GOMOKU_PORT", "10000"));
+
+        String host = System.getenv().getOrDefault("GOMOKU_HOST", "localhost");
+        int port = Integer.parseInt(System.getenv().getOrDefault("GOMOKU_PORT", "999"));
+        // Create the low-level network adapter to handle TCP communication with the server.
+        var cna = new ClientNetworkAdapterImpl(host, port);
 
         // For the client network adapter class itself :
         // Create a higher-level network handler that wraps the adapter and provides controller-friendly callbacks.
@@ -115,7 +124,7 @@ public class GomokuFXApp extends Application {
                     .showHeader(true);
         });
 
-        stage.getIcons().add(new Image(Objects.requireNonNull(getClass().getResourceAsStream("/images/icon.png"))));
+        stage.getIcons().add(new Image(Objects.requireNonNull(getClass().getResourceAsStream("/com/athtech/gomoku/client/gui/images/icon.png"))));
 
         // Set the window title. ~YadaYada~ <-You  put this title; => bounds to be good...
         stage.setTitle("YadaYada Gomoku 2026");

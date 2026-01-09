@@ -343,7 +343,7 @@ public class GameController extends BaseController {
         try {
             if (backgroundMusic != null) return; // already setup
 
-            Media music1 = new Media(getClass().getResource("/music/here.mp3").toExternalForm());
+            Media music1 = new Media(getClass().getResource("/com/athtech/gomoku/client/gui/music/here.mp3").toExternalForm());
             backgroundMusic = new MediaPlayer(music1);
             backgroundMusic.setCycleCount(MediaPlayer.INDEFINITE);
             backgroundMusic.setVolume(0.5);
