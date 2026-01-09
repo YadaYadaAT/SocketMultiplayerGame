@@ -3,19 +3,22 @@ package com.athtech.gomoku.protocol.messaging;
 public enum PacketType {
 
 
-
+// Every enumeration of PacketType corresponds to one of the available payloads (see com.athtech.gomoku.protocol.payload).
+// Explanation for each of them will be in this enum class. The actual payloads only include explanatory comments for the code where required.
+    // All requests are Client -> Server
+    // All responses are Server -> Client
 
 /*------------------------------------------------
 //                 REQUESTS
 ------------------------------------------------*/
 
-    HANDSHAKE_REQUEST,
+    HANDSHAKE_REQUEST, // Client sends handshake request to check for active connection.
 
     //LOBBY
-    LOBBY_CHAT_MESSAGE_REQUEST,
+    LOBBY_CHAT_MESSAGE_REQUEST, // Payload of this request includes the message to be sent. Lobby message is not saved in server - only broadcast
 
 // Authentication
-    LOGIN_REQUEST,
+    LOGIN_REQUEST, // Sends username and password information to server for authentication
     LOGOUT_REQUEST,
     SIGNUP_REQUEST,
 
@@ -55,13 +58,13 @@ public enum PacketType {
 
 //Generic
     INFO_RESPONSE,//so far the only one without payload record class ; simple strings will do as payload
-    HANDSHAKE_RESPONSE,
+    HANDSHAKE_RESPONSE, // Server sends handshake response to confirm active connection.
 
 //LOBBY
-    LOBBY_CHAT_MESSAGE_RESPONSE,
+    LOBBY_CHAT_MESSAGE_RESPONSE, // Server broadcasts the response to all the "out" sockets of active Client Handlers, including the message, a timestamp and the username of the server
 
 //Authentication
-    LOGIN_RESPONSE,
+    LOGIN_RESPONSE, // Server sends different response depending on authentication success or failure. Includes all required authenticated user's data in case of successful authentication.
     LOGOUT_RESPONSE,
     SIGNUP_RESPONSE,
 
