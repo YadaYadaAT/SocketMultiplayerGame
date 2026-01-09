@@ -2,7 +2,9 @@ package com.athtech.gomoku.client.net;
 
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 
+// One Adapter per user / instance of a client
 public interface ClientNetworkAdapter {
+    //
     void disconnect();
     void sendPacket(NetPacket packet);
 
