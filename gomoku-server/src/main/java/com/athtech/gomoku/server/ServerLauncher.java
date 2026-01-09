@@ -11,7 +11,7 @@ public class ServerLauncher {
 
         int port = DEFAULT_PORT;
 
-        String envPort = System.getenv("GOMOKU_PORT");
+        String envPort = System.getenv("PORT");
         if (envPort != null) {
             try {
                 port = Integer.parseInt(envPort);
