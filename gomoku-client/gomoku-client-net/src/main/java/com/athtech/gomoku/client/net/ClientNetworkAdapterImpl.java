@@ -83,7 +83,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
                 Object obj = in.readObject();
                 if (!listening) break;
                 if (obj instanceof NetPacket packet && listener != null && packet.type() != null) { // validate received packet
-                    listener.onPacketReceived(packet);
+                    listener.onPacketReceived(packet); // listener could either be cli or gui controller (also scalable with other uis)
                 }
             }
         } catch (IOException | ClassNotFoundException e) { // triggers if connection is lost due to closed socket || ObjectInputStream fails to deserialize
@@ -219,15 +219,15 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
     @Override
     public void sendPacket(NetPacket packet) {
         synchronized (ioLock) { // enter critical section
-            if (netState != NetState.CONNECTED || out == null || socket == null || socket.isClosed()) {
+            if (netState != NetState.CONNECTED) {
+                System.err.println("[Network] Cannot send packet, network is down: ");
+                return;
+            }
+            if (out == null || socket == null || socket.isClosed()) {
                 return;
             }
             if (netState == NetState.RECONNECTING) {
                 System.err.println("[Network] Currently reconnecting.");
-                return;
-            }
-            if (netState != NetState.CONNECTED) {
-                System.err.println("[Network] Cannot send packet, network is down: ");
                 return;
             }
             try {
@@ -240,12 +240,13 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         }
     }
 
-
+    // Get network state
     @Override
     public NetState getState() {
         return netState;
     }
 
+    // Triggered on app exit
     @Override
     public void disconnect() {
         synchronized (ioLock) {
@@ -283,6 +284,7 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         reconnectSpinner.start();
     }
 
+    // Stops the spinner
     private void stopReconnectSpinnerSuccess() {
         if (reconnectSpinner != null) {
             reconnectSpinner.interrupt();
@@ -291,21 +293,25 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
         sendToConNotifier("\uD83C\uDF10 Connected");
     }
 
+    // Hooks callback method to javafx / notification handler
     @Override
     public void setConNotifier(ConnectionNotificationListener conNotifier) {
         this.conNotifier = conNotifier;
     }
 
+    // Sets the method to be called to handle input blocks
     @Override
     public void setSyncAndConInputBlocker( SyncAndConInputBlockerInter sib) {
         this.syncAndConInputBlockerInter = sib;
     }
 
+    // Sets the method to be called to handle input unblocking
     @Override
     public void setSyncAndConInputUnblocker( SyncAndConInputUnblockerInter siu) {
         this.syncAndConInputUnblockerInter = siu;
     }
 
+    // Sets listener method to be used in listen loop - called by main thread
     @Override
     public void setListener(PacketListener listener) {
         this.listener = listener;
@@ -319,20 +325,21 @@ public class ClientNetworkAdapterImpl implements ClientNetworkAdapter {
 
     }
 
-
+    // Populate UI regarding connection status
     private void sendToConNotifier(String msg){
         if (conNotifier != null){
             conNotifier.connectionNotifer(msg);
         }
     }
 
-
+    // Enables sync & input (unblock)
     public void enableSyncAndConInputBlocker() {
         if (syncAndConInputBlockerInter !=null){
             syncAndConInputBlockerInter.syncAndConInputBlocker();
         }
     }
 
+    // Disables sync & input (block)
     public void disableSyncAndConInputBlocker() {
         if (syncAndConInputUnblockerInter !=null){
             syncAndConInputUnblockerInter.syncAndConInputUnblocker();
