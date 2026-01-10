@@ -60,7 +60,7 @@ public class ClientHandler implements Runnable {
             }
 
         } catch (IOException | ClassNotFoundException e) {
-            System.err.println("\uD83D\uDEF0\uFE0F [ClientHandler] Client disconnected unexpectedly (clientId=" + clientId + ")");
+            System.err.println("\uD83D\uDEF0\uFE0F [ClientHandler] Client has been disconnected (clientId=" + clientId + ")");
         } finally {
             if (username != null) {
                 matchController.disconnectPlayer(username);
