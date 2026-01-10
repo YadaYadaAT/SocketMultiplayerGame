@@ -67,7 +67,7 @@ public class GomokuFXApp extends Application {
         // but here we took the bug free guarantee solution to just nuke the objects(no GC problem...rarely happens)
         var networkHandler = new GomokuFXNetworkHandler(cna, data , stage);
 
-        // Set the LoginController reference in the network handler so that LOGIN_RESPONSE packets can be delivered to it.
+        // Set the controllers references in the network handler so that the packets can be delivered to it.
         // The controller was preloaded by the navigator, so we fetch it from the navigator's controller map.
         // (Currently we are about to have like 4-5 maximum controllers with 1:1 fxml, if it scales we
         // might swap to a map or something... currently we set one by one.
@@ -90,7 +90,6 @@ public class GomokuFXApp extends Application {
         // This binds a single callback handler  in the network adapter that processes all incoming packets.
         // When a packet arrives, it calls handleServerPacket() in this network handler, which delegates to
         // the correct corresponding callback methods inside of each controller.
-        // (currently only the info_response packet goes to more than 1 controller, due to being generic)
         networkHandler.initCallbackHandler();
         // Test connection (well a bit of a lie ^^ we just want to trigger the callback to update
         // the header ui )
