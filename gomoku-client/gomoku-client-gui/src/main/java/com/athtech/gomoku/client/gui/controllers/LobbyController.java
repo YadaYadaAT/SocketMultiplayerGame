@@ -20,6 +20,14 @@ import javafx.scene.media.MediaPlayer;
 
 import java.util.*;
 
+// Endpoint for lobby scene
+// All FXML components are annotated with @FXML
+// Handle all lobby processes, including:
+// 1. Game invites
+// 2. Chat
+// 3. Music
+// 4. Notifications
+// 5. Logout & exit buttons
 public class LobbyController extends BaseController {
 
     /* ---------------- UI ---------------- */
@@ -95,7 +103,7 @@ public class LobbyController extends BaseController {
         });
     }
 
-
+    // Set up invite request packet from/to a specific player
     @FXML
     private void handleInvite() {
         String selectedLabel = lobbyPlayersList.getSelectionModel().getSelectedItem();
@@ -114,6 +122,7 @@ public class LobbyController extends BaseController {
         );
     }
 
+    // Set up invite request packet to random player
     @FXML
     private void handleRandomInvite() {
         List<String> availablePlayers = new ArrayList<>();
@@ -162,6 +171,7 @@ public class LobbyController extends BaseController {
         );
     }
 
+    // Set up invite decision request packet for accepted invites
     @FXML
     private void handleAcceptSelectedInvite() {
         String selected = inviteListView.getSelectionModel().getSelectedItem();
@@ -179,6 +189,7 @@ public class LobbyController extends BaseController {
         );
     }
 
+    // Set up invite decision request packet for declined invites
     @FXML
     private void handleDeclineSelectedInvite() {
         String selected = inviteListView.getSelectionModel().getSelectedItem();
@@ -196,6 +207,7 @@ public class LobbyController extends BaseController {
         );
     }
 
+    // Handle chat message requests
     @FXML
     private void sendChatMessage() {
         String msg = chatInput.getText().trim();
@@ -213,6 +225,7 @@ public class LobbyController extends BaseController {
 
     /* ---------------- Network → UI ---------------- */
 
+    // Handle chat message response
     public void onLobbyChatMessageResponse(NetPacket packet) {
         LobbyChatMessageResponse resp = (LobbyChatMessageResponse) packet.payload();
         String formatted =
@@ -222,7 +235,7 @@ public class LobbyController extends BaseController {
                         resp.message());
 
         Platform.runLater(() -> {
-            if (chatQueue.size() >= CHAT_QUEUE_MAX) {
+            if (chatQueue.size() >= CHAT_QUEUE_MAX) { // Remove older messages if chat is full
                 chatQueue.removeFirst();
             }
             chatQueue.add(formatted);
@@ -231,6 +244,7 @@ public class LobbyController extends BaseController {
         });
     }
 
+    // Handle login response
     public void onLoginResponse(NetPacket packet) {
         LoginResponse resp = (LoginResponse) packet.payload();
 
@@ -239,8 +253,8 @@ public class LobbyController extends BaseController {
 
                 PlayerStatsResponse stats = resp.myStats();
 
-                updateStats(stats);
-                for(InviteNotificationResponse i : resp.pendingInvites()){
+                updateStats(stats); // Update user information from response payload
+                for(InviteNotificationResponse i : resp.pendingInvites()){ // Read pending invites
                     onInviteNotificationResponseFromPayload(i);
                 }
 
@@ -252,6 +266,7 @@ public class LobbyController extends BaseController {
         }
     }
 
+    // Update user information from response payload
     public void updateStats(PlayerStatsResponse stats){
         Platform.runLater(() -> {
             played.setText(Integer.toString(stats.gamesPlayed()));
@@ -262,6 +277,7 @@ public class LobbyController extends BaseController {
 
     }
 
+    // Handle resync response
     public void onResyncResponse(NetPacket packet){
         ResyncResponse resp = (ResyncResponse)  packet.payload();
         updateStats(resp.myStats());
@@ -272,13 +288,13 @@ public class LobbyController extends BaseController {
 
     }
 
-
+    // Accept Lobby Player Response packet type (update lobby population UI with players)
     public void onLobbyPlayersResponse(NetPacket packet) {
         LobbyPlayersResponse resp = (LobbyPlayersResponse) packet.payload();
         onLobbyPlayersResponseFromPayload(resp);
-
     }
 
+    // Helper method to extract data from payload
     public void onLobbyPlayersResponseFromPayload(LobbyPlayersResponse resp) {
         Platform.runLater(() -> {
             lobbyPlayersList.getItems().clear();
@@ -298,7 +314,7 @@ public class LobbyController extends BaseController {
         });
     }
 
-
+    // Accept player game information packet and update UI with new data
     public void onPlayerStatsResponse(NetPacket packet) {
         PlayerStatsResponse stats = (PlayerStatsResponse) packet.payload();
 
@@ -310,6 +326,7 @@ public class LobbyController extends BaseController {
         });
     }
 
+    // Accept pending invite response (delivered or failed)
     public void onInviteResponse(NetPacket packet) {
         InviteResponse resp = (InviteResponse) packet.payload();
         String msg =
@@ -333,12 +350,14 @@ public class LobbyController extends BaseController {
         });
     }
 
+    // Handles displaying pending invites
     public void onInviteNotificationResponse(NetPacket packet) {
         InviteNotificationResponse invite =
                 (InviteNotificationResponse) packet.payload();
         onInviteNotificationResponseFromPayload(invite);
     }
 
+    // Helper method to extract data from payload
     public void onInviteNotificationResponseFromPayload(InviteNotificationResponse invite){
         String from = invite.fromUsername();
 
@@ -350,6 +369,7 @@ public class LobbyController extends BaseController {
         });
     }
 
+    // Handles server response after having accepted or declined an invite
     public void onInviteDecisionResponse(NetPacket packet) {
         InviteDecisionResponse resp =
                 (InviteDecisionResponse) packet.payload();
@@ -371,6 +391,7 @@ public class LobbyController extends BaseController {
         });
     }
 
+    // Handles logout response
     public void onLogoutResponse(NetPacket packet) {
         LogoutResponse resp = (LogoutResponse) packet.payload();
 
@@ -383,6 +404,7 @@ public class LobbyController extends BaseController {
         });
     }
 
+    // General use information message sent by server
     public void showInfo(InfoResponse info) {
         Platform.runLater(() ->
                 lobbyStatusLabel.setText(info.msg())
@@ -391,16 +413,7 @@ public class LobbyController extends BaseController {
 
     /* ---------------- Helpers ---------------- */
 
-    private void requestLobbyPlayers() {
-        clientNetwork.sendPacket(
-                new NetPacket(
-                        PacketType.LOBBY_PLAYERS_REQUEST,
-                        data.getUsername(),
-                        new LobbyPlayersRequest()
-                )
-        );
-    }
-
+    // Animation for Lobby Available Players / Pending Invitation Blocks
     private void setupListGradientAnimation() {
         // List of colors to cycle
         Color[] colors = new Color[] {
@@ -449,9 +462,7 @@ public class LobbyController extends BaseController {
         return String.format("#%02X%02X%02X", r, g, b);
     }
 
-
-
-
+    // Music player
     private void setupMusic() {
         try {
 
@@ -468,6 +479,7 @@ public class LobbyController extends BaseController {
         }
     }
 
+    // Handle music mute option
     @FXML
     private void handleMute() {
         if (backgroundMusic == null) return;

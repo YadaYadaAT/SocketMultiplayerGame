@@ -11,7 +11,7 @@
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox fx:id="loginRoot" alignment="CENTER" prefHeight="1080" prefWidth="1920" spacing="20" stylesheets="@../css/Login.css" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.LoginController">
+<VBox fx:id="loginRoot" alignment="CENTER" prefHeight="3000" prefWidth="1920" spacing="20" stylesheets="@../css/Login.css" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.LoginController">
 
     <padding>
         <Insets bottom="30" left="30" right="30" top="30" />

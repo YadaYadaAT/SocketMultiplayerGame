@@ -4,6 +4,7 @@ import javafx.scene.layout.GridPane;
 
 import java.util.function.BiConsumer;
 
+// This is the game board. Extends a JavaFX element
 public class BoardView extends GridPane {
     private final int rows;
     private final int cols;

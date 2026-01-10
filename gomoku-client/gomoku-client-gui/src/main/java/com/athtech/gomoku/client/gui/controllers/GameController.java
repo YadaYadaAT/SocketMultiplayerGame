@@ -16,6 +16,15 @@ import javafx.scene.layout.VBox;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 
+// Endpoint for Game Scene
+// All FXML components are annotated with @FXML
+// Handle all game processes, including:
+// 1. Entering & Leaving
+// 2. Start & End
+// 3. Moves
+// 4. Rematches
+// 5. Music
+// 6. Reconnection
 public class GameController extends BaseController {
 
     /* ---------------- UI ---------------- */
@@ -94,6 +103,8 @@ public class GameController extends BaseController {
 
 
     /* ---------------- Actions ---------------- */
+
+    // Send move request packet
     private void sendMove(int row, int col) {
 
         if ( !inGame){
@@ -108,6 +119,7 @@ public class GameController extends BaseController {
         ));
     }
 
+    // Send rematch request packet
     @FXML
     private void onMidgameRematchToggle() {
         if (!inGame) return;
@@ -130,6 +142,7 @@ public class GameController extends BaseController {
         lblGameStatus.setText(selected ? "Rematch requested" : "Rematch request cancelled");
     }
 
+    // Send quit request packet
     @FXML
     private void quitGame() {
         if (inGame) {
@@ -190,6 +203,7 @@ public class GameController extends BaseController {
             boardView.setCellClickListener(this::sendMove);
             boardContainer.getChildren().setAll(boardView);
 
+            // Populate board
             char[][] charBoard = gs.board().cells();
             String[][] strBoard = new String[rows][cols];
             for (int r = 0; r < rows; r++) {
@@ -201,19 +215,20 @@ public class GameController extends BaseController {
             char mySymbol = data.getUsername().equals(gs.player1()) ? 'X' : 'O';
             boardView.updateBoard(strBoard, mySymbol);
 
-            boolean myTurn = gs.currentPlayer().equals(data.getUsername());
+            boolean myTurn = gs.currentPlayer().equals(data.getUsername()); // Turn tracking
             lblTurnInfo.setText(myTurn ? "Its Your turn" : "Opponent's turn");
             updateTurnImages(myTurn);
             lblGameStatus.setText("Connect " + gs.winCount() + " to win the game");
         });
     }
 
+    // Accept Game State Payload
     public void onGameStateResponse(NetPacket packet) {
         GameStateResponse gs = (GameStateResponse) packet.payload();
         onGameStateResponseFromPayload(gs);
     }
 
-
+    // Helper method to accept game state payload
     public void onGameStateResponseFromPayload(GameStateResponse gs) {
         if (gs.version() < gameVersion) {
             // old packet, ignore
@@ -236,6 +251,7 @@ public class GameController extends BaseController {
         });
     }
 
+    // Accept game end response
     public void onGameEndResponse(NetPacket packet) {
         GameEndResponse end = (GameEndResponse) packet.payload();
 
@@ -259,12 +275,6 @@ public class GameController extends BaseController {
                 endgameBox.setVisible(true);
                 endgameBox.setDisable(false);
 
-//                //back to lobbySafety
-//                btnBackToLobby.setVisible(false);
-//                btnBackToLobby.setDisable(true);
-
-
-
             char[][] charBoard = end.finalBoard().cells();
             String[][] strBoard = new String[charBoard.length][charBoard[0].length];
             for (int r = 0; r < charBoard.length; r++)
@@ -275,10 +285,10 @@ public class GameController extends BaseController {
             if (end.finalBoard() != null) boardView.updateBoard(strBoard, mySymbol);
 
             lblTurnInfo.setText(getEndMessage(end.reason()));
-
-
         });
     }
+
+//      ---- REMATCH ----       //
 
     @FXML
     private void onEndGameRematchYes() {
@@ -301,6 +311,9 @@ public class GameController extends BaseController {
         lblGameStatus.setText("Rematch decision sent...");
     }
 
+//      ----        ----        //
+
+    // Accept Server Response on Match End
     public void onMatchSessionEndedResponse(NetPacket packet) {
         MatchSessionEndedResponse match = (MatchSessionEndedResponse) packet.payload();
         Platform.runLater(() -> {
@@ -330,10 +343,7 @@ public class GameController extends BaseController {
                 //End game rematch states
                 endgameBox.setVisible(false);
                 endgameBox.setDisable(true);
-
-
             }
-
         });
     }
 
@@ -372,6 +382,8 @@ public class GameController extends BaseController {
         muteBtn.setText(muted ? "Unmute 🔇" : "Mute 🔊");
     }
 
+/*                      */
+
     public void onResyncResponse(NetPacket packet){
         ResyncResponse resp =(ResyncResponse) packet.payload();
         onLoginResponseFromExtractedGamestate( resp.currentGameState());
@@ -383,6 +395,11 @@ public class GameController extends BaseController {
         onLoginResponseFromExtractedGamestate(gs);
     }
 
+    // Used to populate Game State after Login or after Resync
+    // Must be synchronized to guarantee that only one login/resync happens at a time
+    // --> This method is called by the network listener thread (via network handler)
+    // --> but UI updates happen later on the JavaFX Application Thread (via Platform.runLater())
+    // synchronization protects shared controller fields from being mutated by the different threads
     public synchronized void onLoginResponseFromExtractedGamestate(GameStateResponse gs){
 
         if(gs != null){
@@ -453,7 +470,7 @@ public class GameController extends BaseController {
         }
     }
 
-
+    // Accept Game Quit Response
     public void onGameQuitResponse(NetPacket packet) {
         GameQuitResponse gameQuitResponse = (GameQuitResponse) packet.payload();
         if (gameQuitResponse.wasItUnstuckProcess()) return;
@@ -466,6 +483,7 @@ public class GameController extends BaseController {
         });
     }
 
+    // Accept Move Rejected Response
     public void onMoveRejectedResponse(NetPacket packet) {
         MoveRejectedResponse rej = (MoveRejectedResponse) packet.payload();
         Platform.runLater(() -> {
@@ -477,18 +495,19 @@ public class GameController extends BaseController {
         });
     }
 
-
+    // Accept Rematch Response
     public void onRematchResponse(NetPacket packet) {
         RematchResponse resp = (RematchResponse) packet.payload();
         Platform.runLater(() -> setRematchStatus(resp.message()));
     }
 
-
+    // Accept Player Inactivity Warning Response
     public void onPlayerInactivityWarningResponse(NetPacket packet) {
         PlayerInactivityWarningResponse pck = (PlayerInactivityWarningResponse) packet.payload();
         Platform.runLater(() -> lblGameStatus.setText(pck.message()));
     }
 
+    // Accept Player Disconnected Notification Response
     public void onPlayerDisconnectedNotificationResponse(NetPacket packet) {
         PlayerDisconnectedNotificationResponse msg =
                 (PlayerDisconnectedNotificationResponse) packet.payload();
@@ -498,17 +517,20 @@ public class GameController extends BaseController {
         });
     }
 
+    // Accept Player Reconnected Notification Response
     public void onPlayerReconnectedNotificationResponse(NetPacket packet) {
         PlayerReconnectedNotificationResponse msg =
                 (PlayerReconnectedNotificationResponse) packet.payload();
         Platform.runLater(() -> lblGameStatus.setText(msg.message()));
     }
 
+    // Accept Player Reconnected Response
     public void onPlayerReconnectedResponse(NetPacket packet) {
         PlayerReconnectedResponse res = (PlayerReconnectedResponse) packet.payload();
         Platform.runLater(() -> lblGameStatus.setText(res.msg()));
     }
 
+    // Accept Game Quit Notification Response
     public void onGameQuitNotification(NetPacket packet) {
         GameQuitNotificationResponse resp = (GameQuitNotificationResponse) packet.payload();
         Platform.runLater(() -> {
@@ -518,7 +540,7 @@ public class GameController extends BaseController {
         });
     }
 
-
+    // Handle displayed messages at game end
     private String getEndMessage(MatchEndReason reason) {
         return switch (reason) {
             case MID_GAME_REMATCH -> "Good luck at your rematch!";
@@ -535,6 +557,7 @@ public class GameController extends BaseController {
         };
     }
 
+    // Handle rematch status
     private void setRematchStatus(String text){
         Platform.runLater(() -> {
             boolean hasText = text != null && !text.isBlank();

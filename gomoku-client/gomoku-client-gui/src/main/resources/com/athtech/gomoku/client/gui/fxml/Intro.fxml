@@ -14,7 +14,7 @@
       alignment="CENTER"
       spacing="10"
       style="-fx-background-color: black;"
-      prefWidth="1920" prefHeight="1080">
+      prefWidth="1920" prefHeight="3000">
 
     <!-- Top GIF animation -->
     <ImageView fx:id="introGif" fitWidth="150" preserveRatio="true" translateY="20">

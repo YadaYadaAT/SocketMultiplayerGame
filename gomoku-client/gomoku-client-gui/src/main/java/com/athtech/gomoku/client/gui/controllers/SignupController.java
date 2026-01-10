@@ -12,6 +12,9 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 
+// Endpoint for Signup Screen
+// All FXML components are annotated with @FXML
+// Handles signup process
 public class SignupController extends BaseController {
 
     @FXML private TextField txtSignupUser;
@@ -33,6 +36,7 @@ public class SignupController extends BaseController {
         txtSignupNickname.setOnAction(e -> trySignupOnEnter());
     }
 
+    // Attempt to complete signup if all fields are populated (Validity check lives here)
     private void trySignupOnEnter() {
         String username = txtSignupUser.getText().trim();
         String password = txtSignupPwd.getText().trim();
@@ -46,6 +50,7 @@ public class SignupController extends BaseController {
     // Simple flag to track success state
     private boolean signupSuccessful = false;
 
+    // Handles sending the valid signup request to the server
     @FXML
     private void handleSignup() {
         String username = txtSignupUser.getText();
@@ -57,6 +62,7 @@ public class SignupController extends BaseController {
         );
     }
 
+    // Switch back to login view
     @FXML
     private void handleSwitchLogin() {
         navigator.goTo(View.LOGIN);
@@ -74,6 +80,7 @@ public class SignupController extends BaseController {
         resetForm();
     }
 
+    // Resets the signup form
     private void resetForm() {
         signupSuccessful = false;
         Platform.runLater(()->{
@@ -89,6 +96,7 @@ public class SignupController extends BaseController {
         Platform.runLater(() -> serverSignupResponseMessage.setText(""));
     }
 
+    // Accept signup response packet from server
     public void onSignupResponse(NetPacket packet) {
         SignupResponse resp = (SignupResponse) packet.payload();
 

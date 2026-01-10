@@ -1,8 +1,5 @@
 package com.athtech.gomoku.client.gui;
 
-import com.athtech.gomoku.protocol.payload.*;
-import java.util.*;
-
 public class GomokuFXCommonToAllControllersData {
 
 

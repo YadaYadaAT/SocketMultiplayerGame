@@ -184,6 +184,7 @@ public class WrapperController extends BaseController{
     @FXML
     public void handleExit() {
         Platform.exit();
+        System.exit(0);
     }
 
 }

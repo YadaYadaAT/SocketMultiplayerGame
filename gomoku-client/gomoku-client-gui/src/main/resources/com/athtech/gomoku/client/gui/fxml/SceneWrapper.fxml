@@ -9,7 +9,7 @@
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<VBox prefHeight="130.0" prefWidth="849.0" spacing="0" stylesheets="@../css/Gomoku.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.WrapperController">
+<VBox prefHeight="3000" prefWidth="849.0" spacing="0" stylesheets="@../css/Gomoku.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.WrapperController">
 
     <!-- Persistent header -->
     <HBox fx:id="headerBar" prefHeight="130.0" prefWidth="723.0" spacing="130.0">
