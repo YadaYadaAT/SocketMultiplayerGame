@@ -26,7 +26,7 @@ public class GomokuFXApp extends Application {
         // Creates the view navigator which will manage scene switching between different FXML views.
         var viewNavigator = new GomokuFXViewNavigator();
 
-        // Preload the LOGIN view FXML and its associated controller.//TODO: will change into an intro scene
+        // Preload the LOGIN view FXML and its associated controller.
         // This ensures the root node and controller are created now, so switching to it later is instant.
         viewNavigator.preload(View.SCENEWRAPPER);
         viewNavigator.preload(View.LOGIN);
