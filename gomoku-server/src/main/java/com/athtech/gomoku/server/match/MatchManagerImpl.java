@@ -22,16 +22,21 @@ import java.util.stream.Collectors;
  */
 public class MatchManagerImpl implements MatchManager {
 
-    private final ConcurrentMap<String, Match> matches = new ConcurrentHashMap<>();
-    private final Set<String> activePlayers = ConcurrentHashMap.newKeySet();
-    private final Runnable onActivePlayersChanged;
+    private final ConcurrentMap<String, Match> matches = new ConcurrentHashMap<>(); // All ongoing matches
 
-    private final BiConsumer<String, NetPacket> notifier;
-    private final PersistenceManager persistence;
+    private final Set<String> activePlayers = ConcurrentHashMap.newKeySet(); // All players currently in a match
 
-    private static final long TICK_INTERVAL_MS = 1_000;
-    private static final long CLEANUP_INTERVAL_MS = 30_000;
+    private final Runnable onActivePlayersChanged; // Store active players state
 
+    private final BiConsumer<String, NetPacket> notifier; // Used for packet sending
+
+    private final PersistenceManager persistence; // Persistence Manager
+
+    private static final long TICK_INTERVAL_MS = 1_000; // Timer
+
+    private static final long CLEANUP_INTERVAL_MS = 30_000; // Timer
+
+    // Constructor
     public MatchManagerImpl(ServerNetworkAdapter server, PersistenceManager persistence ,Runnable onActivePlayersChanged) {
         this.notifier = server::sendToClient;
         this.persistence = persistence;
@@ -56,11 +61,12 @@ public class MatchManagerImpl implements MatchManager {
 
     /* ===================== THREADS ===================== */
 
+    // This thread handles player timers and disconnects
     private void startMatchTickThread() {
         Thread tickThread = new Thread(() -> {
             while (true) {
                 try {
-                    tickMatches();
+                    tickMatches(); // Check for timer warning/kicks & disconnects
                     Thread.sleep(TICK_INTERVAL_MS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -73,6 +79,7 @@ public class MatchManagerImpl implements MatchManager {
         tickThread.start();
     }
 
+    // This thread handles stale matches
     private void startCleanupThread() {
         Thread cleanupThread = new Thread(() -> {
             while (true) {
@@ -132,6 +139,7 @@ public class MatchManagerImpl implements MatchManager {
         });
     }
 
+    // Check if a match is too old or not populated by players and end it
     private void cleanupMatches() {
         matches.values().forEach(match -> {
             if (!(match instanceof MatchImpl impl)) return;
@@ -141,7 +149,7 @@ public class MatchManagerImpl implements MatchManager {
 
             if (noPlayers || isOld) {
                 if (!impl.getMatchPlayers().isEmpty()) {
-                    // There are still players, treat it as a forced end
+                    // There are still players, but the match has gone on for too long; force end match
                     handleForcedEnd(impl, null, MatchEndReason.WIN_INACTIVE_CLEANUP);
                     System.out.println("\uD83E\uDDF9  [MatcherCleanUp] Removed match " + impl.getMatchId() +
                             " (inactive match)");
@@ -181,28 +189,6 @@ public class MatchManagerImpl implements MatchManager {
                 .findFirst();
     }
 
-    @Override
-    public Optional<String> getMatchIdByPlayer(String username) {
-        return getMatchByPlayer(username).map(Match::getMatchId);
-    }
-
-    @Override
-    public Optional<GameStateResponse> getCurrentStateForPlayer(String username) {
-        return getMatchByPlayer(username).map(Match::getCurrentState);
-    }
-
-    @Override
-    public Optional<Match> getEndedMatchByPlayer(String username) {
-        return matches.values().stream()
-                .filter(Match::isEnded)
-                .filter(m -> m.getPlayer1().equals(username) || m.getPlayer2().equals(username))
-                .findFirst();
-    }
-
-    @Override
-    public List<Match> getMatches() {
-        return matches.values().stream().collect(Collectors.toList());
-    }
 
     @Override
     public void endMatch(String matchId) {
@@ -272,7 +258,7 @@ public class MatchManagerImpl implements MatchManager {
                     "Better to wait than quit to avoid a loss.";
 
             notifier.accept(opponent, new NetPacket(
-                    PacketType.PLAYER_DISCONNECTED_NOTIFICATION_RESPONSE,
+                    PacketType.PLAYER_DISCONNECTED_NOTIFICATION_RESPONSE, // Send Disconnection Response to Client (the player who is still active receives this)
                     "server",
                     new PlayerDisconnectedNotificationResponse(msg.toString())
             ));
@@ -299,7 +285,7 @@ public class MatchManagerImpl implements MatchManager {
             if (opponent != null) {
                 String msg = player + " has reconnected to the game.";
                 notifier.accept(opponent, new NetPacket(
-                        PacketType.PLAYER_RECONNECTED_NOTIFICATION_RESPONSE,
+                        PacketType.PLAYER_RECONNECTED_NOTIFICATION_RESPONSE, // Send Reconnection Response to Client (the opponent receives this)
                         "server",
                         new PlayerReconnectedNotificationResponse(msg)
                 ));
@@ -308,7 +294,7 @@ public class MatchManagerImpl implements MatchManager {
             // Notify the reconnecting player
             String infoMsg = "You have rejoined the ongoing game.";
             notifier.accept(player, new NetPacket(
-                    PacketType.PLAYER_RECONNECTED_RESPONSE,
+                    PacketType.PLAYER_RECONNECTED_RESPONSE, // Send Reconnection Response to Client (the player who reconnected receives this)
                     "server",
                     new PlayerReconnectedResponse(infoMsg)
             ));
@@ -386,5 +372,30 @@ public class MatchManagerImpl implements MatchManager {
 
         // Clean up
         removeMatchAndCleanupPlayers(match);
+    }
+
+//      ---- FOR SCALABILITY PURPOSES ----      //
+
+    @Override
+    public Optional<GameStateResponse> getCurrentStateForPlayer(String username) {
+        return getMatchByPlayer(username).map(Match::getCurrentState);
+    }
+
+    @Override
+    public Optional<String> getMatchIdByPlayer(String username) {
+        return getMatchByPlayer(username).map(Match::getMatchId);
+    }
+
+    @Override
+    public List<Match> getMatches() {
+        return matches.values().stream().collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<Match> getEndedMatchByPlayer(String username) {
+        return matches.values().stream()
+                .filter(Match::isEnded)
+                .filter(m -> m.getPlayer1().equals(username) || m.getPlayer2().equals(username))
+                .findFirst();
     }
 }
