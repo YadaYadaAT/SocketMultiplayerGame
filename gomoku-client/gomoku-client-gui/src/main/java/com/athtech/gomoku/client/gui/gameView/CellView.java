@@ -9,6 +9,8 @@ import javafx.scene.shape.Rectangle;
 
 import java.util.function.BiConsumer;
 
+// Each cell in the game. Extends a JavaFX element
+// Every instance of a cell has a reference to a listener to be able to accept mouse events
 public class CellView extends StackPane {
     private final int row;
     private final int col;

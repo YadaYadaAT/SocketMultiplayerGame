@@ -9,6 +9,8 @@ import java.time.Instant;
 import java.util.*;
 import java.util.Base64;
 
+// We use an H2 database for the persistence layer
+// All data is extracted into a data folder at the root of the project
 public class PersistenceManagerImpl implements PersistenceManager {
 
     private final Connection connection;
@@ -85,18 +87,6 @@ public class PersistenceManagerImpl implements PersistenceManager {
         return false;
     }
 
-    @Override
-    public Optional<Player> getPlayerById(String id) {
-        String sql = "SELECT * FROM players WHERE id = ?";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, id);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return Optional.of(extractPlayer(rs));
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return Optional.empty();
-    }
 
     @Override
     public Optional<Player> getPlayerByUsername(String username) {
@@ -111,45 +101,6 @@ public class PersistenceManagerImpl implements PersistenceManager {
         return Optional.empty();
     }
 
-    @Override
-    public void updatePlayerStats(Player player) {
-        String sql = "UPDATE players SET wins=?, losses=?, draws=?, games_played=? WHERE id=?";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setInt(1, player.getWins());
-            ps.setInt(2, player.getLosses());
-            ps.setInt(3, player.getDraws());
-            ps.setInt(4, player.getGamesPlayed());
-            ps.setString(5, player.getId());
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public void updatePassword(Player player) {
-        String sql = "UPDATE players SET password_hash=? WHERE id=?";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, hashPassword(player.getPassword()));
-            ps.setString(2, player.getId());
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public List<Player> getAllPlayers() {
-        List<Player> players = new ArrayList<>();
-        String sql = "SELECT * FROM players";
-        try (Statement stmt = connection.createStatement()) {
-            ResultSet rs = stmt.executeQuery(sql);
-            while (rs.next()) players.add(extractPlayer(rs));
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return players;
-    }
 
     @Override
     public PlayerStatsResponse getPlayerStats(String username) {
@@ -169,18 +120,6 @@ public class PersistenceManagerImpl implements PersistenceManager {
             e.printStackTrace();
         }
         return new PlayerStatsResponse(0,0,0,0);
-    }
-
-    @Override
-    public boolean deletePlayer(String id) {
-        String sql = "DELETE FROM players WHERE id=?";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, id);
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return false;
-        }
     }
 
     @Override
@@ -300,9 +239,73 @@ public class PersistenceManagerImpl implements PersistenceManager {
         );
     }
 
+    // -------------------------
+    // FOR SCALABILITY PURPOSES
+    // -------------------------
 
 
+    @Override
+    public Optional<Player> getPlayerById(String id) {
+        String sql = "SELECT * FROM players WHERE id = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, id);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return Optional.of(extractPlayer(rs));
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return Optional.empty();
+    }
 
+    @Override
+    public void updatePlayerStats(Player player) {
+        String sql = "UPDATE players SET wins=?, losses=?, draws=?, games_played=? WHERE id=?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, player.getWins());
+            ps.setInt(2, player.getLosses());
+            ps.setInt(3, player.getDraws());
+            ps.setInt(4, player.getGamesPlayed());
+            ps.setString(5, player.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
+    @Override
+    public void updatePassword(Player player) {
+        String sql = "UPDATE players SET password_hash=? WHERE id=?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, hashPassword(player.getPassword()));
+            ps.setString(2, player.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
+    @Override
+    public List<Player> getAllPlayers() {
+        List<Player> players = new ArrayList<>();
+        String sql = "SELECT * FROM players";
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery(sql);
+            while (rs.next()) players.add(extractPlayer(rs));
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return players;
+    }
+
+    @Override
+    public boolean deletePlayer(String id) {
+        String sql = "DELETE FROM players WHERE id=?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 }

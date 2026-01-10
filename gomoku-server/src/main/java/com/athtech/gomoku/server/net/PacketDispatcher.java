@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+// Handles all different request types
 public class PacketDispatcher {
 
     private final PersistenceManager persistence;
@@ -27,6 +28,8 @@ public class PacketDispatcher {
         this.matchController = matchController;
     }
 
+    // Each type of request that is received is handled in a different way
+    // Route each request to a specific method for handling
     public void dispatch(ClientHandler client, NetPacket packet) {
         switch (packet.type()) {
             case LOGIN_REQUEST -> handleLogin(client, packet);
@@ -40,14 +43,14 @@ public class PacketDispatcher {
             case MOVE_REQUEST -> handleMove(client, packet);
             case GAME_QUIT_REQUEST -> handleGameQuitRequest(client,packet);
             case HANDSHAKE_REQUEST -> handleHandshakeRequest(client,packet);
-            case LOBBY_CHAT_MESSAGE_REQUEST -> onLobbyChatMessageRequest(client,packet);
+            case LOBBY_CHAT_MESSAGE_REQUEST -> handleLobbyChatMessageRequest(client,packet);
             default -> client.sendPacket(new NetPacket(PacketType.ERROR_MESSAGE_RESPONSE, "server",
                     new ErrorMessageResponse("Unknown packet type: " + packet.type())));
         }
     }
 
 
-    private void onLobbyChatMessageRequest(ClientHandler client, NetPacket packet) {
+    private void handleLobbyChatMessageRequest(ClientHandler client, NetPacket packet) {
         if (client.getUsername() == null || !(packet.payload() instanceof LobbyChatMessageRequest req)) {
             return;
         }
@@ -96,9 +99,7 @@ public class PacketDispatcher {
         }else{
             client.sendPacket(new NetPacket(PacketType.HANDSHAKE_RESPONSE, "server",
                   new HandshakeResponse("  \uD83C\uDF10 Connected ")));//initially i was returning also the login but it hurts the gui
-        }//let it be...waste else... i might change my mind again later so...
-
-
+        }//let it be...waste else...
     }
 
     private void handleGameQuitRequest(ClientHandler client, NetPacket packet) {
@@ -276,14 +277,14 @@ public class PacketDispatcher {
         } else {
             relogCode = req.relogCode();
         }
-        matchController.reconnectPlayer(req.username());//TODO: <- this line requires testing
+        matchController.reconnectPlayer(req.username());
         Map<String, Boolean> lobbyPlayers = lobbyController.getLobbySnapshot(matchController);
         PlayerStatsResponse stats = persistence.getPlayerStats(req.username());
         InviteNotificationResponse[] pendingInvites =
                 matchController.getInvitationsFor(req.username());
         GameStateResponse currentGame =
                 matchController.getCurrentGame(req.username());
-        String nickname = persistence //dirty...but sleepy...project is almost over..
+        String nickname = persistence
                 .getPlayerByUsername(req.username())
                 .map(Player::getNickname)
                 .orElse(req.username());

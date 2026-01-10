@@ -76,7 +76,7 @@ public class MatchImpl implements Match {
     // =================== TIMERS ===================
     // ─────────────────────────────────────────────
 
-
+    // Used to notify AFK players
     public synchronized void checkSoftTimeout(BiConsumer<String, String> notifier) {
         if (ended) return;
 
@@ -91,6 +91,7 @@ public class MatchImpl implements Match {
         }
     }
 
+    // Used to kick AFK players
     public synchronized Optional<String> checkHardTimeout() {
         if (ended) return Optional.empty();
 
@@ -108,7 +109,7 @@ public class MatchImpl implements Match {
     }
 
 
-//“Has exactly ONE player been disconnected long enough that the OTHER player should win?”
+    //“Has exactly ONE player been disconnected long enough that the OTHER player should win?”
     public Optional<String> checkDisconnectTimeout() {
         if (ended) return Optional.empty();
 
@@ -130,7 +131,7 @@ public class MatchImpl implements Match {
         return Optional.empty();
     }
 
-
+    // Used to enforce automatic draw in case of both players disconnecting
     public boolean isDisconnectDraw() {
         if (ended) return false;
 
@@ -156,10 +157,6 @@ public class MatchImpl implements Match {
             lastMoveTime = System.currentTimeMillis();
             softTimeoutWarned = false;
         }
-    }
-
-    public boolean  isPlayerDisconnected (String player){
-        return isPlayerDisconnected(player);
     }
 
     public synchronized void markFinalized() {
@@ -281,7 +278,6 @@ public class MatchImpl implements Match {
     public synchronized boolean isEnded() {
         return ended;
     }
-
 
 
     @Override

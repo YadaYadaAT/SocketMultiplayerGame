@@ -25,26 +25,15 @@ public class GomokuFXNetworkHandler {
     private volatile boolean sessionClosing = false;
     private volatile long lastServerActivity = System.currentTimeMillis();
 
-    public void setGameCtrl(GameController gameCtrl) {
-        this.gameCtrl = gameCtrl;
+    public GomokuFXNetworkHandler(ClientNetworkAdapter networkAdapter
+            , GomokuFXCommonToAllControllersData ctAllControllersData
+            , Stage stage) {
+        this.cna = networkAdapter;
+        this.ctAllControllersData = ctAllControllersData;
+        this.stage = stage;
     }
 
-    public void setLobbyCtrl(LobbyController lobbyCtrl) {
-        this.lobbyCtrl = lobbyCtrl;
-    }
-
-    public void setWrapperCtrl(WrapperController wrapperCtrl) {
-        this.wrapperCtrl = wrapperCtrl;
-    }
-
-    public void setLoginCtrl(LoginController loginCtrl) {
-        this.loginCtrl = loginCtrl;
-    }
-
-    public void setSignupCtrl(SignupController signupCtrl) {
-        this.signupCtrl = signupCtrl;
-    }
-
+    // Pass all hook methods to the network adapter
     public void initCallbackHandler(){
         cna.setConNotifier(this::conNotifier);//Order matters!
         cna.setListener(this::handleServerPacket);
@@ -71,25 +60,18 @@ public class GomokuFXNetworkHandler {
         }
     }
 
-    public GomokuFXNetworkHandler(ClientNetworkAdapter networkAdapter
-            , GomokuFXCommonToAllControllersData ctAllControllersData
-            , Stage stage) {
-        this.cna = networkAdapter;
-        this.ctAllControllersData = ctAllControllersData;
-        this.stage = stage;
-    }
-
-
+    // Sends packets to server using the sendPacket() method of ClientNetworkAdapter
+    // One centralized method to handle packet sending
     public synchronized void sendPacket(NetPacket packet){
-        long sentAt = System.currentTimeMillis();//TODO last of all when we have ready all the FX inputs...
+        long sentAt = System.currentTimeMillis();
 
         if (cna.getState() == NetState.CONNECTED) {
             new Thread(() -> {
                 try {
-                    Thread.sleep(12_000);
+                    Thread.sleep(12_000); // Allow some time to pass
                 } catch (InterruptedException ignored) {}
 
-                if (lastServerActivity < sentAt) {
+                if (lastServerActivity < sentAt) { // Check if resync is required (most recent server activity should not be older than the time the client has sent the most recent packet)
                     wrapperCtrl.setConnectionStatus("\uD83D\uDD0C No server activity detected. Attempting resync...");
                     syncAndConInputBlocker();
                     if (ctAllControllersData.getUsername() == null || ctAllControllersData.getRelogCode() == null) return;
@@ -98,10 +80,10 @@ public class GomokuFXNetworkHandler {
             }).start();
         }
 
-        if(packet.payload() instanceof LogoutRequest){
+        if(packet.payload() instanceof LogoutRequest){ // Check if user wants to log out and close the session
          sessionClosing = true;
         }
-        cna.sendPacket(packet);
+        cna.sendPacket(packet); // Otherwise forward the packet
     }
 
     public synchronized void updateCredentials(String username,String relogcode){
@@ -112,15 +94,17 @@ public class GomokuFXNetworkHandler {
         cna.sendPacket(new NetPacket(PacketType.HANDSHAKE_REQUEST,"", new HandshakeRequest()));
     }
 
-
-
+    // Manages incoming packets
     private void handleServerPacket(NetPacket packet) {
         lastServerActivity = System.currentTimeMillis();
+        // Ensure that resync or logout is not required
         if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE
                 && packet.type()!=PacketType.RESYNC_RESPONSE){
             return;
         }
 
+        // else go through all the different packet types and forward it to the appropriate method
+        // these methods live in the appropriate controllers
         switch (packet.type()) {
             case LOGIN_RESPONSE -> onLoginResponse(packet);
             case SIGNUP_RESPONSE -> signupCtrl.onSignupResponse(packet);
@@ -186,8 +170,7 @@ public class GomokuFXNetworkHandler {
         wrapperCtrl.onInviteDecisionResponse(packet);
     }
 
-
-
+    // Destroy all controllers and initialize them again
     private void onResyncResponse(NetPacket packet) {
 
         ResyncResponse resp = (ResyncResponse) packet.payload();
@@ -207,17 +190,11 @@ public class GomokuFXNetworkHandler {
         wrapperCtrl.unblockInput();
     }
 
-
-
     private void flatlineTheSession(){
         wrapperCtrl.dispose();//stop the clock ,might seem weird we stop a clock here since we just
         //going to create a new controller but if we do not the JavaFX thread will still have a reference
         //and it won't let GC collect the object, but even worse it would do GUI work, scaling up at each
         //session reset...(i almost missed this one)
-
-        //TODO: make connection and reconnection methods send data to
-        // wrapper controller field(header); Therefore here we are gonna
-        // also need to unset and set this from the listener
 
         //The whole process is explained once in the GomokuFXAPP, we just follow the same logic
         // excluding the steps that would create what we keep (networkhandler ,stage e.t.c).
@@ -240,13 +217,31 @@ public class GomokuFXNetworkHandler {
         Parent wrapper = viewNavigator.getWrapper();
         viewNavigator.setTheContentPane();
         stage.setScene(new Scene(wrapper));
-        //TODO: change this with the intro or....not xD its reconnection...so we can change it
-        // with a transition scene;..actually keep the login here and we change only at the
-        // start method to lead to the intro ; ..or we put a transition scene for 3 seconds
         viewNavigator.getContentPane().getChildren().setAll(viewNavigator.getRoot(View.LOGIN));
         wrapperCtrl.unblockInput();
 
     }
 
+//      ---- SETTERS ----       //
+
+    public void setGameCtrl(GameController gameCtrl) {
+        this.gameCtrl = gameCtrl;
+    }
+
+    public void setLobbyCtrl(LobbyController lobbyCtrl) {
+        this.lobbyCtrl = lobbyCtrl;
+    }
+
+    public void setWrapperCtrl(WrapperController wrapperCtrl) {
+        this.wrapperCtrl = wrapperCtrl;
+    }
+
+    public void setLoginCtrl(LoginController loginCtrl) {
+        this.loginCtrl = loginCtrl;
+    }
+
+    public void setSignupCtrl(SignupController signupCtrl) {
+        this.signupCtrl = signupCtrl;
+    }
 
 }

@@ -13,7 +13,7 @@
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<BorderPane prefHeight="1080" prefWidth="1920" stylesheets="@../css/game.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.GameController">
+<BorderPane prefHeight="3000" prefWidth="1920" stylesheets="@../css/game.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.athtech.gomoku.client.gui.controllers.GameController">
 
     <!-- TOP BAR -->
     <top>

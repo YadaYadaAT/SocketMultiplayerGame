@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+// This Class is responsible for handling all connections & sockets
 public class ServerNetworkAdapter {
 
     private ServerSocket srvSocket;
@@ -21,7 +22,7 @@ public class ServerNetworkAdapter {
     private final Map<String, ClientHandler> connectedClients = new ConcurrentHashMap<>();
     //username -clientID
     private final Map<String, String> loggedInClients = new ConcurrentHashMap<>();
-    private final long INACTIVITY_LIMIT_MS = 3 * 60 * 1000; // 3 min (was set low for reviewer testing)
+    private final long INACTIVITY_LIMIT_MS = 3 * 60 * 1000; // 3 min (was set low for reviewer testing) - used to check for connected client inactivity
     private final PersistenceManager persistenceManager;
     private final LobbyController lobbyController;
     private final MatchController matchController;
@@ -48,11 +49,12 @@ public class ServerNetworkAdapter {
         }
     }
 
+    // Server listening loop used to initialize client socket & connection
     private void acceptLoop() {
         while (true) {
             try {
-                Socket clientSocket = srvSocket.accept();
-                clientSocket.setKeepAlive(true);
+                Socket clientSocket = srvSocket.accept(); // Create Server-Side Client Socket
+                clientSocket.setKeepAlive(true); // Periodically sends packets to ensure the connection is still active
                 System.out.println("\uD83D\uDDA5\uFE0F [Server] New client connection from " + clientSocket.getRemoteSocketAddress());
                 ClientHandler handler = new ClientHandler(
                         clientSocket,
@@ -62,13 +64,14 @@ public class ServerNetworkAdapter {
                         matchController
                 );
                 new Thread(handler).start();
-                registerClientConnection(handler.getClientId(), handler);
+                registerClientConnection(handler.getClientId(), handler); // Establish connection
             } catch (IOException e) {
                 System.err.println("\uD83D\uDDA5\uFE0F [Server] Client connection failed: " + e.getMessage());
             }
         }
     }
 
+    // Disconnect a user from the server
     public void forceDisconnectUser(String username) {
         String oldClientId = loggedInClients.get(username);
         if (oldClientId == null) return;
@@ -76,7 +79,7 @@ public class ServerNetworkAdapter {
         ClientHandler oldHandler = connectedClients.get(oldClientId);
         if (oldHandler != null) {
             System.out.println("\uD83D\uDDA5\uFE0F [Server] Forcing disconnect of previous session for user: " + username +
-                    " (clientId=" + oldClientId + ")");
+                    " (clientId=" + oldClientId + ")"); // In case of duplicate log-ins -> discard previous session
             oldHandler.close();
         }
     }
@@ -91,8 +94,10 @@ public class ServerNetworkAdapter {
         System.out.println("\uD83D\uDDA5\uFE0F [Server] Client unregistered: " + clientId);
     }
 
-    public void sendToClient(String username, NetPacket packet) {
+//      ---- PACKET SENDING HANDLERS ----       //
 
+    // Handles packet sending to a specific logged-in user
+    public void sendToClient(String username, NetPacket packet) {
         String clientId = loggedInClients.get(username);
         if (clientId != null) {
             ClientHandler handler = connectedClients.get(clientId);
@@ -100,18 +105,23 @@ public class ServerNetworkAdapter {
         }
     }
 
+    // Handles packet sending to all logged-in users (broadcast messages)
     public void broadcastToLobby(NetPacket packet) {
         connectedClients.values().stream().filter(c -> c.getUsername()!=null)
                 .forEach(h -> h.sendPacket(packet));
     }
 
+    // Handles packet sending to all active clients (broadcast messages)
     public void broadcast(NetPacket packet) {
         connectedClients.values().forEach(h -> h.sendPacket(packet));
     }
 
+//      ----        ----        //
+
+    // Constant loop that checks all clients with logged-in users for inactivity
     private void startInactivityChecker() {
-        new Thread(() -> {
-            while (true) {
+        new Thread(() -> { // runs on its own thread
+            while (true) { // constant loop
                 try {
                     System.out.println("⏱\uFE0F [InactivityChecker] Inactivity checker put to sleep");
                     Thread.sleep( 4* 60 * 1000); // (was set low for reviewer testing)
@@ -120,11 +130,11 @@ public class ServerNetworkAdapter {
 
                     for (ClientHandler client : connectedClients.values()) {
                         String username = client.getUsername();
-                        if (now - client.getLastActivity() > INACTIVITY_LIMIT_MS && username != null) {
-                            persistenceManager.setRelogCode(username, UUID.randomUUID().toString());
+                        if (now - client.getLastActivity() > INACTIVITY_LIMIT_MS && username != null) { // if user is inactive for longer than the inactivity time
+                            persistenceManager.setRelogCode(username, UUID.randomUUID().toString()); // we reset the relogcode
                             System.out.println("⏱\uFE0F [InactivityChecker] Disconnecting inactive client: " + client.getUsername());
                             // send info packet
-                            client.sendPacket(new NetPacket(
+                            client.sendPacket(new NetPacket( // send a generic info packet
                                     PacketType.INFO_RESPONSE,
                                     "server",
                                     new InfoResponse("You have been disconnected due to inactivity.")

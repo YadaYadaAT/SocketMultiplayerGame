@@ -14,9 +14,13 @@ public class GomokuCliGameClient {
             port = 999; // fallback default
         }
 
+        // Create a new CLIView; centralized systemOut class to avoid polluting the controller
         CLIView view = new CLIView();
+        // Create a new ClientNetworkAdapter; this manages socket functionality
         ClientNetworkAdapterImpl adapter = new ClientNetworkAdapterImpl(host, port);
+        // Create the controller; this handles communication with the Server
         CLIController controller = new CLIController(view, adapter);
+        // Separate method to initialize the main controller loop
         controller.run();
     }
 }

@@ -1,8 +1,5 @@
 package com.athtech.gomoku.client.gui.controllers;
 
-import com.athtech.gomoku.client.gui.GomokuFXApp;
-import com.athtech.gomoku.client.gui.GomokuFXCommonToAllControllersData;
-import com.athtech.gomoku.client.gui.GomokuFXNetworkHandler;
 import com.athtech.gomoku.client.gui.enums.View;
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
@@ -12,6 +9,9 @@ import javafx.scene.control.*;
 
 import com.athtech.gomoku.protocol.payload.*;
 
+// Endpoint for Login Screen
+// All FXML components are annotated with @FXML
+// Handles login process
 public class LoginController extends BaseController{
 
     @FXML private TextField txtLoginUser;
@@ -38,6 +38,7 @@ public class LoginController extends BaseController{
         checkLoginEnabled(); // initial check
     }
 
+    // Validation check for login process
     private void checkLoginEnabled() {
         boolean enabled = !txtLoginUser.getText().isBlank() && !txtLoginPwd.getText().isBlank();
         if (btnLogin != null) btnLogin.setDisable(!enabled);
@@ -55,6 +56,7 @@ public class LoginController extends BaseController{
         clientNetwork.sendPacket(new NetPacket(PacketType.LOGIN_REQUEST, username, new LoginRequest(username, password)));
     }
 
+    // Handles switching from login to signup view
     @FXML
     private void handleSwitchSignup(){
         navigator.goTo(View.SIGNUP);
@@ -65,7 +67,7 @@ public class LoginController extends BaseController{
         Platform.runLater(() -> serverLoginResponseMessage.setText(""));
     }
 
-
+    // Store the user data sent by the server in the login response
     public void onLoginResponse(NetPacket packet) {
        LoginResponse resp = (LoginResponse) packet.payload();
         data.setLoggedIn(resp.success());
@@ -79,6 +81,7 @@ public class LoginController extends BaseController{
 
     }
 
+    // Store the user data sent by the server in the resync response
     public void onResyncResponse(NetPacket packet){
         ResyncResponse resp = (ResyncResponse) packet.payload();
         data.setLoggedIn(resp.success());

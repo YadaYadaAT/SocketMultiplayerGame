@@ -1,5 +1,6 @@
 package com.athtech.gomoku.client.gui.enums;
 
+// This class stores the paths to all the different FXML views / roots.
 public enum View {
     INTRO("/com/athtech/gomoku/client/gui/fxml/Intro.fxml"),
     LOGIN("/com/athtech/gomoku/client/gui/fxml/Login.fxml"),

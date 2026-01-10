@@ -14,14 +14,20 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 
+// Used by Dispatcher methods to manage a unique match
 public class MatchController {
 
     private final MatchManagerImpl matchManager;
+
     private final BiConsumer<String, NetPacket> sendToClient;
+
     private final LobbyController lobbyController;
+
     private final PersistenceManager persistence;
+
     // pending invites <targetUsername, list of fromUsername>
     private final Map<String, CopyOnWriteArrayList<String>> pendingInvites = new ConcurrentHashMap<>();
+
     private final Object invitesLock = new Object();
 
     public MatchController(ServerNetworkAdapter server, LobbyController lobbyController, PersistenceManager persistence) {
@@ -38,8 +44,8 @@ public class MatchController {
         try {
             Match match = matchManager.createMatch(player1, player2);
             clearInvitesForMatchPlayers(player1,player2);
-            broadcastMatchCreate(match);
-            lobbyController.broadcastMessageLobbyChat("[server] : ",player1 +" ⚔️ "+player2);
+            broadcastMatchCreate(match); // Server broadcasts match creation to the players who participate in the match
+            lobbyController.broadcastMessageLobbyChat("[server] : ",player1 +" ⚔️ "+player2); // Broadcast a message to all logged-in users
         } catch (IllegalStateException e) {
             sendToClient.accept(player1, new NetPacket(PacketType.INVITE_RESPONSE, "server",
                     new InviteResponse(false, "Cannot create match, one of the players is busy")));
@@ -95,7 +101,6 @@ public class MatchController {
         sendUpdatedStats(match.getPlayer1());
         sendUpdatedStats(match.getPlayer2());
         broadcastRegularMatchEnd(match, reason);
-
     }
 
     public boolean handleGameQuit(String quitter) {
@@ -183,49 +188,50 @@ public class MatchController {
         return invites.stream().map(InviteNotificationResponse::new).toArray(InviteNotificationResponse[]::new);
     }
 
+    // Both end-game and mid-game rematches are routed to this method
     public synchronized void sendRematchRequest(String username, boolean consent) {
         matchManager.getMatchByPlayer(username).ifPresent(match -> {
+            // Declined Rematch Invite
             if (!consent) {
                 try{
                     handleRematchDecline(username,match);
                 }catch (IllegalStateException e){
-                    if (match.isEnded()) {
+                    if (match.isEnded()) { // Declined at end-game
                         //empty so far case of throw on decline at the game end rematch
-                    }else{//midgame rematch decline throw exceptions.
+                    }else{ // Declined at mid-game
                         sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                                 new RematchResponse(true, e.getMessage())));
                     }
                 }
 
+                // Accepted Rematch Invite
             } else {
                 try{
                     handleRematchAccept(username,match);
                 }catch (IllegalStateException e) {
 
-                    if (match.isEnded()) {
+                    if (match.isEnded()) { // Accepted at End-Game
                         sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                                 new RematchResponse(false, e.getMessage())));
                         sendMatchSessionEndResponseToPlayer(username, false);
-                    }else{
+                    }else{ // Accepted at Mid-Game
                         sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                                 new RematchResponse(true, e.getMessage())));
                     }
 
-
-                    if (match.getMatchPlayers().isEmpty()) matchManager.endMatch(match.getMatchId());//remove match if empty of players
+                    if (match.getMatchPlayers().isEmpty()) matchManager.endMatch(match.getMatchId()); //remove match if empty of players
                     return;
                 }
-
             }
 
             if (match.isRematchReady()) {
                 handleRematchReady(match);
             }
-
         });
 
     }
 
+    // Creates new match with the same players after validating rematch checks
     private void handleRematchReady(Match match){
         String p1 = match.getPlayer1();
         String p2 = match.getPlayer2();
@@ -240,11 +246,10 @@ public class MatchController {
             if (match.isEnded()){
                 sendMatchSessionEndResponseToPlayers(p1, p2, false);
             }
-
         }
-
     }
 
+    // Handles declined rematch requests differently for end-game or mid-game rematch requests
     private void handleRematchDecline(String username, Match match){
         match.declineRematch(username);
         if (match.isEnded()) {
@@ -259,7 +264,7 @@ public class MatchController {
                 matchManager.endMatch(match.getMatchId());
             }
 
-        }else{//midGame rematch toggle off
+        }else{ //midGame rematch toggle off
             sendToClient.accept(username, new NetPacket(PacketType.REMATCH_RESPONSE, "server",
                     new RematchResponse(true, "You have set midgame rematch request off")));
             var opponent = match.getmidGameAsyncRematchVotesOpponent(username);
@@ -269,6 +274,7 @@ public class MatchController {
         }
     }
 
+    // Handles accepted rematch requests differently for end-game or mid-game rematch requests
     private void handleRematchAccept(String username, Match match) throws IllegalStateException{
             match.requestRematch(username);
             if (match.isEnded()) {
@@ -312,8 +318,7 @@ public class MatchController {
             }
     }
 
-
-
+    // Send response to both players after match end
     private void sendMatchSessionEndResponseToPlayers(String p1 , String p2, boolean isRematchOn){
         sendToClient.accept(p1, new NetPacket(PacketType.MATCH_SESSION_ENDED_RESPONSE, "server",
                 new MatchSessionEndedResponse(isRematchOn)));
@@ -321,6 +326,7 @@ public class MatchController {
                 new MatchSessionEndedResponse(isRematchOn)));
     }
 
+    // Send response to one player after match end
     private void sendMatchSessionEndResponseToPlayer(String p1 , boolean isRematchOn){
         sendToClient.accept(p1, new NetPacket(PacketType.MATCH_SESSION_ENDED_RESPONSE, "server",
                 new MatchSessionEndedResponse(isRematchOn)));

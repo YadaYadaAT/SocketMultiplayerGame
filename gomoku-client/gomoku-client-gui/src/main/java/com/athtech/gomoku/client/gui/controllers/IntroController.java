@@ -11,6 +11,9 @@ import javafx.scene.text.TextFlow;
 import javafx.util.Duration;
 import javafx.animation.Interpolator;
 
+// Endpoint for game intro scene
+// All FXML components are annotated with @FXML
+// Not responsible for sending any packets
 public class IntroController {
 
     @FXML

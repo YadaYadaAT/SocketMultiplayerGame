@@ -3,6 +3,7 @@ package com.athtech.gomoku.server;
 import com.athtech.gomoku.server.net.ServerNetworkAdapter;
 import com.athtech.gomoku.server.persistence.PersistenceManagerImpl;
 
+// Main Server initialization class
 public class ServerLauncher {
 
 //    private static final int DEFAULT_PORT = 10000;//
@@ -22,6 +23,7 @@ public class ServerLauncher {
 
         System.out.println("Starting Gomoku server on port " + port);
 
+        // Server Socket Handler
         var server = new ServerNetworkAdapter(new PersistenceManagerImpl());
         server.startServer(port);
     }

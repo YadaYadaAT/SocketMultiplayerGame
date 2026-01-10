@@ -21,12 +21,12 @@ public class GomokuFXApp extends Application {
         // ---------- INTRO SCENE ----------
         var introLoader = new FXMLLoader(getClass().getResource("/com/athtech/gomoku/client/gui/fxml/Intro.fxml"));
         Parent introRoot = introLoader.load();
-        IntroController introCtrl = introLoader.getController();
+        IntroController introCtrl = introLoader.getController(); // Keep a reference to the controller so it can react after intro finishes
 
         // Creates the view navigator which will manage scene switching between different FXML views.
         var viewNavigator = new GomokuFXViewNavigator();
 
-        // Preload the LOGIN view FXML and its associated controller.//TODO: will change into an intro scene
+        // Preload the LOGIN view FXML and its associated controller.
         // This ensures the root node and controller are created now, so switching to it later is instant.
         viewNavigator.preload(View.SCENEWRAPPER);
         viewNavigator.preload(View.LOGIN);
@@ -67,12 +67,11 @@ public class GomokuFXApp extends Application {
         // but here we took the bug free guarantee solution to just nuke the objects(no GC problem...rarely happens)
         var networkHandler = new GomokuFXNetworkHandler(cna, data , stage);
 
-        // Set the LoginController reference in the network handler so that LOGIN_RESPONSE packets can be delivered to it.
+        // Set the controllers references in the network handler so that the packets can be delivered to it.
         // The controller was preloaded by the navigator, so we fetch it from the navigator's controller map.
         // (Currently we are about to have like 4-5 maximum controllers with 1:1 fxml, if it scales we
         // might swap to a map or something... currently we set one by one.
         networkHandler.setWrapperCtrl((WrapperController) viewNavigator.getController(View.SCENEWRAPPER));
-        networkHandler.setLoginCtrl((LoginController) viewNavigator.getController(View.INTRO));
         networkHandler.setLoginCtrl((LoginController) viewNavigator.getController(View.LOGIN));
         networkHandler.setSignupCtrl((SignupController) viewNavigator.getController(View.SIGNUP));
         networkHandler.setLobbyCtrl((LobbyController) viewNavigator.getController(View.LOBBY));
@@ -90,7 +89,6 @@ public class GomokuFXApp extends Application {
         // This binds a single callback handler  in the network adapter that processes all incoming packets.
         // When a packet arrives, it calls handleServerPacket() in this network handler, which delegates to
         // the correct corresponding callback methods inside of each controller.
-        // (currently only the info_response packet goes to more than 1 controller, due to being generic)
         networkHandler.initCallbackHandler();
         // Test connection (well a bit of a lie ^^ we just want to trigger the callback to update
         // the header ui )
@@ -104,7 +102,7 @@ public class GomokuFXApp extends Application {
         viewNavigator.setTheContentPane();
 
         // ---------- SETUP SINGLE SCENE ----------
-        Scene mainScene = new Scene(wrapper, 1200, 800);
+        Scene mainScene = new Scene(wrapper);
         stage.setScene(mainScene);
 
         // ---------- SHOW INTRO ----------
@@ -126,7 +124,7 @@ public class GomokuFXApp extends Application {
 
         stage.getIcons().add(new Image(Objects.requireNonNull(getClass().getResourceAsStream("/com/athtech/gomoku/client/gui/images/icon.png"))));
 
-        // Set the window title. ~YadaYada~ <-You  put this title; => bounds to be good...
+        // Set the window title. ~YadaYada~ <-You  put this title; => bound to be good...
         stage.setTitle("YadaYada Gomoku 2026");
 
         // Set the window width.
@@ -141,7 +139,6 @@ public class GomokuFXApp extends Application {
         // Show the window on the screen.
         // At this point, the FX thread takes control and renders the scene.
         // All UI updates from network callbacks must happen on the FX thread using Platform.runLater().
-        // (or at least they should ;D big chance one or two will escape from my attention ^^
         stage.show();
     }
 

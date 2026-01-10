@@ -9,13 +9,19 @@ import com.athtech.gomoku.server.match.MatchController;
 import java.util.*;
 import java.util.function.Consumer;
 
+// This class is responsible for all lobby-related broadcast messages
+// Packet sending to specific users is NOT handled in this class - only global broadcasting
 public class LobbyController {
 
     // logged-in users: <username, clientId>
     private final Map<String, String> loggedInClients ;
+
     private final Consumer<NetPacket> broadcastToLoggedIn;
+
     private MatchController matchController;
+
     Map<String, Boolean> lastSnapshot;
+
     private static final long TICK_MS = 1000;
 
     public LobbyController(Map<String, String> loggedInClients, Collection<ClientHandler> connectedClients,
@@ -25,12 +31,16 @@ public class LobbyController {
         startLobbyThread();
     }
 
+    // Initial implementation was Event-based
+    // However, handling mass events was too heavy on the system
+    // We decided on a loop check (at every [TICK_MS]) that only updates the lobby
+    // based on diffs.
     private void startLobbyThread() {
-        Thread t = new Thread(() -> {
+        Thread t = new Thread(() -> { // runs on its own thread
             while (true) {
                 try {
                     tick();
-                    Thread.sleep(TICK_MS);
+                    Thread.sleep(TICK_MS); // check runs every second
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -45,15 +55,15 @@ public class LobbyController {
     private void tick() {
         Map<String, Boolean> snapshot = new LinkedHashMap<>();
 
-        synchronized (loggedInClients) {
-            for (String user : loggedInClients.keySet()) {
-                snapshot.put(user, matchController.isPlayerInGame(user));
+        synchronized (loggedInClients) { // synchronized to ensure data validity in loggedInClients data structure
+            for (String user : loggedInClients.keySet()) { // for every logged-in user
+                snapshot.put(user, matchController.isPlayerInGame(user)); // add them to the lobby snapshot with an indicator of whether they are currently in a game
             }
         }
 
-        if (!snapshot.equals(lastSnapshot)) {
-            lastSnapshot = snapshot;
-            broadcastLobby(matchController);
+        if (!snapshot.equals(lastSnapshot)) { // if the lobby state is different than what it was [TICK_MS] ago
+            lastSnapshot = snapshot; // update the lobby state
+            broadcastLobby(matchController); // broadcast the new state
         }
     }
 

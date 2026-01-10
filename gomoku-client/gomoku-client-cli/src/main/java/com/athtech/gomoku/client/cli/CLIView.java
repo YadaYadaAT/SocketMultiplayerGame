@@ -2,7 +2,7 @@ package com.athtech.gomoku.client.cli;
 
 import com.athtech.gomoku.protocol.payload.BoardState;
 
-/** All display logic lives here. Keep it simple so view can be swapped later. */
+/** All display logic lives here. Keep it simple so view can be swapped later. Methods signatures should be self-explanatory */
 public class CLIView {
 
     // ANSI escape codes for colors

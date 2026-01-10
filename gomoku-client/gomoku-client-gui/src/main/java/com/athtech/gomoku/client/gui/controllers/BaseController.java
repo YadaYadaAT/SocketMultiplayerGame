@@ -5,12 +5,18 @@ import com.athtech.gomoku.client.gui.GomokuFXNetworkHandler;
 import com.athtech.gomoku.client.gui.GomokuFXViewNavigator;
 import com.athtech.gomoku.protocol.payload.InfoResponse;
 
+// All controllers extend this Base Class
 public abstract class BaseController {
 
     protected GomokuFXViewNavigator navigator;
     protected GomokuFXNetworkHandler clientNetwork;
     protected GomokuFXCommonToAllControllersData data;
 
+    // Initialization method.
+    // Pass reference of:
+    // - navigator (handles root switching)
+    // - network (handles packet routing)
+    // - shared data class
     public final void init(
             GomokuFXViewNavigator navigator,
             GomokuFXNetworkHandler network,

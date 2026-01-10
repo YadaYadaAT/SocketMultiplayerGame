@@ -21,7 +21,7 @@ public class CLIController {
     private volatile boolean rematchPhase = false; //end of game rematch
     private volatile boolean sessionClosing = false; //during logout
     private volatile boolean forceExitGame = false;
-    private volatile long  gameVersion = 0;
+    private volatile long  gameVersion = 0; // var used by client to ensure packets received are the latest ones
 
     private volatile boolean rematchTriggered = false;
     private volatile long lastServerActivity = System.currentTimeMillis();
@@ -57,9 +57,10 @@ public class CLIController {
         this.view = view;
         this.clientNetwork = clientNetwork;
         input = new CLIInputHandler();
-        clientNetwork.setListener(this::handleServerPacket);
+        clientNetwork.setListener(this::handleServerPacket); // Define callback method to be called when packet is received
     }
 
+    // Run the application
     public void run() {
         while (!shouldAppExit) {
             stateIndicator = CLIstateIndicatorHelper.AUTHENTICATION_LOOP;
@@ -70,8 +71,7 @@ public class CLIController {
         view.show("Hope you enjoyed our app. o/");
     }
 
-
-
+    // Resets all temporal session data
     private synchronized void resetSessionState() {
         loggedIn = false;
         sessionClosing = false;
@@ -89,6 +89,7 @@ public class CLIController {
         forceExitGame = false;
     }
 
+    // Displays menu choices to pre-logged-in user
     private void authenticationMenu() {
         view.showLoginScreen();
         switch (input.readChoice()) {
@@ -103,6 +104,7 @@ public class CLIController {
         }
     }
 
+    // Login UI
     private void attemptLoginFlow() {
         view.prompt("Username: ");
         username = input.readLine();
@@ -113,6 +115,7 @@ public class CLIController {
         waitLockAndResync(loginLock);
     }
 
+    // Sign up UI
     private void attemptSignupFlow() {
         view.showSignupPrompt();
         view.prompt("Choose username: ");
@@ -125,6 +128,7 @@ public class CLIController {
         waitLockAndResync(loginLock);
     }
 
+    // Displays menu or in-game choices to logged-in user
     private void mainLoop() {
         while (loggedIn) {
             stateIndicator = CLIstateIndicatorHelper.LOBBY_LOOP;
@@ -144,7 +148,7 @@ public class CLIController {
     // CLIController
     private void runGameLoop() {
 
-        view.showGameStart();
+        view.showGameStart(); // starting screen
         while (inGame && loggedIn && !sessionClosing) {
             stateIndicator = CLIstateIndicatorHelper.GAME_LOOP;
             String rawInput = input.readMoveRaw();
@@ -192,7 +196,7 @@ public class CLIController {
     }
 
 
-
+    // Display all available lobby options to logged-in user
     private void handleLobby() {
         if (inGame || rematchPhase) {
             view.show("You are currently in a game or rematch phase. Lobby actions are disabled.");
@@ -216,6 +220,7 @@ public class CLIController {
         }
     }
 
+    // Handles rematch prompting
     private void handleRematchPrompt() {
         if (!rematchPhase) return;
         view.showRematchPrompt();
@@ -235,23 +240,18 @@ public class CLIController {
         clientNetwork.sendPacket(new NetPacket(PacketType.REMATCH_REQUEST, username, new RematchRequest(wantRematch)));
     }
 
+    // Handles invite sending from one user to another
     private void sendInviteRequest() {
         if (inGame) return;
-//        if (resyncWasTriggered){
+        // request all lobby players from server to ensure correct state (in case of crashes)
+        synchronized (resyncWastriggeredLock) { // we could have only at the latest but its safer this way...
+            clientNetwork.sendPacket(new NetPacket(PacketType.LOBBY_PLAYERS_REQUEST,username,new LobbyPlayersRequest()));
+                try { resyncWastriggeredLock.wait(120_000); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt();}
+        }
 
-//            view.unsynchronizedCallback(
-//                    "Syncing lobby , please wait..."
-//            );
-//            resyncWasTriggered = false;
-            synchronized (resyncWastriggeredLock){// we could have only at the latest but its safer this way...
-                clientNetwork.sendPacket(new NetPacket(PacketType.LOBBY_PLAYERS_REQUEST,username,new LobbyPlayersRequest()));
-                    try { resyncWastriggeredLock.wait(120_000); }
-                    catch (InterruptedException e) { Thread.currentThread().interrupt();}
-            }
-
-//        }
         List<String> snapshot = requestLobbyPlayers();
-        if (snapshot.isEmpty()) return;
+        if (snapshot.isEmpty()) return; // in case of empty lobby, return
 
         view.prompt("Choose a player to invite (number), press `q` to go back: ");
 
@@ -266,6 +266,7 @@ public class CLIController {
             return;
         }
 
+        // send the invite request
         clientNetwork.sendPacket(
                 new NetPacket(
                         PacketType.INVITE_REQUEST,
@@ -275,7 +276,7 @@ public class CLIController {
         );
     }
 
-
+    // Receive a list of available players
     private List<String> requestLobbyPlayers() {
         if (inGame) return List.of();
         if (lobbyPlayers.isEmpty()) {
@@ -303,6 +304,7 @@ public class CLIController {
         return inviteable;
     }
 
+    // Handles most recent received invite (in case of multiple invites, shows only the most recent one)
     private void handleReceivedInviteRequest() {
         synchronized (inviteLock) {
             if(lastInvite == null){
@@ -321,13 +323,13 @@ public class CLIController {
         }
     }
 
+    // Handle resync request (ensure correct server state)
     public void requestResync() {
         if (username == null || relogCode == null) return;
         clientNetwork.requestResync();
     }
 
-
-
+    // Player data
     private void requestPlayerStats() {
         if (inGame || myStats == null) return;
         view.unsynchronizedCallback(
@@ -338,17 +340,19 @@ public class CLIController {
                 ", Draws: " + myStats.draws());
     }
 
-
+    // Ping the server / Test connection
     private void pingToServer(){
         clientNetwork.sendPacket(new NetPacket(PacketType.HANDSHAKE_REQUEST, username,new HandshakeRequest()));
         System.out.println("You just sent a ping request to server... ,(async response is expected)");
     }
 
+    // Send a game quit response to the server
     private void endPreviousMatch(){
         clientNetwork.sendPacket(new NetPacket(PacketType.GAME_QUIT_REQUEST,username,new GameQuitRequest(true)));
         System.out.println("Sent a game quit response to the server");
     }
 
+    // Handle user logout request
     private void requestLogout() {
         if (inGame || sessionClosing) { view.show("Logout already in progress..."); return; }
         sessionClosing = true;
@@ -356,9 +360,9 @@ public class CLIController {
         waitLockAndResync(logoutLock);
     }
 
-
+    // Handle packets sent from the server - for details on each of the packet types, see gomoku-protocol package
     private void handleServerPacket(NetPacket packet) {
-        lastServerActivity = System.currentTimeMillis();
+        lastServerActivity = System.currentTimeMillis(); // keep track of server response time
         if (sessionClosing && packet.type() != PacketType.LOGOUT_RESPONSE
                 && packet.type()!=PacketType.RESYNC_RESPONSE){
             return;
@@ -393,6 +397,9 @@ public class CLIController {
         }
     }
 
+
+// ------ FOLLOWING METHODS ARE CALLED BY THE LISTEN LOOP EVERY TIME A PACKET IS RECEIVED -------
+
     private void onPlayerReconnectedResponse(NetPacket packet){
         PlayerReconnectedResponse res = (PlayerReconnectedResponse) packet.payload();
         view.unsynchronizedCallback(res.msg());
@@ -422,6 +429,7 @@ public class CLIController {
         view.unsynchronizedCallback(handshake.msg());
     }
 
+    // Populate session on login
     private void onLoginResponse(NetPacket packet) {
         LoginResponse resp = (LoginResponse) packet.payload();
         loggedIn = resp.success();
@@ -433,7 +441,6 @@ public class CLIController {
             nickname = resp.nickname();
             username = resp.username();
 
-            // <-- ADD THIS
             if (clientNetwork instanceof ClientNetworkAdapterImpl adapter) {
                 adapter.updateCredentials(username, relogCode);
             }
@@ -446,22 +453,24 @@ public class CLIController {
         }
         notifyAllLock(loginLock);
     }
+
     private void onSignupResponse(NetPacket packet) {
         SignupResponse resp = (SignupResponse) packet.payload();
         view.showCallback(resp.message());
         notifyAllLock(loginLock);
     }
 
+
     private void onLobbyPlayersResponse(NetPacket packet) {
         LobbyPlayersResponse resp = (LobbyPlayersResponse) packet.payload();
         if (inGame){
-            onLobbyPlayersFromPayload(resp.players(), false);
+            onLobbyPlayersFromPayload(resp.players(), false); // Do not display active lobby members if user is in game
         }else{
             onLobbyPlayersFromPayload(resp.players(), true);
         }
-
     }
 
+    // Helper method to populate lobby
     private void onLobbyPlayersFromPayload(Map<String, Boolean> players, boolean printOn) {
         lobbyPlayers.clear();
 
@@ -485,9 +494,7 @@ public class CLIController {
             view.showLobby(sb.toString());
         }
 
-
         notifyAllLock(resyncWastriggeredLock);
-
     }
 
     private void onInviteNotificationResponse(NetPacket packet) {
@@ -511,14 +518,14 @@ public class CLIController {
             }else{
                 view.showCallback(resp.targetUsername() + " declined your invitation");
             }
-
         }
         notifyAllLock(gameLock);
     }
 
+    // Transition from lobby to game flow
     private void onGameStartResponse(NetPacket packet) {
         gameVersion = 0;// reset version..
-        GameStateResponse gs = (GameStateResponse) packet.payload();
+        GameStateResponse gs = (GameStateResponse) packet.payload(); // receive game state from server
         view.showBoard(gs.board(), username, gs.player1());
         boolean yourTurn = gs.currentPlayer().equals(username);
         // Fake "press enter" workaround – only on first game
@@ -565,6 +572,7 @@ public class CLIController {
         onGameStateFromPayload(gs);
     }
 
+    // All logic of the above method lives here
     private void onGameStateFromPayload(GameStateResponse gs){
         if (gs.version() < gameVersion) {
             // old packet, ignore
@@ -595,8 +603,7 @@ public class CLIController {
         GameEndResponse end = (GameEndResponse) packet.payload();
         if (end.reason() == MatchEndReason.MID_GAME_REMATCH){
             //code here wont be ever triggered since midgame rematch never
-            // sends onGameEndResponse ;...was meant to do initially and might change later.
-            // since the development ends here we let it be...
+            // sends onGameEndResponse ; leave for future scalability
         }else{
             //Not interuppted by midgame rematch :
             // Update session flags
@@ -650,6 +657,7 @@ public class CLIController {
         view.showCallback(resp.message());
     }
 
+    // terminate entire game session
     private void onMatchSessionEndedResponse(NetPacket packet) {
         gameVersion = 0;
         MatchSessionEndedResponse resp = (MatchSessionEndedResponse) packet.payload();
@@ -707,22 +715,20 @@ public class CLIController {
         notifyAllLock(gameLock);
     }
 
+    // Repopulate session data on successful resync or reset everything, forcing user to login again
     private void onResyncResponse(NetPacket packet) {
         ResyncResponse resp = (ResyncResponse) packet.payload();
-
-
 
         if (!resp.success()) {
             view.showCallback("Resync attempt rejected: " + resp.message());
             resetSessionState();
-            wakeAllLocks();
+            wakeAllLocks(); // Unlock all relevant methods
             return;
         }
 
         synchronized (resyncLock) {
             resyncLock.notifyAll();
         }
-
 
         loggedIn = true;
         sessionClosing = false;
@@ -755,8 +761,6 @@ public class CLIController {
     }
 
 
-
-
     private void onPlayerInactivityWarningResponse(NetPacket packet){
         PlayerInactivityWarningResponse pck = (PlayerInactivityWarningResponse) packet.payload();
         view.showCallback(pck.message());
@@ -783,35 +787,37 @@ public class CLIController {
         view.showCallback(msg);
     }
 
+    // Used by all the callback methods above to wake them up
+    private void notifyAllLock(Object lock) {
+        synchronized (lock) { lock.notifyAll(); }
+    }
+
+// ---------------
+
+    // The following method is used after any packet is sent to the server. It checks for valid server response times - if a server response has not arrived after 6 seconds from the time that the request was sent, a resync is requested.
     private void waitLockAndResync(Object lock){
-        long sentAt = System.currentTimeMillis();
+        long sentAt = System.currentTimeMillis(); // log the time that client sends a request
         if (clientNetwork.getState() == NetState.CONNECTED) {
             new Thread(() -> {
                 try {
-                    Thread.sleep(6_000);
+                    Thread.sleep(6_000); // start a new thread and wait 6 secs
                 } catch (InterruptedException ignored) {}
 
-                if (lastServerActivity < sentAt) {
+                if (lastServerActivity < sentAt) { // if the most recent server activity is before the time that the request was sent, we assume the server is unresponsive
                     view.showCallback("No server activity detected. Attempting resync...");
-                    requestResync();
+                    requestResync(); // request resync with server
                 }
             }).start();
         };
 
-        synchronized (lock) {
+        synchronized (lock) { // use mutex to block main thread until resync is complete
             try { lock.wait(0); }
             catch (InterruptedException e) { Thread.currentThread().interrupt();}
         }
     }
 
-    private void notifyAllLock(Object lock) {
-        synchronized (lock) { lock.notifyAll(); }
-    }
 
-    public boolean getIsInGame() {
-        return inGame;
-    }
-
+    // resets all flow variables after quitting game
     private void abortGameSession(String reason) {
         view.showCallbackHighlight(reason);
 
@@ -837,7 +843,4 @@ public class CLIController {
         notifyAllLock(rematchLock);
         notifyAllLock(resyncWastriggeredLock);
     }
-
-
-
 }
