@@ -1,5 +1,5 @@
 package com.athtech.gomoku.protocol.messaging;
-
+//STUDENTS-CODE-NUMBER : CSY-22115
 import java.io.Serializable;
 
 // Server and client communicate only through NetPackets. Everything else is rejected.

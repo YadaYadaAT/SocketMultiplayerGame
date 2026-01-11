@@ -1,5 +1,5 @@
 package com.athtech.gomoku.protocol.payload;
-
+//STUDENTS-CODE-NUMBER : CSY-22115
 import java.io.Serializable;
 
 // boolean midGame is set to true if the rematch request was sent on a running game

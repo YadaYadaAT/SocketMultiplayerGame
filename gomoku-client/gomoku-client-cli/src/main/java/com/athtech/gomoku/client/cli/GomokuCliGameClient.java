@@ -1,5 +1,5 @@
 package com.athtech.gomoku.client.cli;
-
+//STUDENTS-CODE-NUMBER : CSY-22117
 import com.athtech.gomoku.client.net.ClientNetworkAdapterImpl;
 
 public class GomokuCliGameClient {
