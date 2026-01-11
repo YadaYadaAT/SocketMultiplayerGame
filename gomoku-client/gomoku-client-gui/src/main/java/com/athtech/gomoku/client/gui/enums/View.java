@@ -1,5 +1,5 @@
 package com.athtech.gomoku.client.gui.enums;
-
+//STUDENTS-CODE-NUMBER : CSY-22117
 // This class stores the paths to all the different FXML views / roots.
 public enum View {
     INTRO("/com/athtech/gomoku/client/gui/fxml/Intro.fxml"),

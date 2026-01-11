@@ -1,5 +1,5 @@
 package com.athtech.gomoku.client.net;
-
+//STUDENTS-CODE-NUMBER : CSY-22117
 import com.athtech.gomoku.protocol.messaging.NetPacket;
 import com.athtech.gomoku.protocol.messaging.PacketType;
 import com.athtech.gomoku.protocol.payload.ResyncRequest;

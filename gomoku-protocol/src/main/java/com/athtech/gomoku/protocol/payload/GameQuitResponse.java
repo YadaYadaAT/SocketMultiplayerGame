@@ -1,5 +1,5 @@
 package com.athtech.gomoku.protocol.payload;
-
+//STUDENTS-CODE-NUMBER : CSY-22115
 import java.io.Serializable;
 
 // boolean isGameQuitReqAccepted is used to inform the client whether the action of quitting the game has gone through

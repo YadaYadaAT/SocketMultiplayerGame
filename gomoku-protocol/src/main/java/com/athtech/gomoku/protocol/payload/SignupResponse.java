@@ -1,5 +1,5 @@
 package com.athtech.gomoku.protocol.payload;
-
+//STUDENTS-CODE-NUMBER : CSY-22115
 import java.io.Serializable;
 
 // If username already exists or does not follow guidelines, success is set to false
